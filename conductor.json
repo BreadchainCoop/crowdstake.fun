@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "setup": "# Copy configuration files\n# cp \"$CONDUCTOR_ROOT_PATH/.env\" .\n\n# Install dependencies\n# pnpm install\nforge install\ncp .env.example .env"
+  },
+  "runScriptMode": "concurrent"
+}
