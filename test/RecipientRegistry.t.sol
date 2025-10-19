@@ -16,7 +16,7 @@ contract RecipientRegistryTest is TestWrapper {
     event RecipientQueued(address indexed recipient, bool isAddition);
     event RecipientAdded(address indexed recipient);
     event RecipientRemoved(address indexed recipient);
-    event QueueProcessed(uint256 added, uint256 removed);
+    event QueueProcessed(address[] addedRecipients, address[] removedRecipients, address[] newRecipientList);
 
     function setUp() public {
         registry = new RecipientRegistry();
@@ -60,8 +60,6 @@ contract RecipientRegistryTest is TestWrapper {
         emit RecipientAdded(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
         emit RecipientAdded(RECIPIENT_2);
-        vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(2, 0);
 
         registry.processQueue();
 
@@ -105,8 +103,6 @@ contract RecipientRegistryTest is TestWrapper {
         emit RecipientRemoved(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
         emit RecipientRemoved(RECIPIENT_3);
-        vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(0, 2);
 
         registry.processQueue();
 
@@ -130,9 +126,6 @@ contract RecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_3);
         registry.queueRecipientAddition(RECIPIENT_4);
         registry.queueRecipientRemoval(RECIPIENT_1);
-
-        vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(2, 1);
 
         registry.processQueue();
 
