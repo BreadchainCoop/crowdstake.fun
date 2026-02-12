@@ -100,10 +100,7 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
     /// @param admin The address that will have administrative control (limited to emergency functions)
     /// @param initialRecipients Array of addresses that will be the initial voting recipients
     /// @param _proposalExpiry Time limit in seconds for how long proposals remain valid for voting
-    function initialize(address admin, address[] memory initialRecipients, uint256 _proposalExpiry)
-        public
-        initializer
-    {
+    function initialize(address admin, address[] memory initialRecipients, uint256 _proposalExpiry) public initializer {
         __Ownable_init(admin);
 
         if (initialRecipients.length == 0) revert NoRecipients();
@@ -296,10 +293,24 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
     function getProposal(uint256 proposalId)
         external
         view
-        returns (address candidate, bool isAddition, uint256 voteCount, bool executed, uint256 createdAt, uint256 requiredVotes_)
+        returns (
+            address candidate,
+            bool isAddition,
+            uint256 voteCount,
+            bool executed,
+            uint256 createdAt,
+            uint256 requiredVotes_
+        )
     {
         Proposal storage proposal = proposals[proposalId];
-        return (proposal.candidate, proposal.isAddition, proposal.voteCount, proposal.executed, proposal.createdAt, proposal.requiredVotes);
+        return (
+            proposal.candidate,
+            proposal.isAddition,
+            proposal.voteCount,
+            proposal.executed,
+            proposal.createdAt,
+            proposal.requiredVotes
+        );
     }
 
     /// @notice Check if a specific address has voted on a proposal

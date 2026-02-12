@@ -12,10 +12,7 @@ interface IDistributionStrategy {
     /// @param fixedAmount Amount allocated to fixed distribution
     /// @param votedAmount Amount allocated to voted distribution
     event DistributionCalculated(
-        uint256 indexed distributionId,
-        uint256 totalYield,
-        uint256 fixedAmount,
-        uint256 votedAmount
+        uint256 indexed distributionId, uint256 totalYield, uint256 fixedAmount, uint256 votedAmount
     );
 
     /// @notice Emitted when the strategy divisor is updated

@@ -16,8 +16,7 @@ contract VotingModule is IVotingModule, OwnableUpgradeable, EIP712Upgradeable {
     using ECDSA for bytes32;
 
     /// @notice EIP-712 typehash for vote signatures
-    bytes32 public constant VOTE_TYPEHASH =
-        keccak256("Vote(address voter,uint256[] points,uint256 nonce)");
+    bytes32 public constant VOTE_TYPEHASH = keccak256("Vote(address voter,uint256[] points,uint256 nonce)");
 
     /// @notice Maximum points a voter can allocate across all recipients
     uint256 public maxPoints;
@@ -118,17 +117,18 @@ contract VotingModule is IVotingModule, OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /// @inheritdoc IVotingModule
-    function castVoteWithMultipliers(uint256[] calldata points, uint256[] calldata multiplierIndices) external override {
+    function castVoteWithMultipliers(uint256[] calldata points, uint256[] calldata multiplierIndices)
+        external
+        override
+    {
         _vote(msg.sender, points);
     }
 
     /// @inheritdoc IVotingModule
-    function castVoteWithSignature(
-        address voter,
-        uint256[] calldata points,
-        uint256 nonce,
-        bytes calldata signature
-    ) external override {
+    function castVoteWithSignature(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
+        external
+        override
+    {
         _verifySignature(voter, points, nonce, signature);
         _vote(voter, points);
     }
@@ -141,9 +141,7 @@ contract VotingModule is IVotingModule, OwnableUpgradeable, EIP712Upgradeable {
         bytes[] calldata signatures
     ) external override {
         require(
-            voters.length == points.length &&
-            voters.length == nonces.length &&
-            voters.length == signatures.length,
+            voters.length == points.length && voters.length == nonces.length && voters.length == signatures.length,
             "Array length mismatch"
         );
 
@@ -183,15 +181,13 @@ contract VotingModule is IVotingModule, OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /// @inheritdoc IVotingModule
-    function validateSignature(
-        address voter,
-        uint256[] calldata points,
-        uint256 nonce,
-        bytes calldata signature
-    ) external view override returns (bool) {
-        bytes32 structHash = keccak256(
-            abi.encode(VOTE_TYPEHASH, voter, keccak256(abi.encodePacked(points)), nonce)
-        );
+    function validateSignature(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
+        external
+        view
+        override
+        returns (bool)
+    {
+        bytes32 structHash = keccak256(abi.encode(VOTE_TYPEHASH, voter, keccak256(abi.encodePacked(points)), nonce));
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
         return signer == voter && !usedNonces[voter][nonce];
@@ -320,17 +316,12 @@ contract VotingModule is IVotingModule, OwnableUpgradeable, EIP712Upgradeable {
         emit VoteCast(voter, points, votingPower);
     }
 
-    function _verifySignature(
-        address voter,
-        uint256[] calldata points,
-        uint256 nonce,
-        bytes calldata signature
-    ) internal {
+    function _verifySignature(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
+        internal
+    {
         if (usedNonces[voter][nonce]) revert NonceAlreadyUsed();
 
-        bytes32 structHash = keccak256(
-            abi.encode(VOTE_TYPEHASH, voter, keccak256(abi.encodePacked(points)), nonce)
-        );
+        bytes32 structHash = keccak256(abi.encode(VOTE_TYPEHASH, voter, keccak256(abi.encodePacked(points)), nonce));
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
 

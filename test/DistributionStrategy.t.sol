@@ -7,7 +7,9 @@ import "../src/modules/DistributionStrategy.sol";
 contract DistributionStrategyTest is Test {
     DistributionStrategy public strategy;
 
-    event DistributionCalculated(uint256 indexed distributionId, uint256 totalYield, uint256 fixedAmount, uint256 votedAmount);
+    event DistributionCalculated(
+        uint256 indexed distributionId, uint256 totalYield, uint256 fixedAmount, uint256 votedAmount
+    );
     event StrategyDivisorUpdated(uint256 oldDivisor, uint256 newDivisor);
 
     function setUp() public {

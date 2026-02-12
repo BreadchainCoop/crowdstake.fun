@@ -14,7 +14,11 @@ contract ValidatorWrapper {
         YieldDistributionValidator.validateYieldForVotingPower(yieldAmount, recipientCount);
     }
 
-    function calculateDistributionRemainder(uint256 yieldAmount, uint256 recipientCount) external pure returns (uint256) {
+    function calculateDistributionRemainder(uint256 yieldAmount, uint256 recipientCount)
+        external
+        pure
+        returns (uint256)
+    {
         return YieldDistributionValidator.calculateDistributionRemainder(yieldAmount, recipientCount);
     }
 }
@@ -38,11 +42,7 @@ contract YieldDistributionValidatorTest is Test {
 
     function test_ValidateYieldDistribution_RevertInsufficientYield() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldDistributionValidator.InsufficientYieldForRecipients.selector,
-                5,
-                10
-            )
+            abi.encodeWithSelector(YieldDistributionValidator.InsufficientYieldForRecipients.selector, 5, 10)
         );
         wrapper.validateYieldDistribution(5, 10);
     }

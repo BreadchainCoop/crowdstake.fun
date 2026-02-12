@@ -34,17 +34,32 @@ abstract contract BaseToken is ERC20VotesUpgradeable, Ownable, IBreadKitToken {
 
     /// @dev MUST implement in derived contract
     /// logic to deposit user collateral into yield bearing position
-    function _deposit(uint256 /*amount_*/ ) internal virtual {}
+    function _deposit(
+        uint256 /*amount_*/
+    )
+        internal
+        virtual {}
 
     /// @dev OPTIONAL to implement in derived contract
     /// logic to deposit native token into yield bearing position
-    function _depositNative(uint256 /*amount_*/ ) internal virtual {
+    function _depositNative(
+        uint256 /*amount_*/
+    )
+        internal
+        virtual
+    {
         revert("native deposits not supported");
     }
 
     /// @dev MUST implement in derived contract
     /// logic to remit collateral value to user
-    function _remit(address, /*receiver_*/ uint256 /*amount_*/ ) internal virtual {}
+    function _remit(
+        address,
+        /*receiver_*/
+        uint256 /*amount_*/
+    )
+        internal
+        virtual {}
 
     /// @dev MUST implement in derived contract
     /// logic to calculate unclaimed accrued yield

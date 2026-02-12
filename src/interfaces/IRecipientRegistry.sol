@@ -25,11 +25,7 @@ interface IRecipientRegistry {
     /// @param addedRecipients Array of recipient addresses that were added
     /// @param removedRecipients Array of recipient addresses that were removed
     /// @param newRecipientList The complete list of active recipients after processing
-    event QueueProcessed(
-        address[] addedRecipients,
-        address[] removedRecipients,
-        address[] newRecipientList
-    );
+    event QueueProcessed(address[] addedRecipients, address[] removedRecipients, address[] newRecipientList);
 
     // Errors
     /// @notice Thrown when attempting to use the zero address as a recipient
