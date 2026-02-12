@@ -48,7 +48,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
-        (address candidate, bool isAddition, uint256 voteCount, bool executed, uint256 createdAt) =
+        (address candidate, bool isAddition, uint256 voteCount, bool executed, uint256 createdAt,) =
             registry.getProposal(proposalId);
 
         assertEq(candidate, NEW_RECIPIENT);
@@ -69,7 +69,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         emit VoteCast(proposalId, RECIPIENT_2);
         registry.vote(proposalId);
 
-        (,, uint256 voteCount,,) = registry.getProposal(proposalId);
+        (,, uint256 voteCount,,,) = registry.getProposal(proposalId);
         assertEq(voteCount, 2);
         assertTrue(registry.hasVoted(proposalId, RECIPIENT_2));
     }
@@ -88,7 +88,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
 
         // Verify proposal is executed but recipient not yet added (still in queue)
-        (,,, bool executed,) = registry.getProposal(proposalId);
+        (,,, bool executed,,) = registry.getProposal(proposalId);
         assertTrue(executed);
         assertFalse(registry.isRecipient(NEW_RECIPIENT)); // Not yet processed
         assertTrue(registry.isQueuedForAddition(NEW_RECIPIENT)); // Still in queue
@@ -132,7 +132,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
 
         // Verify the proposal was executed but recipient not yet added
-        (,,, bool executed,) = registry.getProposal(proposalId);
+        (,,, bool executed,,) = registry.getProposal(proposalId);
         assertTrue(executed);
         assertFalse(registry.isRecipient(address(0x99))); // Not yet processed
         assertTrue(registry.isQueuedForAddition(address(0x99))); // Still in queue
@@ -146,7 +146,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeRemoval(RECIPIENT_3);
 
-        (address candidate, bool isAddition, uint256 voteCount,,) = registry.getProposal(proposalId);
+        (address candidate, bool isAddition, uint256 voteCount,,,) = registry.getProposal(proposalId);
 
         assertEq(candidate, RECIPIENT_3);
         assertFalse(isAddition);
@@ -165,7 +165,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
 
         // Should auto-execute proposal with 2 votes (but not process queue)
-        (,,, bool executed,) = registry.getProposal(proposalId);
+        (,,, bool executed,,) = registry.getProposal(proposalId);
         assertTrue(executed);
 
         // Verify recipient is still active (not yet processed)

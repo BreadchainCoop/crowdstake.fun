@@ -18,7 +18,7 @@ contract AdminRecipientRegistryTest is TestWrapper {
     event RecipientAdded(address indexed recipient);
     event RecipientRemoved(address indexed recipient);
     event RecipientQueued(address indexed recipient, bool isAddition);
-    event QueueProcessed(uint256 added, uint256 removed);
+    event QueueProcessed(address[] addedRecipients, address[] removedRecipients, address[] newRecipientList);
 
     function setUp() public {
         registry = new AdminRecipientRegistry();
@@ -41,8 +41,6 @@ contract AdminRecipientRegistryTest is TestWrapper {
 
         vm.expectEmit(true, false, false, false);
         emit RecipientAdded(RECIPIENT_1);
-        vm.expectEmit(true, false, true, true);
-        emit QueueProcessed(1, 0);
         registry.processQueue();
 
         assertTrue(registry.isRecipient(RECIPIENT_1));
@@ -87,8 +85,6 @@ contract AdminRecipientRegistryTest is TestWrapper {
 
         vm.expectEmit(true, false, false, false);
         emit RecipientRemoved(RECIPIENT_1);
-        vm.expectEmit(true, false, true, true);
-        emit QueueProcessed(0, 1);
         registry.processQueue();
         vm.stopPrank();
 

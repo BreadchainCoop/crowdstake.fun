@@ -24,6 +24,17 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     /// @dev Maps recipient address to true if active, false otherwise
     mapping(address => bool) public isRecipientMapping;
 
+    /// @notice Mapping to quickly check if an address is queued for addition
+    /// @dev Optimizes O(n) lookups to O(1) for large queues (issue #45)
+    mapping(address => bool) internal _isQueuedForAddition;
+
+    /// @notice Mapping to quickly check if an address is queued for removal
+    /// @dev Optimizes O(n) lookups to O(1) for large queues (issue #45)
+    mapping(address => bool) internal _isQueuedForRemoval;
+
+    /// @notice Error thrown when a recipient address has no code but is expected to be a contract
+    error RecipientNotContract();
+
     // Events and errors are inherited from IRecipientRegistry interface
 
     /// @notice Internal function to queue a recipient for addition
@@ -35,14 +46,9 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     function _queueForAddition(address recipient) internal {
         if (recipient == address(0)) revert InvalidRecipient();
         if (isRecipientMapping[recipient]) revert RecipientAlreadyExists();
+        if (_isQueuedForAddition[recipient]) revert RecipientAlreadyQueued();
 
-        // Check if already queued to prevent duplicates
-        for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
-            if (queuedRecipientsForAddition[i] == recipient) {
-                revert RecipientAlreadyQueued();
-            }
-        }
-
+        _isQueuedForAddition[recipient] = true;
         queuedRecipientsForAddition.push(recipient);
         emit RecipientQueued(recipient, true);
     }
@@ -55,14 +61,9 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     /// @dev Access control should be implemented in the calling public function
     function _queueForRemoval(address recipient) internal {
         if (!isRecipientMapping[recipient]) revert RecipientNotFound();
+        if (_isQueuedForRemoval[recipient]) revert RecipientAlreadyQueued();
 
-        // Check if already queued for removal to prevent duplicates
-        for (uint256 i = 0; i < queuedRecipientsForRemoval.length; i++) {
-            if (queuedRecipientsForRemoval[i] == recipient) {
-                revert RecipientAlreadyQueued();
-            }
-        }
-
+        _isQueuedForRemoval[recipient] = true;
         queuedRecipientsForRemoval.push(recipient);
         emit RecipientQueued(recipient, false);
     }
@@ -78,55 +79,77 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     /// @dev Processes all queued additions and removals, then clears the queues
     /// @dev Emits RecipientAdded/RecipientRemoved for each change and QueueProcessed at the end
     function _processQueue() internal {
-        uint256 addedCount = queuedRecipientsForAddition.length;
+        // Cache addition/removal arrays for event emission
+        address[] memory addedRecipients = queuedRecipientsForAddition;
         uint256 removedCount = 0;
 
         // Add all queued recipients
-        for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
-            address recipient = queuedRecipientsForAddition[i];
+        for (uint256 i = 0; i < addedRecipients.length; i++) {
+            address recipient = addedRecipients[i];
             recipients.push(recipient);
             isRecipientMapping[recipient] = true;
+            _isQueuedForAddition[recipient] = false;
             emit RecipientAdded(recipient);
         }
 
         // Process removals by rebuilding the recipients array
-        if (queuedRecipientsForRemoval.length > 0) {
+        // Use mapping for O(1) lookup instead of nested loop (issue #45)
+        address[] memory removedRecipients = queuedRecipientsForRemoval;
+        if (removedRecipients.length > 0) {
             address[] memory oldRecipients = recipients;
             delete recipients;
 
             for (uint256 i = 0; i < oldRecipients.length; i++) {
                 address recipient = oldRecipients[i];
-                bool shouldRemove = false;
-
-                // Check if this recipient should be removed
-                for (uint256 j = 0; j < queuedRecipientsForRemoval.length; j++) {
-                    if (recipient == queuedRecipientsForRemoval[j]) {
-                        shouldRemove = true;
-                        isRecipientMapping[recipient] = false;
-                        removedCount++;
-                        emit RecipientRemoved(recipient);
-                        break;
-                    }
-                }
-
-                // Keep recipient if not marked for removal
-                if (!shouldRemove) {
+                if (_isQueuedForRemoval[recipient]) {
+                    isRecipientMapping[recipient] = false;
+                    _isQueuedForRemoval[recipient] = false;
+                    removedCount++;
+                    emit RecipientRemoved(recipient);
+                } else {
                     recipients.push(recipient);
                 }
             }
+        }
+
+        // Build actual removed array (may differ if some were invalid)
+        address[] memory actualRemoved;
+        if (removedCount == removedRecipients.length) {
+            actualRemoved = removedRecipients;
+        } else {
+            actualRemoved = new address[](removedCount);
+            uint256 idx = 0;
+            for (uint256 i = 0; i < removedRecipients.length && idx < removedCount; i++) {
+                if (!isRecipientMapping[removedRecipients[i]] || removedRecipients[i] == address(0)) {
+                    // was actually removed
+                }
+                // All queued removals that were recipients get removed, so this branch is just safety
+                actualRemoved[idx++] = removedRecipients[i];
+            }
+        }
+
+        // Clear remaining removal mappings (in case some weren't processed)
+        for (uint256 i = 0; i < removedRecipients.length; i++) {
+            _isQueuedForRemoval[removedRecipients[i]] = false;
         }
 
         // Clear both queues after processing
         delete queuedRecipientsForAddition;
         delete queuedRecipientsForRemoval;
 
-        emit QueueProcessed(addedCount, removedCount);
+        // Get current recipient list for event
+        address[] memory currentRecipients = recipients;
+
+        emit QueueProcessed(addedRecipients, actualRemoved, currentRecipients);
     }
 
     /// @notice Clear the addition queue without processing
     /// @dev Only owner can clear the queue. Use this to cancel all pending additions
     /// @dev This will remove all addresses from the addition queue without adding them
     function clearAdditionQueue() external onlyOwner {
+        for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
+            _isQueuedForAddition[queuedRecipientsForAddition[i]] = false;
+        }
         delete queuedRecipientsForAddition;
     }
 
@@ -134,6 +157,9 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     /// @dev Only owner can clear the queue. Use this to cancel all pending removals
     /// @dev This will remove all addresses from the removal queue without removing them
     function clearRemovalQueue() external onlyOwner {
+        for (uint256 i = 0; i < queuedRecipientsForRemoval.length; i++) {
+            _isQueuedForRemoval[queuedRecipientsForRemoval[i]] = false;
+        }
         delete queuedRecipientsForRemoval;
     }
 
@@ -169,24 +195,14 @@ abstract contract BaseRecipientRegistry is IRecipientRegistry, OwnableUpgradeabl
     /// @param recipient Address to check in the addition queue
     /// @return isQueued True if the address is queued for addition, false otherwise
     function isQueuedForAddition(address recipient) external view returns (bool isQueued) {
-        for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
-            if (queuedRecipientsForAddition[i] == recipient) {
-                return true;
-            }
-        }
-        return false;
+        return _isQueuedForAddition[recipient];
     }
 
     /// @notice Check if an address is queued for removal
     /// @param recipient Address to check in the removal queue
     /// @return isQueued True if the address is queued for removal, false otherwise
     function isQueuedForRemoval(address recipient) external view returns (bool isQueued) {
-        for (uint256 i = 0; i < queuedRecipientsForRemoval.length; i++) {
-            if (queuedRecipientsForRemoval[i] == recipient) {
-                return true;
-            }
-        }
-        return false;
+        return _isQueuedForRemoval[recipient];
     }
 
     /// @notice Check if an address is currently an active recipient

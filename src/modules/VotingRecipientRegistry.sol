@@ -24,6 +24,9 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
         bool executed;
         /// @notice Timestamp when this proposal was created (for expiry calculation)
         uint256 createdAt;
+        /// @notice Required votes snapshot at proposal creation time (issue #43)
+        /// @dev Prevents threshold changes during voting from affecting outcome
+        uint256 requiredVotes;
     }
 
     /// @notice Mapping from proposal ID to proposal data
@@ -207,6 +210,8 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
         proposal.candidate = candidate;
         proposal.isAddition = isAddition;
         proposal.createdAt = block.timestamp;
+        // Snapshot required votes at creation time (issue #43)
+        proposal.requiredVotes = isAddition ? recipients.length : recipients.length - 1;
 
         // Proposer automatically votes for their proposal
         proposal.hasVoted[msg.sender] = true;
@@ -237,9 +242,8 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
 
         emit VoteCast(proposalId, msg.sender);
 
-        // Check if we have enough votes to execute automatically
-        uint256 requiredVotes = proposal.isAddition ? recipients.length : recipients.length - 1;
-        if (proposal.voteCount == requiredVotes) {
+        // Check if we have enough votes to execute automatically (uses snapshot from creation)
+        if (proposal.voteCount == proposal.requiredVotes) {
             _executeProposal(proposalId);
         }
     }
@@ -256,10 +260,7 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
         if (proposal.executed) revert ProposalAlreadyExecuted();
         if (block.timestamp > proposal.createdAt + proposalExpiry) revert ProposalExpired();
 
-        // Calculate required votes based on proposal type
-        uint256 requiredVotes = proposal.isAddition ? recipients.length : recipients.length - 1;
-
-        if (proposal.voteCount < requiredVotes) revert NotEnoughVotes();
+        if (proposal.voteCount < proposal.requiredVotes) revert NotEnoughVotes();
 
         _executeProposal(proposalId);
     }
@@ -295,10 +296,10 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
     function getProposal(uint256 proposalId)
         external
         view
-        returns (address candidate, bool isAddition, uint256 voteCount, bool executed, uint256 createdAt)
+        returns (address candidate, bool isAddition, uint256 voteCount, bool executed, uint256 createdAt, uint256 requiredVotes_)
     {
         Proposal storage proposal = proposals[proposalId];
-        return (proposal.candidate, proposal.isAddition, proposal.voteCount, proposal.executed, proposal.createdAt);
+        return (proposal.candidate, proposal.isAddition, proposal.voteCount, proposal.executed, proposal.createdAt, proposal.requiredVotes);
     }
 
     /// @notice Check if a specific address has voted on a proposal
@@ -321,21 +322,13 @@ contract VotingRecipientRegistry is BaseRecipientRegistry {
         return block.timestamp > proposal.createdAt + proposalExpiry;
     }
 
-    // TODO: Temporarily commented out pending resolution of issue #43
-    // See: https://github.com/BreadchainCoop/breadkit/issues/43
-
-    // /// @notice Calculate the number of votes required for a proposal to pass
-    // /// @dev Addition proposals require all current recipients to vote (100% consensus)
-    // /// @dev Removal proposals require all recipients except the one being removed
-    // /// @dev This number can change if recipients are added/removed while proposal is active
-    // /// @param proposalId The ID of the proposal to check requirements for
-    // /// @return requiredVotes Number of votes needed for the proposal to be executable
-    // function getRequiredVotes(uint256 proposalId) external view returns (uint256 requiredVotes) {
-    //     Proposal storage proposal = proposals[proposalId];
-    //     if (proposal.candidate == address(0)) revert ProposalNotFound();
-
-    //     // Addition proposals need unanimous consent from all current recipients
-    //     // Removal proposals need consent from all recipients except the one being removed
-    //     return proposal.isAddition ? recipients.length : recipients.length - 1;
-    // }
+    /// @notice Get the number of votes required for a proposal to pass
+    /// @dev Returns the snapshot taken at proposal creation time (issue #43)
+    /// @param proposalId The ID of the proposal to check requirements for
+    /// @return requiredVotes_ Number of votes needed for the proposal to be executable
+    function getRequiredVotes(uint256 proposalId) external view returns (uint256 requiredVotes_) {
+        Proposal storage proposal = proposals[proposalId];
+        if (proposal.candidate == address(0)) revert ProposalNotFound();
+        return proposal.requiredVotes;
+    }
 }
