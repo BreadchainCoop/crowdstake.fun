@@ -15,7 +15,7 @@ contract RecipientRegistryTest is TestWrapper {
     event RecipientQueued(address indexed recipient, bool isAddition);
     event RecipientAdded(address indexed recipient);
     event RecipientRemoved(address indexed recipient);
-    event QueueProcessed(uint256 added, uint256 removed);
+    event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     function setUp() public {
         registry = new RecipientRegistry();
@@ -55,12 +55,20 @@ contract RecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
 
+        address[] memory expectedAdded = new address[](2);
+        expectedAdded[0] = RECIPIENT_1;
+        expectedAdded[1] = RECIPIENT_2;
+        address[] memory expectedRemoved = new address[](0);
+        address[] memory expectedNew = new address[](2);
+        expectedNew[0] = RECIPIENT_1;
+        expectedNew[1] = RECIPIENT_2;
+
         vm.expectEmit(true, false, false, true);
         emit RecipientAdded(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
         emit RecipientAdded(RECIPIENT_2);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(2, 0);
+        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 
@@ -100,12 +108,19 @@ contract RecipientRegistryTest is TestWrapper {
         registry.queueRecipientRemoval(RECIPIENT_1);
         registry.queueRecipientRemoval(RECIPIENT_3);
 
+        address[] memory expectedAdded = new address[](0);
+        address[] memory expectedRemoved = new address[](2);
+        expectedRemoved[0] = RECIPIENT_1;
+        expectedRemoved[1] = RECIPIENT_3;
+        address[] memory expectedNew = new address[](1);
+        expectedNew[0] = RECIPIENT_2;
+
         vm.expectEmit(true, false, false, true);
         emit RecipientRemoved(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
         emit RecipientRemoved(RECIPIENT_3);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(0, 2);
+        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 
@@ -130,8 +145,18 @@ contract RecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_4);
         registry.queueRecipientRemoval(RECIPIENT_1);
 
+        address[] memory expectedAdded = new address[](2);
+        expectedAdded[0] = RECIPIENT_3;
+        expectedAdded[1] = RECIPIENT_4;
+        address[] memory expectedRemoved = new address[](1);
+        expectedRemoved[0] = RECIPIENT_1;
+        address[] memory expectedNew = new address[](3);
+        expectedNew[0] = RECIPIENT_2;
+        expectedNew[1] = RECIPIENT_3;
+        expectedNew[2] = RECIPIENT_4;
+
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(2, 1);
+        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 

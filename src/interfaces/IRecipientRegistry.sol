@@ -22,9 +22,10 @@ interface IRecipientRegistry {
     event RecipientRemoved(address indexed recipient);
 
     /// @notice Emitted when the queue is processed and recipients are updated
-    /// @param added Number of recipients added in this processing
-    /// @param removed Number of recipients removed in this processing
-    event QueueProcessed(uint256 added, uint256 removed);
+    /// @param added Array of addresses that were added
+    /// @param removed Array of addresses that were removed
+    /// @param newRecipients Array of all active recipients after processing
+    event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     // Errors
     /// @notice Thrown when attempting to use the zero address as a recipient

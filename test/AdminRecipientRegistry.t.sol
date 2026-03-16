@@ -16,7 +16,7 @@ contract AdminRecipientRegistryTest is TestWrapper {
     event RecipientAdded(address indexed recipient);
     event RecipientRemoved(address indexed recipient);
     event RecipientQueued(address indexed recipient, bool isAddition);
-    event QueueProcessed(uint256 added, uint256 removed);
+    event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     function setUp() public {
         registry = new AdminRecipientRegistry();
@@ -37,10 +37,16 @@ contract AdminRecipientRegistryTest is TestWrapper {
         assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
         assertFalse(registry.isRecipient(RECIPIENT_1));
 
+        address[] memory expectedAdded = new address[](1);
+        expectedAdded[0] = RECIPIENT_1;
+        address[] memory expectedRemoved = new address[](0);
+        address[] memory expectedNew = new address[](1);
+        expectedNew[0] = RECIPIENT_1;
+
         vm.expectEmit(true, false, false, false);
         emit RecipientAdded(RECIPIENT_1);
-        vm.expectEmit(true, false, true, true);
-        emit QueueProcessed(1, 0);
+        vm.expectEmit(false, false, false, true);
+        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
         registry.processQueue();
 
         assertTrue(registry.isRecipient(RECIPIENT_1));
@@ -83,10 +89,16 @@ contract AdminRecipientRegistryTest is TestWrapper {
         emit RecipientQueued(RECIPIENT_1, false);
         registry.queueRecipientRemoval(RECIPIENT_1);
 
+        address[] memory expectedAdded = new address[](0);
+        address[] memory expectedRemoved = new address[](1);
+        expectedRemoved[0] = RECIPIENT_1;
+        address[] memory expectedNew = new address[](1);
+        expectedNew[0] = RECIPIENT_2;
+
         vm.expectEmit(true, false, false, false);
         emit RecipientRemoved(RECIPIENT_1);
-        vm.expectEmit(true, false, true, true);
-        emit QueueProcessed(0, 1);
+        vm.expectEmit(false, false, false, true);
+        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
         registry.processQueue();
         vm.stopPrank();
 

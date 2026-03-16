@@ -78,8 +78,9 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
     /// @dev Processes all queued additions and removals, then clears the queues
     /// @dev Emits RecipientAdded/RecipientRemoved for each change and QueueProcessed at the end
     function _processQueue() internal {
-        uint256 addedCount = queuedRecipientsForAddition.length;
-        uint256 removedCount = 0;
+        // Snapshot queues before clearing
+        address[] memory addedList = queuedRecipientsForAddition;
+        address[] memory removedList = queuedRecipientsForRemoval;
 
         // Add all queued recipients
         for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
@@ -103,7 +104,6 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
                     if (recipient == queuedRecipientsForRemoval[j]) {
                         shouldRemove = true;
                         isRecipientMapping[recipient] = false;
-                        removedCount++;
                         emit RecipientRemoved(recipient);
                         break;
                     }
@@ -120,7 +120,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         delete queuedRecipientsForAddition;
         delete queuedRecipientsForRemoval;
 
-        emit QueueProcessed(addedCount, removedCount);
+        emit QueueProcessed(addedList, removedList, recipients);
     }
 
     /// @notice Clear the addition queue without processing

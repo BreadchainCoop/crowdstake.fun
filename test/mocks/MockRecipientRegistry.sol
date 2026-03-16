@@ -52,8 +52,10 @@ contract MockRecipientRegistry is IRecipientRegistry {
     }
 
     function processQueue() external override {
-        uint256 added = 0;
-        uint256 removed = 0;
+        uint256 addedCount = 0;
+        uint256 removedCount = 0;
+        address[] memory addedList = new address[](_queuedAdditions.length);
+        address[] memory removedList = new address[](_queuedRemovals.length);
 
         // Process additions
         for (uint256 i = 0; i < _queuedAdditions.length; i++) {
@@ -63,7 +65,8 @@ contract MockRecipientRegistry is IRecipientRegistry {
                 _isRecipient[recipient] = true;
                 recipientInfo[recipient] =
                     RecipientInfo({name: "New Recipient", description: "New Description", addedAt: block.number});
-                added++;
+                addedList[addedCount] = recipient;
+                addedCount++;
                 emit RecipientAdded(recipient);
             }
         }
@@ -80,16 +83,27 @@ contract MockRecipientRegistry is IRecipientRegistry {
                         break;
                     }
                 }
-                removed++;
+                removedList[removedCount] = recipient;
+                removedCount++;
                 emit RecipientRemoved(recipient);
             }
+        }
+
+        // Trim arrays to actual counts
+        address[] memory finalAdded = new address[](addedCount);
+        for (uint256 i = 0; i < addedCount; i++) {
+            finalAdded[i] = addedList[i];
+        }
+        address[] memory finalRemoved = new address[](removedCount);
+        for (uint256 i = 0; i < removedCount; i++) {
+            finalRemoved[i] = removedList[i];
         }
 
         // Clear queues
         delete _queuedAdditions;
         delete _queuedRemovals;
 
-        emit QueueProcessed(added, removed);
+        emit QueueProcessed(finalAdded, finalRemoved, activeRecipients);
     }
 
     function clearAdditionQueue() external override {
