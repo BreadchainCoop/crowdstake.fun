@@ -57,10 +57,7 @@ contract TimeWeightedVotingPowerTest is Test {
         cycleModule.initialize(1000);
 
         strategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            LOOKBACK,
-            MIN_HOLDING
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, MIN_HOLDING
         );
     }
 
@@ -76,30 +73,19 @@ contract TimeWeightedVotingPowerTest is Test {
     function testConstructorRevertsInvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
         new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(0)),
-            ICycleModule(address(cycleModule)),
-            LOOKBACK,
-            MIN_HOLDING
+            IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), LOOKBACK, MIN_HOLDING
         );
     }
 
     function testConstructorRevertsInvalidCycleModule() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidCycleModule.selector);
-        new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(0)),
-            LOOKBACK,
-            MIN_HOLDING
-        );
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)), LOOKBACK, MIN_HOLDING);
     }
 
     function testConstructorRevertsInvalidPeriod() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidPeriod.selector);
         new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            0,
-            MIN_HOLDING
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0, MIN_HOLDING
         );
     }
 
@@ -108,10 +94,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testExactCheckpointIntegration() public {
         // Use a strategy with no min holding penalty for pure math verification
         TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            LOOKBACK,
-            0
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, 0
         );
 
         vm.roll(10);
@@ -408,10 +391,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
     function testNoMinHoldingPenaltyWhenZero() public {
         TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            LOOKBACK,
-            0
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, 0
         );
 
         vm.roll(1);

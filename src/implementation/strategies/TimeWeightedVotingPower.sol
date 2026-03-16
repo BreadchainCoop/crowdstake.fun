@@ -105,11 +105,11 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @param startBlock The start block of the period
     /// @param endBlock The end block of the period (exclusive)
     /// @return The time-weighted average voting power
-    function getVotingPowerForPeriod(
-        address account,
-        uint256 startBlock,
-        uint256 endBlock
-    ) external view returns (uint256) {
+    function getVotingPowerForPeriod(address account, uint256 startBlock, uint256 endBlock)
+        external
+        view
+        returns (uint256)
+    {
         if (startBlock >= endBlock) revert StartAfterEnd();
         if (endBlock > block.number) revert FuturePeriod();
         return _calculateTimeWeightedPower(account, startBlock, endBlock);
@@ -134,11 +134,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     ///      integral of (delegated votes * blocks held) over [start, end), then
     ///      divides by the period length to produce the time-weighted average.
     ///      This is the breadchain pattern — every balance change is accounted for.
-    function _calculateTimeWeightedPower(
-        address account,
-        uint256 start,
-        uint256 end
-    ) internal view returns (uint256) {
+    function _calculateTimeWeightedPower(address account, uint256 start, uint256 end) internal view returns (uint256) {
         uint32 numCkpts = votingToken.numCheckpoints(account);
         if (numCkpts == 0) return 0;
 
