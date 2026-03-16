@@ -70,9 +70,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
     function testConstructorRevertsInvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
-        new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), MIN_HOLDING
-        );
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), MIN_HOLDING);
     }
 
     function testConstructorRevertsInvalidCycleModule() public {
@@ -84,9 +82,8 @@ contract TimeWeightedVotingPowerTest is Test {
 
     function testExactCheckpointIntegration() public {
         // Use a strategy with no min holding penalty for pure math verification
-        TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0
-        );
+        TimeWeightedVotingPower noMinStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0);
 
         vm.roll(10);
         token.mint(user1, 1_000_000);
@@ -396,9 +393,8 @@ contract TimeWeightedVotingPowerTest is Test {
     // ============ No Min Holding Period Tests ============
 
     function testNoMinHoldingPenaltyWhenZero() public {
-        TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0
-        );
+        TimeWeightedVotingPower noMinStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0);
 
         vm.roll(1);
         token.mint(user1, 100 ether);
