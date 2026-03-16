@@ -17,21 +17,33 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
 
     /// @notice Thrown when the voting distribution array length doesn't match the recipient count
     error InvalidVotesLength();
+    /// @notice Thrown when attempting to distribute while no votes have been cast
+    error NoVotes();
 
     /// @dev Initializes the voting distribution strategy
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _votingModule Address of the voting module
-    function initialize(address _yieldToken, address _recipientRegistry, address _votingModule) external initializer {
-        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry);
+    /// @param _distributionManager Address of the distribution manager
+    function initialize(
+        address _yieldToken,
+        address _recipientRegistry,
+        address _votingModule,
+        address _distributionManager
+    ) external initializer {
+        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager);
         if (_votingModule == address(0)) revert ZeroAddress();
         votingModule = IVotingModule(_votingModule);
     }
 
     /// @dev Distributes amount based on voting weights
-    /// @param amount Total amount to distribute
-    /// @param recipients Array of recipients to distribute to
-    function _distribute(uint256 amount, address[] memory recipients) internal override {
+    function distribute(uint256 amount) external override onlyDistributionManager {
+        if (amount == 0) revert ZeroAmount();
+
+        address[] memory recipients = recipientRegistry.getRecipients();
+        if (recipients.length == 0) revert NoRecipients();
+        if (amount < recipients.length) revert InsufficientYieldForRecipients();
+
         uint256[] memory currentVotes = votingModule.getCurrentVotingDistribution();
         if (currentVotes.length != recipients.length) revert InvalidVotesLength();
 
@@ -40,12 +52,13 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
             totalVotes += currentVotes[i];
         }
 
-        if (totalVotes == 0) return;
+        if (totalVotes == 0) revert NoVotes();
 
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 recipientShare = (amount * currentVotes[i]) / totalVotes;
             if (recipientShare > 0) {
                 yieldToken.safeTransfer(recipients[i], recipientShare);
+                emit Distributed(recipients[i], recipientShare);
             }
         }
     }
