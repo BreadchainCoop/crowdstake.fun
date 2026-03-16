@@ -1,124 +1,179 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// TODO: Implement TimeWeightedVotingPower in a future release
-// Issue: https://github.com/BreadchainCoop/breadkit/issues/48
-//
-// The TimeWeightedVotingPower strategy will calculate voting power based on how long
-// tokens were held during a specific period, encouraging long-term holding and participation.
-// This follows the breadchain pattern for fair distribution.
-//
-// Implementation requirements:
-// - Calculate voting power based on token holding duration
-// - Support configurable time periods for weight calculation
-// - Integrate with cycle management for proper period tracking
-// - Handle edge cases for mid-period token transfers
-//
-// Commented out for initial release - to be implemented in a future version
-
-/*
 import {IVotingPowerStrategy} from "../../interfaces/IVotingPowerStrategy.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import {ICycleModule} from "../../interfaces/ICycleModule.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {Ownable} from "@solady/contracts/auth/Ownable.sol";
 
+/// @notice Extension of IVotes exposing the checkpoint array for exact historical queries
+interface IVotesCheckpoints is IVotes {
+    function numCheckpoints(address account) external view returns (uint32);
+    function checkpoints(address account, uint32 pos) external view returns (Checkpoints.Checkpoint208 memory);
+}
+
 /// @title TimeWeightedVotingPower
 /// @author BreadKit
-/// @notice Time-weighted voting power calculation strategy based on breadchain pattern
-/// @dev Implements IVotingPowerStrategy with time-weighted calculations.
-///      Voting power is calculated based on how long tokens were held during a specific period.
-///      This encourages long-term holding and participation.
+/// @notice Lossless time-weighted voting power calculation using the breadchain pattern
+/// @dev Walks the token's ERC20Votes checkpoint array to compute the exact
+///      area-under-the-curve of delegated votes over a lookback window, then
+///      divides by the period length to produce a time-weighted average.
+///      Every balance change is accounted for — no sampling or approximation.
 contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
-    using Checkpoints for Checkpoints.Trace208;
-
     // ============ Errors ============
 
     /// @notice Thrown when attempting to initialize with zero address token
     error InvalidToken();
 
+    /// @notice Thrown when attempting to initialize with zero address cycle module
+    error InvalidCycleModule();
+
+    /// @notice Thrown when lookback period is zero
+    error InvalidPeriod();
+
     /// @notice Thrown when start block is not before end block
-    error StartMustBeBeforeEnd();
+    error StartAfterEnd();
 
     /// @notice Thrown when end block is in the future
-    error EndAfterCurrentBlock();
+    error FuturePeriod();
+
+    // ============ Events ============
+
+    /// @notice Emitted when the lookback period is updated
+    event LookbackPeriodUpdated(uint256 newPeriod);
+
+    /// @notice Emitted when the minimum holding period is updated
+    event MinHoldingPeriodUpdated(uint256 newPeriod);
 
     // ============ Immutable Storage ============
 
     /// @notice The ERC20Votes token used for voting power calculation
-    /// @dev Must implement the IVotes interface from OpenZeppelin
-    IVotes public immutable votingToken;
+    IVotesCheckpoints public immutable votingToken;
 
     // ============ State Variables ============
 
-    /// @notice Block number when the previous voting cycle started
-    uint256 public previousCycleStart;
+    /// @notice The cycle module for period tracking
+    ICycleModule public cycleModule;
 
-    /// @notice Block number when yield was last claimed
-    uint256 public lastClaimedBlock;
+    /// @notice Number of blocks to look back for averaging
+    uint256 public lookbackPeriod;
 
-    // ============ Events ============
+    /// @notice Minimum blocks tokens must be held for full voting power
+    uint256 public minHoldingPeriod;
 
-    /// @notice Emitted when cycle bounds are updated
-    /// @param previousCycleStart New previous cycle start block
-    /// @param lastClaimedBlock New last claimed block
-    event CycleBoundsUpdated(uint256 previousCycleStart, uint256 lastClaimedBlock);
-
-    /// @notice Constructs the time-weighted voting power strategy
-    /// @dev Initializes the strategy with a voting token and cycle bounds
-    /// @param _votingToken The ERC20Votes token to use for voting power calculation
-    /// @param _previousCycleStart The start block of the previous cycle
-    /// @param _lastClaimedBlock The last block where yield was claimed
-    constructor(IVotes _votingToken, uint256 _previousCycleStart, uint256 _lastClaimedBlock) {
+    constructor(
+        IVotesCheckpoints _votingToken,
+        ICycleModule _cycleModule,
+        uint256 _lookbackPeriod,
+        uint256 _minHoldingPeriod
+    ) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
+        if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
+        if (_lookbackPeriod == 0) revert InvalidPeriod();
+
         votingToken = _votingToken;
-        previousCycleStart = _previousCycleStart;
-        lastClaimedBlock = _lastClaimedBlock;
+        cycleModule = _cycleModule;
+        lookbackPeriod = _lookbackPeriod;
+        minHoldingPeriod = _minHoldingPeriod;
+
         _initializeOwner(msg.sender);
     }
 
     /// @inheritdoc IVotingPowerStrategy
     function getCurrentVotingPower(address account) external view override returns (uint256) {
-        // Time-weighted power for current cycle (breadchain pattern)
-        return getVotingPowerForPeriod(account, previousCycleStart, lastClaimedBlock);
+        uint256 cycleStart = cycleModule.lastCycleStartBlock();
+
+        uint256 periodEnd = block.number;
+        uint256 periodStart = periodEnd > lookbackPeriod ? periodEnd - lookbackPeriod : 0;
+
+        // Don't look back before cycle start
+        if (periodStart < cycleStart) {
+            periodStart = cycleStart;
+        }
+
+        // If period is empty (we're at cycle start block), return 0
+        if (periodStart >= periodEnd) {
+            return 0;
+        }
+
+        return _calculateTimeWeightedPower(account, periodStart, periodEnd);
     }
 
-    /// @notice Calculates time-weighted voting power for a specific period
-    /// @dev Uses a simplified average of start and end voting power weighted by period length.
-    ///      Reverts if start >= end or if end > current block.
+    /// @notice Calculate time-weighted voting power for a specific period
     /// @param account The account to calculate voting power for
-    /// @param start The start block of the period (inclusive)
-    /// @param end The end block of the period (inclusive)
-    /// @return The time-weighted voting power for the period
-    function getVotingPowerForPeriod(address account, uint256 start, uint256 end) public view returns (uint256) {
-        if (start >= end) revert StartMustBeBeforeEnd();
-        if (end > block.number) revert EndAfterCurrentBlock();
-
-        // Use the voting token directly as IVotes
-
-        // Simplified implementation: use average of start and end voting power
-        // weighted by the period length
-        uint256 startPower = start > 0 ? votingToken.getPastVotes(account, start - 1) : 0;
-        uint256 endPower = votingToken.getPastVotes(account, end - 1);
-
-        // If no voting power at end, return 0
-        if (endPower == 0 && startPower == 0) return 0;
-
-        // Calculate average power weighted by time
-        uint256 averagePower = (startPower + endPower) / 2;
-        uint256 periodLength = end - start;
-
-        // Return time-weighted power
-        return averagePower * periodLength;
+    /// @param startBlock The start block of the period
+    /// @param endBlock The end block of the period (exclusive)
+    /// @return The time-weighted average voting power
+    function getVotingPowerForPeriod(
+        address account,
+        uint256 startBlock,
+        uint256 endBlock
+    ) external view returns (uint256) {
+        if (startBlock >= endBlock) revert StartAfterEnd();
+        if (endBlock > block.number) revert FuturePeriod();
+        return _calculateTimeWeightedPower(account, startBlock, endBlock);
     }
 
-    /// @notice Updates the cycle bounds for voting power calculations
-    /// @dev Only callable by owner. Used to synchronize with yield distribution cycles.
-    /// @param _previousCycleStart New previous cycle start block
-    /// @param _lastClaimedBlock New last claimed block
-    function updateCycleBounds(uint256 _previousCycleStart, uint256 _lastClaimedBlock) external onlyOwner {
-        previousCycleStart = _previousCycleStart;
-        lastClaimedBlock = _lastClaimedBlock;
-        emit CycleBoundsUpdated(_previousCycleStart, _lastClaimedBlock);
+    /// @notice Update the lookback period for voting power calculation
+    /// @param _lookbackPeriod New lookback period in blocks
+    function setLookbackPeriod(uint256 _lookbackPeriod) external onlyOwner {
+        if (_lookbackPeriod == 0) revert InvalidPeriod();
+        lookbackPeriod = _lookbackPeriod;
+        emit LookbackPeriodUpdated(_lookbackPeriod);
+    }
+
+    /// @notice Update the minimum holding period
+    /// @param _minHoldingPeriod New minimum holding period in blocks
+    function setMinHoldingPeriod(uint256 _minHoldingPeriod) external onlyOwner {
+        minHoldingPeriod = _minHoldingPeriod;
+        emit MinHoldingPeriodUpdated(_minHoldingPeriod);
+    }
+
+    /// @dev Walks the token's checkpoint array in reverse to compute the exact
+    ///      integral of (delegated votes * blocks held) over [start, end), then
+    ///      divides by the period length to produce the time-weighted average.
+    ///      This is the breadchain pattern — every balance change is accounted for.
+    function _calculateTimeWeightedPower(
+        address account,
+        uint256 start,
+        uint256 end
+    ) internal view returns (uint256) {
+        uint32 numCkpts = votingToken.numCheckpoints(account);
+        if (numCkpts == 0) return 0;
+
+        uint256 periodLength = end - start;
+        uint256 totalArea;
+        uint256 upperBound = end;
+
+        for (uint32 i = numCkpts; i > 0; i--) {
+            Checkpoints.Checkpoint208 memory ckpt = votingToken.checkpoints(account, i - 1);
+            uint256 key = uint256(ckpt._key);
+            uint256 value = uint256(ckpt._value);
+
+            // Checkpoint is at or after the period end — skip it
+            if (key >= end) continue;
+
+            if (key <= start) {
+                // Checkpoint predates the period — its value covers [start, upperBound)
+                totalArea += value * (upperBound - start);
+                break;
+            }
+
+            // Checkpoint is within (start, end) — its value covers [key, upperBound)
+            totalArea += value * (upperBound - key);
+            upperBound = key;
+        }
+
+        uint256 avgPower = totalArea / periodLength;
+        return _applyMinHoldingPenalty(avgPower, periodLength);
+    }
+
+    /// @dev Linearly scales down power when the period is shorter than minHoldingPeriod
+    function _applyMinHoldingPenalty(uint256 power, uint256 periodLength) internal view returns (uint256) {
+        if (minHoldingPeriod == 0 || periodLength >= minHoldingPeriod) {
+            return power;
+        }
+        return power * periodLength / minHoldingPeriod;
     }
 }
-*/
