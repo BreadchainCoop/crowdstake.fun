@@ -83,15 +83,15 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         address[] memory removedList = queuedRecipientsForRemoval;
 
         // Add all queued recipients
-        for (uint256 i = 0; i < queuedRecipientsForAddition.length; i++) {
-            address recipient = queuedRecipientsForAddition[i];
+        for (uint256 i = 0; i < addedList.length; i++) {
+            address recipient = addedList[i];
             recipients.push(recipient);
             isRecipientMapping[recipient] = true;
             emit RecipientAdded(recipient);
         }
 
         // Process removals by rebuilding the recipients array
-        if (queuedRecipientsForRemoval.length > 0) {
+        if (removedList.length > 0) {
             address[] memory oldRecipients = recipients;
             delete recipients;
 
@@ -100,8 +100,8 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
                 bool shouldRemove = false;
 
                 // Check if this recipient should be removed
-                for (uint256 j = 0; j < queuedRecipientsForRemoval.length; j++) {
-                    if (recipient == queuedRecipientsForRemoval[j]) {
+                for (uint256 j = 0; j < removedList.length; j++) {
+                    if (recipient == removedList[j]) {
                         shouldRemove = true;
                         isRecipientMapping[recipient] = false;
                         emit RecipientRemoved(recipient);
