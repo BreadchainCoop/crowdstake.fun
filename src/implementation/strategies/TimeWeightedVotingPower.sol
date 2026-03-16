@@ -17,8 +17,9 @@ interface IVotesCheckpoints is IVotes {
 /// @author BreadKit
 /// @notice Lossless time-weighted voting power calculation using the breadchain pattern
 /// @dev Walks the token's ERC20Votes checkpoint array to compute the exact
-///      area-under-the-curve of delegated votes over a lookback window, then
+///      area-under-the-curve of delegated votes over the current cycle, then
 ///      divides by the period length to produce a time-weighted average.
+///      The lookback window is derived from the cycle module's cycle length.
 ///      Every balance change is accounted for — no sampling or approximation.
 contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     // ============ Errors ============
@@ -29,9 +30,6 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice Thrown when attempting to initialize with zero address cycle module
     error InvalidCycleModule();
 
-    /// @notice Thrown when lookback period is zero
-    error InvalidPeriod();
-
     /// @notice Thrown when start block is not before end block
     error StartAfterEnd();
 
@@ -39,9 +37,6 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     error FuturePeriod();
 
     // ============ Events ============
-
-    /// @notice Emitted when the lookback period is updated
-    event LookbackPeriodUpdated(uint256 newPeriod);
 
     /// @notice Emitted when the minimum holding period is updated
     event MinHoldingPeriodUpdated(uint256 newPeriod);
@@ -53,28 +48,18 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
 
     // ============ State Variables ============
 
-    /// @notice The cycle module for period tracking
+    /// @notice The cycle module for period tracking and lookback derivation
     ICycleModule public cycleModule;
-
-    /// @notice Number of blocks to look back for averaging
-    uint256 public lookbackPeriod;
 
     /// @notice Minimum blocks tokens must be held for full voting power
     uint256 public minHoldingPeriod;
 
-    constructor(
-        IVotesCheckpoints _votingToken,
-        ICycleModule _cycleModule,
-        uint256 _lookbackPeriod,
-        uint256 _minHoldingPeriod
-    ) {
+    constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule, uint256 _minHoldingPeriod) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
-        if (_lookbackPeriod == 0) revert InvalidPeriod();
 
         votingToken = _votingToken;
         cycleModule = _cycleModule;
-        lookbackPeriod = _lookbackPeriod;
         minHoldingPeriod = _minHoldingPeriod;
 
         _initializeOwner(msg.sender);
@@ -85,12 +70,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         uint256 cycleStart = cycleModule.lastCycleStartBlock();
 
         uint256 periodEnd = block.number;
-        uint256 periodStart = periodEnd > lookbackPeriod ? periodEnd - lookbackPeriod : 0;
-
-        // Don't look back before cycle start
-        if (periodStart < cycleStart) {
-            periodStart = cycleStart;
-        }
+        uint256 periodStart = cycleStart;
 
         // If period is empty (we're at cycle start block), return 0
         if (periodStart >= periodEnd) {
@@ -113,14 +93,6 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         if (startBlock >= endBlock) revert StartAfterEnd();
         if (endBlock > block.number) revert FuturePeriod();
         return _calculateTimeWeightedPower(account, startBlock, endBlock);
-    }
-
-    /// @notice Update the lookback period for voting power calculation
-    /// @param _lookbackPeriod New lookback period in blocks
-    function setLookbackPeriod(uint256 _lookbackPeriod) external onlyOwner {
-        if (_lookbackPeriod == 0) revert InvalidPeriod();
-        lookbackPeriod = _lookbackPeriod;
-        emit LookbackPeriodUpdated(_lookbackPeriod);
     }
 
     /// @notice Update the minimum holding period

@@ -40,10 +40,9 @@ contract TimeWeightedVotingPowerTest is Test {
     address public user2 = address(0xCAFE);
     address public owner;
 
-    uint256 constant LOOKBACK = 100; // 100 blocks
+    uint256 constant CYCLE_LENGTH = 1000; // 1000 blocks per cycle
     uint256 constant MIN_HOLDING = 50; // 50 blocks
 
-    event LookbackPeriodUpdated(uint256 newPeriod);
     event MinHoldingPeriodUpdated(uint256 newPeriod);
 
     function setUp() public {
@@ -54,10 +53,10 @@ contract TimeWeightedVotingPowerTest is Test {
 
         // Start at block 1 so getPastVotes works (can't query block 0)
         vm.roll(1);
-        cycleModule.initialize(1000);
+        cycleModule.initialize(CYCLE_LENGTH);
 
         strategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, MIN_HOLDING
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), MIN_HOLDING
         );
     }
 
@@ -66,27 +65,19 @@ contract TimeWeightedVotingPowerTest is Test {
     function testConstructorSetsState() public view {
         assertEq(address(strategy.votingToken()), address(token));
         assertEq(address(strategy.cycleModule()), address(cycleModule));
-        assertEq(strategy.lookbackPeriod(), LOOKBACK);
         assertEq(strategy.minHoldingPeriod(), MIN_HOLDING);
     }
 
     function testConstructorRevertsInvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
         new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), LOOKBACK, MIN_HOLDING
+            IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), MIN_HOLDING
         );
     }
 
     function testConstructorRevertsInvalidCycleModule() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidCycleModule.selector);
-        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)), LOOKBACK, MIN_HOLDING);
-    }
-
-    function testConstructorRevertsInvalidPeriod() public {
-        vm.expectRevert(TimeWeightedVotingPower.InvalidPeriod.selector);
-        new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0, MIN_HOLDING
-        );
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)), MIN_HOLDING);
     }
 
     // ============ Lossless Calculation Tests ============
@@ -94,7 +85,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testExactCheckpointIntegration() public {
         // Use a strategy with no min holding penalty for pure math verification
         TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, 0
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0
         );
 
         vm.roll(10);
@@ -118,17 +109,22 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 1_250_000);
     }
 
-    function testConstantBalanceFullPeriod() public {
+    function testConstantBalanceFullCycle() public {
+        // Mint early in cycle
         vm.roll(10);
         token.mint(user1, 100 ether);
         vm.prank(user1);
         token.delegate(user1);
 
-        // Advance well past lookback + min holding so full power applies
-        vm.roll(10 + LOOKBACK + MIN_HOLDING + 10);
+        // Advance well into cycle, past min holding
+        vm.roll(500);
 
         uint256 power = strategy.getCurrentVotingPower(user1);
-        assertEq(power, 100 ether);
+        // Period is [1, 500) = 499 blocks, well past min holding
+        // Blocks 1-9: 0 (9 blocks), Blocks 10-499: 100 ether (490 blocks)
+        // avg = (490 * 100 ether) / 499
+        uint256 expected = (uint256(490) * 100 ether) / 499;
+        assertEq(power, expected);
     }
 
     function testFlashLoanProtection() public {
@@ -149,13 +145,14 @@ contract TimeWeightedVotingPowerTest is Test {
 
         uint256 power = strategy.getCurrentVotingPower(user1);
 
-        // Exact calculation:
-        // Period is [401, 501) = 100 blocks
-        // Blocks 401-499: 1 ether (99 blocks) = 99 ether
-        // Block 500:      1001 ether (1 block) = 1001 ether
-        // Total area = 1100 ether, avg = 1100/100 = 11 ether
-        assertEq(power, 11 ether);
-        assertLt(power, 100 ether, "Flash loan should not give near-full power");
+        // Period is [1, 501) = 500 blocks (full cycle from start)
+        // Blocks 1-9: 0 (9 blocks)
+        // Blocks 10-499: 1 ether (490 blocks) = 490 ether
+        // Block 500:     1001 ether (1 block) = 1001 ether
+        // Total area = 1491 ether, avg = 1491/500
+        uint256 expected = (490 * 1 ether + 1 * 1001 ether) / 500;
+        assertEq(power, expected);
+        assertLt(power, 10 ether, "Flash loan should not give significant power");
     }
 
     function testFlashLoanExactMath() public {
@@ -171,7 +168,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
         vm.roll(101);
 
-        // Period [1, 101) = 100 blocks, min holding met
+        // Period [1, 101) = 100 blocks (cycle start to now)
         // Blocks 1-9: 0 (9 blocks)
         // Blocks 10-99: 10 ether (90 blocks) = 900 ether
         // Block 100: 1000 ether (1 block) = 1000 ether
@@ -192,7 +189,7 @@ contract TimeWeightedVotingPowerTest is Test {
         uint256 earlyPower = strategy.getCurrentVotingPower(user1);
 
         // Advance past min holding period
-        vm.roll(10 + MIN_HOLDING + LOOKBACK);
+        vm.roll(200);
 
         uint256 laterPower = strategy.getCurrentVotingPower(user1);
 
@@ -248,7 +245,7 @@ contract TimeWeightedVotingPowerTest is Test {
         token.mint(user1, 50 ether); // now 100 ether
 
         vm.roll(110);
-        // Period [10, 110) = 100 blocks, min holding met
+        // Period [10, 110) = 100 blocks
         // Blocks 10-59: 50 ether (50 blocks) = 2500 ether
         // Blocks 60-109: 100 ether (50 blocks) = 5000 ether
         // Total = 7500, avg = 75 ether
@@ -314,7 +311,7 @@ contract TimeWeightedVotingPowerTest is Test {
         token.delegate(user1);
 
         vm.roll(60);
-        // Transfer half away (burn for simplicity)
+        // Transfer half away
         vm.prank(user1);
         token.transfer(address(0xDEAD), 50 ether);
 
@@ -349,19 +346,34 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, expectedPenalized);
     }
 
+    function testLookbackDerivedFromCycleLength() public {
+        // getCurrentVotingPower uses cycle start, not a separate lookback
+        // So the effective lookback is always from cycle start to now
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+        vm.prank(user1);
+        token.delegate(user1);
+
+        // At block 500, period is [1, 500) = 499 blocks
+        vm.roll(500);
+        uint256 power1 = strategy.getCurrentVotingPower(user1);
+
+        // At block 900, period is [1, 900) = 899 blocks
+        vm.roll(900);
+        uint256 power2 = strategy.getCurrentVotingPower(user1);
+
+        // Both should reflect the full cycle window. user1 had 0 for blocks 1-9
+        // and 100 ether from block 10 onward.
+        // power1: (490 * 100 ether) / 499
+        // power2: (890 * 100 ether) / 899
+        // power2 should be slightly higher since 0-balance blocks are a smaller fraction
+        assertGt(power2, power1);
+        // Both should be close to 100 ether
+        assertGt(power1, 95 ether);
+        assertGt(power2, 98 ether);
+    }
+
     // ============ Admin Tests ============
-
-    function testSetLookbackPeriod() public {
-        vm.expectEmit(false, false, false, true);
-        emit LookbackPeriodUpdated(200);
-        strategy.setLookbackPeriod(200);
-        assertEq(strategy.lookbackPeriod(), 200);
-    }
-
-    function testSetLookbackPeriodRevertsZero() public {
-        vm.expectRevert(TimeWeightedVotingPower.InvalidPeriod.selector);
-        strategy.setLookbackPeriod(0);
-    }
 
     function testSetMinHoldingPeriod() public {
         vm.expectEmit(false, false, false, true);
@@ -375,12 +387,6 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(strategy.minHoldingPeriod(), 0);
     }
 
-    function testOnlyOwnerCanSetLookbackPeriod() public {
-        vm.prank(user1);
-        vm.expectRevert();
-        strategy.setLookbackPeriod(200);
-    }
-
     function testOnlyOwnerCanSetMinHoldingPeriod() public {
         vm.prank(user1);
         vm.expectRevert();
@@ -391,7 +397,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
     function testNoMinHoldingPenaltyWhenZero() public {
         TimeWeightedVotingPower noMinStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), LOOKBACK, 0
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0
         );
 
         vm.roll(1);
@@ -399,7 +405,7 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.prank(user1);
         token.delegate(user1);
 
-        vm.roll(LOOKBACK + 10);
+        vm.roll(110);
         uint256 power = noMinStrategy.getCurrentVotingPower(user1);
         assertEq(power, 100 ether);
     }
@@ -422,9 +428,13 @@ contract TimeWeightedVotingPowerTest is Test {
         uint256 power1 = strategy.getCurrentVotingPower(user1);
         uint256 power2 = strategy.getCurrentVotingPower(user2);
 
-        // Both held for entire lookback [100, 200)
-        assertEq(power1, 100 ether);
-        assertEq(power2, 200 ether);
+        // Period is [1, 200) = 199 blocks
+        // user1: 0 for 9 blocks, 100 ether for 190 blocks. avg = 19000/199
+        // user2: 0 for 49 blocks, 200 ether for 150 blocks. avg = 30000/199
+        uint256 expected1 = (uint256(190) * 100 ether) / 199;
+        uint256 expected2 = (uint256(150) * 200 ether) / 199;
+        assertEq(power1, expected1);
+        assertEq(power2, expected2);
     }
 
     // ============ Gas ============
