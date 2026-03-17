@@ -46,10 +46,10 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice The ERC20Votes token used for voting power calculation
     IVotesCheckpoints public immutable votingToken;
 
-    // ============ State Variables ============
-
     /// @notice The cycle module for period tracking and lookback derivation
-    ICycleModule public cycleModule;
+    ICycleModule public immutable cycleModule;
+
+    // ============ State Variables ============
 
     /// @notice Minimum blocks tokens must be held for full voting power
     uint256 public minHoldingPeriod;
@@ -77,10 +77,14 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
             return 0;
         }
 
-        return _calculateTimeWeightedPower(account, periodStart, periodEnd);
+        uint256 periodLength = periodEnd - periodStart;
+        uint256 avgPower = _calculateTimeWeightedPower(account, periodStart, periodEnd);
+        return _applyMinHoldingPenalty(avgPower, periodLength);
     }
 
     /// @notice Calculate time-weighted voting power for a specific period
+    /// @dev Does not apply the minimum holding period penalty — returns the raw
+    ///      time-weighted average so callers get unpenalized results for arbitrary periods.
     /// @param account The account to calculate voting power for
     /// @param startBlock The start block of the period
     /// @param endBlock The end block of the period (exclusive)
@@ -133,8 +137,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
             upperBound = key;
         }
 
-        uint256 avgPower = totalArea / periodLength;
-        return _applyMinHoldingPenalty(avgPower, periodLength);
+        return totalArea / periodLength;
     }
 
     /// @dev Linearly scales down power when the period is shorter than minHoldingPeriod

@@ -321,6 +321,24 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 75 ether);
     }
 
+    function testPenaltyOnlyAppliestoGetCurrentVotingPower() public {
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+        vm.prank(user1);
+        token.delegate(user1);
+
+        vm.roll(20);
+
+        // getVotingPowerForPeriod: short period, no penalty
+        // Period [10, 20) = 10 blocks, user had 100 ether the whole time
+        uint256 rawPower = strategy.getVotingPowerForPeriod(user1, 10, 20);
+        assertEq(rawPower, 100 ether, "getVotingPowerForPeriod should not penalize");
+
+        // getCurrentVotingPower: period [1, 20) = 19 blocks < MIN_HOLDING, penalty applies
+        uint256 currentPower = strategy.getCurrentVotingPower(user1);
+        assertLt(currentPower, rawPower, "getCurrentVotingPower should apply penalty for short cycle");
+    }
+
     // ============ Cycle Boundary Tests ============
 
     function testCycleBoundaryHandling() public {
