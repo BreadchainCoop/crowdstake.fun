@@ -86,13 +86,8 @@ contract CrowdStakeFactory is Ownable {
         emit CreateYieldDistributor(yieldClaimer, token_, initialRecipients_, percentVoted_, owner_);
     }
 
-    function createTokenBasedVotingPower(address votingToken_, bytes32 salt_)
-        external
-        returns (address votingPower)
-    {
-        bytes memory bytecode = abi.encodePacked(
-            type(TokenBasedVotingPower).creationCode, abi.encode(votingToken_)
-        );
+    function createTokenBasedVotingPower(address votingToken_, bytes32 salt_) external returns (address votingPower) {
+        bytes memory bytecode = abi.encodePacked(type(TokenBasedVotingPower).creationCode, abi.encode(votingToken_));
         bytes32 salt = _computeSalt(salt_);
         assembly {
             votingPower := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
@@ -122,9 +117,8 @@ contract CrowdStakeFactory is Ownable {
         external
         returns (address automation)
     {
-        bytes memory bytecode = abi.encodePacked(
-            type(ChainlinkAutomation).creationCode, abi.encode(distributionManager_)
-        );
+        bytes memory bytecode =
+            abi.encodePacked(type(ChainlinkAutomation).creationCode, abi.encode(distributionManager_));
         bytes32 salt = _computeSalt(salt_);
         assembly {
             automation := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
@@ -216,9 +210,7 @@ contract CrowdStakeFactory is Ownable {
         view
         returns (address votingPower)
     {
-        bytes memory bytecode = abi.encodePacked(
-            type(TokenBasedVotingPower).creationCode, abi.encode(votingToken_)
-        );
+        bytes memory bytecode = abi.encodePacked(type(TokenBasedVotingPower).creationCode, abi.encode(votingToken_));
         bytes32 salt = _computeSaltView(salt_);
         votingPower = _getCreate2Address(salt, keccak256(bytecode));
     }
@@ -240,9 +232,8 @@ contract CrowdStakeFactory is Ownable {
         view
         returns (address automation)
     {
-        bytes memory bytecode = abi.encodePacked(
-            type(ChainlinkAutomation).creationCode, abi.encode(distributionManager_)
-        );
+        bytes memory bytecode =
+            abi.encodePacked(type(ChainlinkAutomation).creationCode, abi.encode(distributionManager_));
         bytes32 salt = _computeSaltView(salt_);
         automation = _getCreate2Address(salt, keccak256(bytecode));
     }

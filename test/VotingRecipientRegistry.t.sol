@@ -32,9 +32,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         initial[1] = RECIPIENT_2;
         initial[2] = RECIPIENT_3;
 
-        bytes memory payload = abi.encodeWithSelector(
-            VotingRecipientRegistry.initialize.selector, ADMIN, initial, 7 days
-        );
+        bytes memory payload =
+            abi.encodeWithSelector(VotingRecipientRegistry.initialize.selector, ADMIN, initial, 7 days);
         registry = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), payload)));
     }
 
@@ -303,9 +302,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         VotingRecipientRegistry newImpl = new VotingRecipientRegistry();
         address[] memory empty = new address[](0);
 
-        bytes memory payload = abi.encodeWithSelector(
-            VotingRecipientRegistry.initialize.selector, ADMIN, empty, 7 days
-        );
+        bytes memory payload = abi.encodeWithSelector(VotingRecipientRegistry.initialize.selector, ADMIN, empty, 7 days);
         vm.expectRevert();
         new ERC1967Proxy(address(newImpl), payload);
     }
@@ -331,9 +328,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         address[] memory initial = new address[](1);
         initial[0] = RECIPIENT_1;
 
-        bytes memory payload = abi.encodeWithSelector(
-            VotingRecipientRegistry.initialize.selector, ADMIN, initial, 0
-        );
+        bytes memory payload = abi.encodeWithSelector(VotingRecipientRegistry.initialize.selector, ADMIN, initial, 0);
         vm.expectRevert();
         new ERC1967Proxy(address(newImpl), payload);
     }
