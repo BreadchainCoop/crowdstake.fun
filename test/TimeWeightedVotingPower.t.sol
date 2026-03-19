@@ -56,9 +56,7 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(1);
         cycleModule.initialize(CYCLE_LENGTH);
 
-        strategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule))
-        );
+        strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
     }
 
     // ============ Constructor Tests ============
