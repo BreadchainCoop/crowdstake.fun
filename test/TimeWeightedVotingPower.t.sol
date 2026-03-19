@@ -91,7 +91,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 1_000_000);
 
-
         // Advance 3 blocks
         vm.roll(13);
         // Mint another 1_000_000 (total 2_000_000)
@@ -113,7 +112,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
-
         // Advance well into cycle, past min holding
         vm.roll(500);
 
@@ -129,7 +127,6 @@ contract TimeWeightedVotingPowerTest is Test {
         // User has held 1 ether for a long time
         vm.roll(10);
         token.mint(user1, 1 ether);
-
 
         // Advance many blocks
         vm.roll(500);
@@ -157,7 +154,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 10 ether);
 
-
         vm.roll(100);
         // Flash: acquire 990 ether (total 1000)
         token.mint(user1, 990 ether);
@@ -176,7 +172,6 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMinimumHoldingPeriodPenalty() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         // Advance only a few blocks (less than minHoldingPeriod)
         vm.roll(20);
@@ -207,7 +202,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
-
         vm.roll(200);
 
         uint256 power = strategy.getVotingPowerForPeriod(user1, 50, 150);
@@ -233,7 +227,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 50 ether);
 
-
         vm.roll(60);
         token.mint(user1, 50 ether); // now 100 ether
 
@@ -249,7 +242,6 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMultipleCheckpointsInPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         vm.roll(30);
         token.mint(user1, 100 ether); // 200
@@ -272,7 +264,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(5);
         token.mint(user1, 100 ether);
 
-
         vm.roll(200);
         // Period [100, 200) — user had 100 ether the whole time
         uint256 power = strategy.getVotingPowerForPeriod(user1, 100, 200);
@@ -283,7 +274,6 @@ contract TimeWeightedVotingPowerTest is Test {
         // No tokens at period start, acquired mid-period
         vm.roll(50);
         token.mint(user1, 100 ether);
-
 
         vm.roll(110);
         // Period [10, 110) = 100 blocks
@@ -297,7 +287,6 @@ contract TimeWeightedVotingPowerTest is Test {
     function testBalanceDecreaseInPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         vm.roll(60);
         // Transfer half away
@@ -317,7 +306,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
-
         vm.roll(20);
 
         // getVotingPowerForPeriod: short period, no penalty
@@ -335,7 +323,6 @@ contract TimeWeightedVotingPowerTest is Test {
     function testCycleBoundaryHandling() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         // Complete cycle 1 and start cycle 2
         vm.roll(1001);
@@ -356,7 +343,6 @@ contract TimeWeightedVotingPowerTest is Test {
         // So the effective lookback is always from cycle start to now
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         // At block 500, period is [1, 500) = 499 blocks
         vm.roll(500);
@@ -406,7 +392,6 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(1);
         token.mint(user1, 100 ether);
 
-
         vm.roll(110);
         uint256 power = noMinStrategy.getCurrentVotingPower(user1);
         assertEq(power, 100 ether);
@@ -418,10 +403,8 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
-
         vm.roll(50);
         token.mint(user2, 200 ether);
-
 
         vm.roll(200);
 
@@ -442,7 +425,6 @@ contract TimeWeightedVotingPowerTest is Test {
     function testGasWithFewCheckpoints() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-
 
         vm.roll(200);
 
