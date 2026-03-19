@@ -45,9 +45,6 @@ contract TimeWeightedVotingPowerTest is Test {
     address public owner;
 
     uint256 constant CYCLE_LENGTH = 1000; // 1000 blocks per cycle
-    uint256 constant MIN_HOLDING = 50; // 50 blocks
-
-    event MinHoldingPeriodUpdated(uint256 newPeriod);
 
     function setUp() public {
         owner = address(this);
@@ -60,7 +57,7 @@ contract TimeWeightedVotingPowerTest is Test {
         cycleModule.initialize(CYCLE_LENGTH);
 
         strategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), MIN_HOLDING
+            IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule))
         );
     }
 
@@ -69,26 +66,21 @@ contract TimeWeightedVotingPowerTest is Test {
     function testConstructorSetsState() public view {
         assertEq(address(strategy.votingToken()), address(token));
         assertEq(address(strategy.cycleModule()), address(cycleModule));
-        assertEq(strategy.minHoldingPeriod(), MIN_HOLDING);
     }
 
     function testConstructorRevertsInvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
-        new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), MIN_HOLDING);
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)));
     }
 
     function testConstructorRevertsInvalidCycleModule() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidCycleModule.selector);
-        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)), MIN_HOLDING);
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)));
     }
 
     // ============ Lossless Calculation Tests ============
 
     function testExactCheckpointIntegration() public {
-        // Use a strategy with no min holding penalty for pure math verification
-        TimeWeightedVotingPower noMinStrategy =
-            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0);
-
         vm.roll(10);
         token.mint(user1, 1_000_000);
 
@@ -104,7 +96,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // Block 10-12: 1M (3 blocks) = 3M
         // Block 13:    2M (1 block)  = 2M
         // Total area = 5M, avg = 5M/4 = 1_250_000
-        uint256 power = noMinStrategy.getVotingPowerForPeriod(user1, 10, 14);
+        uint256 power = strategy.getVotingPowerForPeriod(user1, 10, 14);
         assertEq(power, 1_250_000);
     }
 
@@ -113,11 +105,11 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
-        // Advance well into cycle, past min holding
+        // Advance well into cycle
         vm.roll(500);
 
         uint256 power = strategy.getCurrentVotingPower(user1);
-        // Period is [1, 500) = 499 blocks, well past min holding
+        // Period is [1, 500) = 499 blocks
         // Blocks 1-9: 0 (9 blocks), Blocks 10-499: 100 ether (490 blocks)
         // avg = (490 * 100 ether) / 499
         uint256 expected = (uint256(490) * 100 ether) / 499;
@@ -168,23 +160,6 @@ contract TimeWeightedVotingPowerTest is Test {
         // Total area = 1900 ether, avg = 1900/100 = 19 ether
         uint256 power = strategy.getCurrentVotingPower(user1);
         assertEq(power, 19 ether);
-    }
-
-    function testMinimumHoldingPeriodPenalty() public {
-        vm.roll(10);
-        token.mint(user1, 100 ether);
-
-        // Advance only a few blocks (less than minHoldingPeriod)
-        vm.roll(20);
-
-        uint256 earlyPower = strategy.getCurrentVotingPower(user1);
-
-        // Advance past min holding period
-        vm.roll(200);
-
-        uint256 laterPower = strategy.getCurrentVotingPower(user1);
-
-        assertLt(earlyPower, laterPower, "Early power should be less than later power");
     }
 
     function testZeroBalanceReturnsZero() public {
@@ -303,22 +278,6 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 75 ether);
     }
 
-    function testPenaltyOnlyAppliestoGetCurrentVotingPower() public {
-        vm.roll(10);
-        token.mint(user1, 100 ether);
-
-        vm.roll(20);
-
-        // getVotingPowerForPeriod: short period, no penalty
-        // Period [10, 20) = 10 blocks, user had 100 ether the whole time
-        uint256 rawPower = strategy.getVotingPowerForPeriod(user1, 10, 20);
-        assertEq(rawPower, 100 ether, "getVotingPowerForPeriod should not penalize");
-
-        // getCurrentVotingPower: period [1, 20) = 19 blocks < MIN_HOLDING, penalty applies
-        uint256 currentPower = strategy.getCurrentVotingPower(user1);
-        assertLt(currentPower, rawPower, "getCurrentVotingPower should apply penalty for short cycle");
-    }
-
     // ============ Cycle Boundary Tests ============
 
     function testCycleBoundaryHandling() public {
@@ -333,10 +292,9 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(1010);
 
         uint256 power = strategy.getCurrentVotingPower(user1);
-        // Period is [1001, 1010) = 9 blocks, < minHoldingPeriod
-        // avg = 100 ether, penalty = 100 * 9 / 50
-        uint256 expectedPenalized = 100 ether * 9 / MIN_HOLDING;
-        assertEq(power, expectedPenalized);
+        // Period is [1001, 1010) = 9 blocks
+        // User had 100 ether the entire period
+        assertEq(power, 100 ether);
     }
 
     function testLookbackDerivedFromCycleLength() public {
@@ -362,40 +320,6 @@ contract TimeWeightedVotingPowerTest is Test {
         // Both should be close to 100 ether
         assertGt(power1, 95 ether);
         assertGt(power2, 98 ether);
-    }
-
-    // ============ Admin Tests ============
-
-    function testSetMinHoldingPeriod() public {
-        vm.expectEmit(false, false, false, true);
-        emit MinHoldingPeriodUpdated(200);
-        strategy.setMinHoldingPeriod(200);
-        assertEq(strategy.minHoldingPeriod(), 200);
-    }
-
-    function testSetMinHoldingPeriodToZero() public {
-        strategy.setMinHoldingPeriod(0);
-        assertEq(strategy.minHoldingPeriod(), 0);
-    }
-
-    function testOnlyOwnerCanSetMinHoldingPeriod() public {
-        vm.prank(user1);
-        vm.expectRevert();
-        strategy.setMinHoldingPeriod(200);
-    }
-
-    // ============ No Min Holding Period Tests ============
-
-    function testNoMinHoldingPenaltyWhenZero() public {
-        TimeWeightedVotingPower noMinStrategy =
-            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0);
-
-        vm.roll(1);
-        token.mint(user1, 100 ether);
-
-        vm.roll(110);
-        uint256 power = noMinStrategy.getCurrentVotingPower(user1);
-        assertEq(power, 100 ether);
     }
 
     // ============ Multiple Users ============

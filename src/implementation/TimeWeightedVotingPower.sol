@@ -30,11 +30,6 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice Thrown when end block is in the future
     error FuturePeriod();
 
-    // ============ Events ============
-
-    /// @notice Emitted when the minimum holding period is updated
-    event MinHoldingPeriodUpdated(uint256 newPeriod);
-
     // ============ Immutable Storage ============
 
     /// @notice The ERC20Votes token used for voting power calculation
@@ -43,18 +38,12 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice The cycle module for period tracking and lookback derivation
     ICycleModule public immutable cycleModule;
 
-    // ============ State Variables ============
-
-    /// @notice Minimum blocks tokens must be held for full voting power
-    uint256 public minHoldingPeriod;
-
-    constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule, uint256 _minHoldingPeriod) {
+    constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
 
         votingToken = _votingToken;
         cycleModule = _cycleModule;
-        minHoldingPeriod = _minHoldingPeriod;
 
         _initializeOwner(msg.sender);
     }
@@ -71,14 +60,10 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
             return 0;
         }
 
-        uint256 periodLength = periodEnd - periodStart;
-        uint256 avgPower = _calculateTimeWeightedPower(account, periodStart, periodEnd);
-        return _applyMinHoldingPenalty(avgPower, periodLength);
+        return _calculateTimeWeightedPower(account, periodStart, periodEnd);
     }
 
     /// @notice Calculate time-weighted voting power for a specific period
-    /// @dev Does not apply the minimum holding period penalty — returns the raw
-    ///      time-weighted average so callers get unpenalized results for arbitrary periods.
     /// @param account The account to calculate voting power for
     /// @param startBlock The start block of the period
     /// @param endBlock The end block of the period (exclusive)
@@ -91,13 +76,6 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         if (startBlock >= endBlock) revert StartAfterEnd();
         if (endBlock > block.number) revert FuturePeriod();
         return _calculateTimeWeightedPower(account, startBlock, endBlock);
-    }
-
-    /// @notice Update the minimum holding period
-    /// @param _minHoldingPeriod New minimum holding period in blocks
-    function setMinHoldingPeriod(uint256 _minHoldingPeriod) external onlyOwner {
-        minHoldingPeriod = _minHoldingPeriod;
-        emit MinHoldingPeriodUpdated(_minHoldingPeriod);
     }
 
     /// @dev Walks the token's checkpoint array in reverse to compute the exact
@@ -132,13 +110,5 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         }
 
         return totalArea / periodLength;
-    }
-
-    /// @dev Linearly scales down power when the period is shorter than minHoldingPeriod
-    function _applyMinHoldingPenalty(uint256 power, uint256 periodLength) internal view returns (uint256) {
-        if (minHoldingPeriod == 0 || periodLength >= minHoldingPeriod) {
-            return power;
-        }
-        return power * periodLength / minHoldingPeriod;
     }
 }
