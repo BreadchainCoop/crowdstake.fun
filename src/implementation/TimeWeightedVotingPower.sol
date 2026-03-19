@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IVotingPowerStrategy} from "../../interfaces/IVotingPowerStrategy.sol";
-import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
-import {ICycleModule} from "../../interfaces/ICycleModule.sol";
+import {IVotingPowerStrategy} from "../interfaces/IVotingPowerStrategy.sol";
+import {IVotesCheckpoints} from "../interfaces/IVotesCheckpoints.sol";
+import {ICycleModule} from "../interfaces/ICycleModule.sol";
 import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {Ownable} from "@solady/contracts/auth/Ownable.sol";
-
-/// @notice Extension of IVotes exposing the checkpoint array for exact historical queries
-interface IVotesCheckpoints is IVotes {
-    function numCheckpoints(address account) external view returns (uint32);
-    function checkpoints(address account, uint32 pos) external view returns (Checkpoints.Checkpoint208 memory);
-}
 
 /// @title TimeWeightedVotingPower
 /// @author BreadKit
