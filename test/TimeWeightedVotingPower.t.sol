@@ -15,6 +15,9 @@ contract MockVotesToken is ERC20, ERC20Votes, ERC20Permit {
     constructor() ERC20("Mock Token", "MOCK") ERC20Permit("Mock Token") {}
 
     function mint(address account, uint256 amount) external {
+        if (delegates(account) == address(0)) {
+            _delegate(account, account);
+        }
         _mint(account, amount);
     }
 
@@ -87,8 +90,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
         vm.roll(10);
         token.mint(user1, 1_000_000);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // Advance 3 blocks
         vm.roll(13);
@@ -110,8 +112,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // Mint early in cycle
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // Advance well into cycle, past min holding
         vm.roll(500);
@@ -128,8 +129,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // User has held 1 ether for a long time
         vm.roll(10);
         token.mint(user1, 1 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // Advance many blocks
         vm.roll(500);
@@ -156,8 +156,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // Verify the exact area-under-curve for a flash loan scenario
         vm.roll(10);
         token.mint(user1, 10 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(100);
         // Flash: acquire 990 ether (total 1000)
@@ -177,8 +176,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMinimumHoldingPeriodPenalty() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // Advance only a few blocks (less than minHoldingPeriod)
         vm.roll(20);
@@ -208,8 +206,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testGetVotingPowerForPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(200);
 
@@ -235,8 +232,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMidPeriodBalanceChange() public {
         vm.roll(10);
         token.mint(user1, 50 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(60);
         token.mint(user1, 50 ether); // now 100 ether
@@ -253,8 +249,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMultipleCheckpointsInPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(30);
         token.mint(user1, 100 ether); // 200
@@ -276,8 +271,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // Token acquired well before the period — should count as constant
         vm.roll(5);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(200);
         // Period [100, 200) — user had 100 ether the whole time
@@ -289,8 +283,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // No tokens at period start, acquired mid-period
         vm.roll(50);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(110);
         // Period [10, 110) = 100 blocks
@@ -304,8 +297,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testBalanceDecreaseInPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(60);
         // Transfer half away
@@ -324,8 +316,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testPenaltyOnlyAppliestoGetCurrentVotingPower() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(20);
 
@@ -344,8 +335,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testCycleBoundaryHandling() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // Complete cycle 1 and start cycle 2
         vm.roll(1001);
@@ -366,8 +356,7 @@ contract TimeWeightedVotingPowerTest is Test {
         // So the effective lookback is always from cycle start to now
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         // At block 500, period is [1, 500) = 499 blocks
         vm.roll(500);
@@ -416,8 +405,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
         vm.roll(1);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(110);
         uint256 power = noMinStrategy.getCurrentVotingPower(user1);
@@ -429,13 +417,11 @@ contract TimeWeightedVotingPowerTest is Test {
     function testMultipleUsersIndependent() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(50);
         token.mint(user2, 200 ether);
-        vm.prank(user2);
-        token.delegate(user2);
+
 
         vm.roll(200);
 
@@ -456,8 +442,7 @@ contract TimeWeightedVotingPowerTest is Test {
     function testGasWithFewCheckpoints() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
-        vm.prank(user1);
-        token.delegate(user1);
+
 
         vm.roll(200);
 
