@@ -15,6 +15,11 @@ contract BaseDistributionManager is AbstractDistributionManager {
     /// @notice The single strategy that receives all claimed yield
     IDistributionStrategy public distributionStrategy;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @notice Emitted when the distribution strategy is set or changed
     event StrategySet(address indexed strategy);
 

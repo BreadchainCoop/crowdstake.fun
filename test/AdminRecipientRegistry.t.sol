@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {TestWrapper} from "./TestWrapper.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract AdminRecipientRegistryTest is TestWrapper {
     AdminRecipientRegistry public registry;
@@ -19,8 +20,9 @@ contract AdminRecipientRegistryTest is TestWrapper {
     event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     function setUp() public {
-        registry = new AdminRecipientRegistry();
-        registry.initialize(ADMIN);
+        AdminRecipientRegistry impl = new AdminRecipientRegistry();
+        bytes memory payload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, ADMIN);
+        registry = AdminRecipientRegistry(address(new ERC1967Proxy(address(impl), payload)));
     }
 
     function test_Initialize() public view {

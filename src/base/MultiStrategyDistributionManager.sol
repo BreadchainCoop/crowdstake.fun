@@ -15,6 +15,11 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     /// @notice Ordered list of strategies that receive yield
     IDistributionStrategy[] public strategies;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @notice Emitted when the strategy set is configured during initialization
     event StrategiesInitialized(IDistributionStrategy[] strategies);
 

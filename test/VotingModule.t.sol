@@ -13,6 +13,7 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Mock token implementation for testing
 contract MockToken is ERC20, ERC20Votes, ERC20Permit {
@@ -96,16 +97,28 @@ contract VotingModuleTest is Test {
 
         // Deploy utility contracts
 
-        // Deploy and initialize cycle module
-        cycleModule = new CycleModule();
-        cycleModule.initialize(1000); // 1000 blocks per cycle
+        // Deploy and initialize cycle module via proxy
+        {
+            CycleModule cycleImpl = new CycleModule();
+            bytes memory cyclePayload = abi.encodeWithSelector(CycleModule.initialize.selector, 1000, address(this));
+            cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cyclePayload)));
+        }
 
-        // Deploy and initialize voting module
-        votingModule = new BasisPointsVotingModule();
-        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
-        strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
-
-        votingModule.initialize(MAX_POINTS, strategies, address(0), address(recipientRegistry), address(cycleModule));
+        // Deploy and initialize voting module via proxy
+        {
+            BasisPointsVotingModule votingImpl = new BasisPointsVotingModule();
+            IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
+            strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
+            bytes memory votingPayload = abi.encodeWithSelector(
+                BasisPointsVotingModule.initialize.selector,
+                MAX_POINTS,
+                strategies,
+                address(0),
+                address(recipientRegistry),
+                address(cycleModule)
+            );
+            votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingPayload)));
+        }
     }
 
     // Helper function to create vote signature

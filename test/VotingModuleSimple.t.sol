@@ -9,6 +9,7 @@ import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Simple mock token for testing (non-upgradeable)
 contract MockToken is IVotes {
@@ -136,16 +137,28 @@ contract VotingModuleSimpleTest is Test {
         recipients[2] = address(0x3333);
         recipientRegistry = new MockRecipientRegistry(recipients);
 
-        // Deploy and initialize voting module
-        votingModule = new BasisPointsVotingModule();
-        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
-        strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
+        // Deploy and initialize cycle module via proxy
+        {
+            CycleModule cycleImpl = new CycleModule();
+            bytes memory cyclePayload = abi.encodeWithSelector(CycleModule.initialize.selector, 1000, address(this));
+            cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cyclePayload)));
+        }
 
-        // Deploy and initialize cycle module
-        cycleModule = new CycleModule();
-        cycleModule.initialize(1000); // 1000 blocks per cycle
-
-        votingModule.initialize(MAX_POINTS, strategies, address(0), address(recipientRegistry), address(cycleModule));
+        // Deploy and initialize voting module via proxy
+        {
+            BasisPointsVotingModule votingImpl = new BasisPointsVotingModule();
+            IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
+            strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
+            bytes memory votingPayload = abi.encodeWithSelector(
+                BasisPointsVotingModule.initialize.selector,
+                MAX_POINTS,
+                strategies,
+                address(0),
+                address(recipientRegistry),
+                address(cycleModule)
+            );
+            votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingPayload)));
+        }
     }
 
     function testInitialization() public view {

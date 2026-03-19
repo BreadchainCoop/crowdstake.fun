@@ -2,11 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {ICycleModule} from "../interfaces/ICycleModule.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /// @title AbstractCycleModule
 /// @notice Abstract contract providing core cycle functionality with fixed cycle implementation
 /// @dev All cycle utilities merged into a single abstract module
-abstract contract AbstractCycleModule is ICycleModule {
+abstract contract AbstractCycleModule is Initializable, OwnableUpgradeable, ICycleModule {
     /// @notice The length of each cycle in blocks
     uint256 public cycleLength;
 
@@ -19,9 +21,6 @@ abstract contract AbstractCycleModule is ICycleModule {
     /// @notice Addresses authorized to trigger cycle transitions
     mapping(address => bool) public authorized;
 
-    /// @notice Tracks whether the module has been initialized
-    bool public initialized;
-
     /// @notice Error thrown when caller is not authorized
     error NotAuthorized();
 
@@ -30,12 +29,6 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Error thrown when cycle transition is invalid
     error InvalidCycleTransition();
-
-    /// @notice Error thrown when module is already initialized
-    error AlreadyInitialized();
-
-    /// @notice Error thrown when module is not initialized
-    error NotInitialized();
 
     /// @notice Emitted when a new cycle starts
     /// @param cycleNumber The number of the new cycle
@@ -68,38 +61,23 @@ abstract contract AbstractCycleModule is ICycleModule {
         _;
     }
 
-    /// @notice Modifier to ensure module is initialized
-    modifier onlyInitialized() {
-        _onlyInitialized();
-        _;
-    }
-
     function _onlyAuthorized() internal view {
         if (!authorized[msg.sender]) {
             revert NotAuthorized();
         }
     }
 
-    function _onlyInitialized() internal view {
-        if (!initialized) {
-            revert NotInitialized();
-        }
-    }
-
-    /// @notice Constructor sets up initial authorization
-    constructor() {
-        // Authorize the deployer
-        authorized[msg.sender] = true;
-        emit AuthorizationUpdated(msg.sender, true);
-    }
-
-    /// @notice Initializes the cycle module with fixed cycle parameters
+    /// @dev Initializes the cycle module
     /// @param _cycleLength The length of each cycle in blocks
-    function initialize(uint256 _cycleLength) external onlyAuthorized {
-        if (initialized) {
-            revert AlreadyInitialized();
-        }
+    /// @param _owner The owner/admin of this module
+    // solhint-disable-next-line func-name-mixedcase
+    function __AbstractCycleModule_init(uint256 _cycleLength, address _owner) internal onlyInitializing {
+        __Ownable_init(_owner);
+        __AbstractCycleModule_init_unchained(_cycleLength, _owner);
+    }
 
+    // solhint-disable-next-line func-name-mixedcase
+    function __AbstractCycleModule_init_unchained(uint256 _cycleLength, address _owner) internal onlyInitializing {
         if (_cycleLength == 0) {
             revert InvalidCycleLength();
         }
@@ -107,7 +85,10 @@ abstract contract AbstractCycleModule is ICycleModule {
         cycleLength = _cycleLength;
         lastCycleStartBlock = block.number;
         currentCycle = 1;
-        initialized = true;
+
+        // Authorize the owner
+        authorized[_owner] = true;
+        emit AuthorizationUpdated(_owner, true);
 
         emit ModuleInitialized(_cycleLength, block.number);
     }
@@ -122,19 +103,19 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Gets the current cycle number
     /// @return The current cycle number
-    function getCurrentCycle() external view virtual onlyInitialized returns (uint256) {
+    function getCurrentCycle() external view virtual returns (uint256) {
         return currentCycle;
     }
 
     /// @notice Checks if the cycle timing allows for distribution
     /// @return Whether the current cycle has completed
-    function isCycleComplete() public view virtual onlyInitialized returns (bool) {
+    function isCycleComplete() public view virtual returns (bool) {
         return block.number >= lastCycleStartBlock + cycleLength;
     }
 
     /// @notice Starts a new cycle
     /// @dev Only callable by authorized contracts when cycle is complete
-    function startNewCycle() external virtual onlyAuthorized onlyInitialized {
+    function startNewCycle() external virtual onlyAuthorized {
         if (!isCycleComplete()) {
             revert InvalidCycleTransition();
         }
@@ -149,7 +130,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Gets the number of blocks until the next cycle
     /// @return The number of blocks remaining in the current cycle
-    function getBlocksUntilNextCycle() external view virtual onlyInitialized returns (uint256) {
+    function getBlocksUntilNextCycle() external view virtual returns (uint256) {
         uint256 endBlock = lastCycleStartBlock + cycleLength;
         if (block.number >= endBlock) {
             return 0;
@@ -159,7 +140,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Gets the progress of the current cycle as a percentage
     /// @return The cycle progress (0-100)
-    function getCycleProgress() external view virtual onlyInitialized returns (uint256) {
+    function getCycleProgress() external view virtual returns (uint256) {
         uint256 blocksElapsed = block.number - lastCycleStartBlock;
         if (blocksElapsed >= cycleLength) {
             return 100;
@@ -169,7 +150,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Updates the cycle length for future cycles
     /// @param newCycleLength The new cycle length in blocks
-    function updateCycleLength(uint256 newCycleLength) external virtual onlyAuthorized onlyInitialized {
+    function updateCycleLength(uint256 newCycleLength) external virtual onlyAuthorized {
         if (newCycleLength == 0) {
             revert InvalidCycleLength();
         }
@@ -179,4 +160,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
         emit CycleLengthUpdated(oldLength, newCycleLength);
     }
+
+    /// @dev Gap for future storage variables in upgradeable contracts
+    uint256[45] private __gap;
 }

@@ -9,6 +9,11 @@ import {AbstractRecipientRegistry} from "../../abstract/AbstractRecipientRegistr
 /// @dev Proposals expire after 7 days if not executed
 /// @author BreadKit Protocol
 contract VotingRecipientRegistry is AbstractRecipientRegistry {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @notice Structure containing all information about a proposal
     /// @dev Proposals can be for adding or removing recipients
     struct Proposal {

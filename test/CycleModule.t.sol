@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract CycleModuleTest is Test {
     CycleModule public cycleModule;
@@ -13,10 +14,16 @@ contract CycleModuleTest is Test {
     uint256 constant CYCLE_LENGTH = 100; // 100 blocks per cycle
     uint256 constant START_BLOCK = 1000;
 
+    function _deployCycleModule(uint256 _cycleLength, address _owner) internal returns (CycleModule) {
+        CycleModule impl = new CycleModule();
+        bytes memory payload = abi.encodeWithSelector(CycleModule.initialize.selector, _cycleLength, _owner);
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), payload);
+        return CycleModule(address(proxy));
+    }
+
     function setUp() public {
         vm.roll(START_BLOCK);
-        cycleModule = new CycleModule();
-        cycleModule.initialize(CYCLE_LENGTH);
+        cycleModule = _deployCycleModule(CYCLE_LENGTH, owner);
     }
 
     function testInitialState() public view {
@@ -24,34 +31,11 @@ contract CycleModuleTest is Test {
         assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
         assertEq(cycleModule.lastCycleStartBlock(), START_BLOCK);
         assertTrue(cycleModule.authorized(owner));
-        assertTrue(cycleModule.initialized());
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
-        cycleModule.initialize(200);
-    }
-
-    function testNotInitializedFunctions() public {
-        CycleModule uninitializedModule = new CycleModule();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.getCurrentCycle();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.isCycleComplete();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.startNewCycle();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.getBlocksUntilNextCycle();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.getCycleProgress();
-
-        vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
-        uninitializedModule.updateCycleLength(200);
+        vm.expectRevert();
+        cycleModule.initialize(200, owner);
     }
 
     function testCycleCompletion() public {
@@ -143,14 +127,6 @@ contract CycleModuleTest is Test {
         vm.prank(user);
         vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
         cycleModule.updateCycleLength(200);
-    }
-
-    function testUnauthorizedCannotInitialize() public {
-        CycleModule newModule = new CycleModule();
-
-        vm.prank(user);
-        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
-        newModule.initialize(100);
     }
 
     function testMultipleCycles() public {
