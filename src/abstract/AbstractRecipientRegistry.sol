@@ -46,6 +46,18 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         return _getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval[index];
     }
 
+    function recipientsLength() public view returns (uint256) {
+        return _getAbstractRecipientRegistryStorage().recipients.length;
+    }
+
+    function queuedRecipientsForAdditionLength() public view returns (uint256) {
+        return _getAbstractRecipientRegistryStorage().queuedRecipientsForAddition.length;
+    }
+
+    function queuedRecipientsForRemovalLength() public view returns (uint256) {
+        return _getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval.length;
+    }
+
     function isRecipientMapping(address account) public view returns (bool) {
         return _getAbstractRecipientRegistryStorage().isRecipientMapping[account];
     }
