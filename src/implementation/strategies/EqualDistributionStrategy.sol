@@ -12,9 +12,6 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
     using SafeERC20 for IERC20;
 
     /// @dev Initializes the equal distribution strategy
-    /// @param _yieldToken Address of the yield token to distribute
-    /// @param _recipientRegistry Address of the recipient registry
-    /// @param _distributionManager Address of the distribution manager
     function initialize(address _yieldToken, address _recipientRegistry, address _distributionManager)
         external
         initializer
@@ -26,14 +23,14 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
     function distribute(uint256 amount) external override onlyDistributionManager {
         if (amount == 0) revert ZeroAmount();
 
-        address[] memory recipients = recipientRegistry.getRecipients();
+        address[] memory recipients = recipientRegistry().getRecipients();
         if (recipients.length == 0) revert NoRecipients();
         if (amount < recipients.length) revert InsufficientYieldForRecipients();
 
         uint256 amountPerRecipient = amount / recipients.length;
 
         for (uint256 i = 0; i < recipients.length; i++) {
-            yieldToken.safeTransfer(recipients[i], amountPerRecipient);
+            yieldToken().safeTransfer(recipients[i], amountPerRecipient);
             emit Distributed(recipients[i], amountPerRecipient);
         }
     }

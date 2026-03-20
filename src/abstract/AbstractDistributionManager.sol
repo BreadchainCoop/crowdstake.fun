@@ -17,16 +17,59 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeable, IDistributionManager {
     using SafeERC20 for IERC20;
 
-    /// @notice Module that exposes yield accrual on the base token
-    IYieldModule public yieldModule;
-    /// @notice Module that tracks voting power and distribution weights
-    IVotingModule public votingModule;
-    /// @notice Registry of eligible distribution recipients
-    IRecipientRegistry public recipientRegistry;
-    /// @notice Cycle module that governs distribution timing
-    ICycleModule public cycleManager;
-    /// @notice ERC-20 token from which yield is claimed and distributed
-    IERC20 public baseToken;
+    // ============ EIP-7201 Namespaced Storage ============
+
+    /// @custom:storage-location erc7201:crowdstake.storage.AbstractDistributionManager
+    struct AbstractDistributionManagerStorage {
+        /// @notice Module that exposes yield accrual on the base token
+        IYieldModule yieldModule;
+        /// @notice Module that tracks voting power and distribution weights
+        IVotingModule votingModule;
+        /// @notice Registry of eligible distribution recipients
+        IRecipientRegistry recipientRegistry;
+        /// @notice Cycle module that governs distribution timing
+        ICycleModule cycleManager;
+        /// @notice ERC-20 token from which yield is claimed and distributed
+        IERC20 baseToken;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractDistributionManager")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ABSTRACT_DISTRIBUTION_MANAGER_STORAGE =
+        0xc2850815a6e927da2b1ca8295fc9771026b76fea1a2c1c5ac7766e070eed3b00;
+
+    function _getAbstractDistributionManagerStorage()
+        internal
+        pure
+        returns (AbstractDistributionManagerStorage storage $)
+    {
+        assembly {
+            $.slot := ABSTRACT_DISTRIBUTION_MANAGER_STORAGE
+        }
+    }
+
+    // ============ Public Getters ============
+
+    function yieldModule() public view returns (IYieldModule) {
+        return _getAbstractDistributionManagerStorage().yieldModule;
+    }
+
+    function votingModule() public view returns (IVotingModule) {
+        return _getAbstractDistributionManagerStorage().votingModule;
+    }
+
+    function recipientRegistry() public view returns (IRecipientRegistry) {
+        return _getAbstractDistributionManagerStorage().recipientRegistry;
+    }
+
+    function cycleManager() public view returns (ICycleModule) {
+        return _getAbstractDistributionManagerStorage().cycleManager;
+    }
+
+    function baseToken() public view returns (IERC20) {
+        return _getAbstractDistributionManagerStorage().baseToken;
+    }
+
+    // ============ Initialization ============
 
     /// @dev Initializes the distribution manager
     /// @param _cycleManager Address of the cycle manager
@@ -54,13 +97,14 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         if (_baseToken == address(0)) revert ZeroAddress();
         if (_votingModule == address(0)) revert ZeroAddress();
 
-        cycleManager = ICycleModule(_cycleManager);
-        recipientRegistry = IRecipientRegistry(_recipientRegistry);
-        baseToken = IERC20(_baseToken);
-        votingModule = IVotingModule(_votingModule);
+        AbstractDistributionManagerStorage storage $ = _getAbstractDistributionManagerStorage();
+        $.cycleManager = ICycleModule(_cycleManager);
+        $.recipientRegistry = IRecipientRegistry(_recipientRegistry);
+        $.baseToken = IERC20(_baseToken);
+        $.votingModule = IVotingModule(_votingModule);
 
         // Assume base token implements IYieldModule
-        yieldModule = IYieldModule(_baseToken);
+        $.yieldModule = IYieldModule(_baseToken);
     }
 
     /// @notice Checks if distribution is ready
@@ -76,7 +120,7 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
     /// @return totalPower The total voting power currently active
     function getTotalCurrentVotingPower() public view virtual returns (uint256 totalPower) {
         // Get current voting distribution and sum it up
-        uint256[] memory distribution = votingModule.getCurrentVotingDistribution();
+        uint256[] memory distribution = _getAbstractDistributionManagerStorage().votingModule.getCurrentVotingDistribution();
         for (uint256 i = 0; i < distribution.length; i++) {
             totalPower += distribution[i];
         }

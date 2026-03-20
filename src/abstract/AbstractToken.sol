@@ -22,9 +22,40 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     error NativeTransferFailed();
     error ZeroAddress();
 
-    address public yieldClaimer;
-    address public pendingYieldClaimer;
-    uint256 public pendingFinishedAt;
+    // ============ EIP-7201 Namespaced Storage ============
+
+    /// @custom:storage-location erc7201:crowdstake.storage.AbstractToken
+    struct AbstractTokenStorage {
+        address yieldClaimer;
+        address pendingYieldClaimer;
+        uint256 pendingFinishedAt;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractToken")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ABSTRACT_TOKEN_STORAGE =
+        0x6746ae24d567a69cac363d4ed8572608d7aa218bd671c5a748fb340bd7db1000;
+
+    function _getAbstractTokenStorage() internal pure returns (AbstractTokenStorage storage $) {
+        assembly {
+            $.slot := ABSTRACT_TOKEN_STORAGE
+        }
+    }
+
+    // ============ Public Getters ============
+
+    function yieldClaimer() public view returns (address) {
+        return _getAbstractTokenStorage().yieldClaimer;
+    }
+
+    function pendingYieldClaimer() public view returns (address) {
+        return _getAbstractTokenStorage().pendingYieldClaimer;
+    }
+
+    function pendingFinishedAt() public view returns (uint256) {
+        return _getAbstractTokenStorage().pendingFinishedAt;
+    }
+
+    // ============ Events ============
 
     event Minted(address receiver, uint256 amount);
     event Burned(address receiver, uint256 amount);
@@ -91,7 +122,8 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     }
 
     function claimYield(uint256 amount_, address receiver_) external virtual {
-        if (msg.sender != yieldClaimer) revert OnlyClaimer();
+        AbstractTokenStorage storage $ = _getAbstractTokenStorage();
+        if (msg.sender != $.yieldClaimer) revert OnlyClaimer();
         if (amount_ == 0) revert ClaimZero();
         uint256 yield = _yieldAccrued();
         if (yield == 0) revert YieldInsufficient();
@@ -104,29 +136,32 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     }
 
     function setYieldClaimer(address yieldClaimer_) external onlyOwner {
+        AbstractTokenStorage storage $ = _getAbstractTokenStorage();
         if (yieldClaimer_ == address(0)) revert ZeroAddress();
-        if (yieldClaimer != address(0)) revert AlreadySetClaimer();
-        yieldClaimer = yieldClaimer_;
+        if ($.yieldClaimer != address(0)) revert AlreadySetClaimer();
+        $.yieldClaimer = yieldClaimer_;
 
         emit YieldClaimerSet(yieldClaimer_);
     }
 
     function prepareNewYieldClaimer(address _newYieldClaimer) external onlyOwner {
+        AbstractTokenStorage storage $ = _getAbstractTokenStorage();
         if (_newYieldClaimer == address(0)) revert ZeroAddress();
-        if (yieldClaimer == _newYieldClaimer) revert SameClaimer();
-        if (pendingFinishedAt > 0) revert PendingClaimer();
-        pendingYieldClaimer = _newYieldClaimer;
-        pendingFinishedAt = block.timestamp + 14 days;
+        if ($.yieldClaimer == _newYieldClaimer) revert SameClaimer();
+        if ($.pendingFinishedAt > 0) revert PendingClaimer();
+        $.pendingYieldClaimer = _newYieldClaimer;
+        $.pendingFinishedAt = block.timestamp + 14 days;
 
         emit PendingYieldClaimerSet(_newYieldClaimer);
     }
 
     function finalizeNewYieldClaimer() external {
-        if (pendingFinishedAt == 0) revert NoPendingClaimer();
-        yieldClaimer = pendingYieldClaimer;
-        pendingFinishedAt = 0;
+        AbstractTokenStorage storage $ = _getAbstractTokenStorage();
+        if ($.pendingFinishedAt == 0) revert NoPendingClaimer();
+        $.yieldClaimer = $.pendingYieldClaimer;
+        $.pendingFinishedAt = 0;
 
-        emit YieldClaimerSet(yieldClaimer);
+        emit YieldClaimerSet($.yieldClaimer);
     }
 
     function transfer(address recipient_, uint256 amount_) public override(ERC20Upgradeable, IERC20) returns (bool) {
