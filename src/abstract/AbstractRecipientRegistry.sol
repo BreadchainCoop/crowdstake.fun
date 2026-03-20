@@ -26,11 +26,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
     bytes32 private constant ABSTRACT_RECIPIENT_REGISTRY_STORAGE =
         0x347caeef91698b68f09c13de18e96db5bda028445fd11b86dc029946f360f200;
 
-    function _getAbstractRecipientRegistryStorage()
-        internal
-        pure
-        returns (AbstractRecipientRegistryStorage storage $)
-    {
+    function _getAbstractRecipientRegistryStorage() internal pure returns (AbstractRecipientRegistryStorage storage $) {
         assembly {
             $.slot := ABSTRACT_RECIPIENT_REGISTRY_STORAGE
         }

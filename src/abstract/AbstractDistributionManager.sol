@@ -120,7 +120,8 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
     /// @return totalPower The total voting power currently active
     function getTotalCurrentVotingPower() public view virtual returns (uint256 totalPower) {
         // Get current voting distribution and sum it up
-        uint256[] memory distribution = _getAbstractDistributionManagerStorage().votingModule.getCurrentVotingDistribution();
+        uint256[] memory distribution =
+            _getAbstractDistributionManagerStorage().votingModule.getCurrentVotingDistribution();
         for (uint256 i = 0; i < distribution.length; i++) {
             totalPower += distribution[i];
         }

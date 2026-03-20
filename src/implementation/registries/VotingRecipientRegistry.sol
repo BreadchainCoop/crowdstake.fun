@@ -41,11 +41,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
     bytes32 private constant VOTING_RECIPIENT_REGISTRY_STORAGE =
         0xd1130eee9b149c4593e65f48b107ed420660e6ad58daa79da60d56a941d9d900;
 
-    function _getVotingRecipientRegistryStorage()
-        private
-        pure
-        returns (VotingRecipientRegistryStorage storage $)
-    {
+    function _getVotingRecipientRegistryStorage() private pure returns (VotingRecipientRegistryStorage storage $) {
         assembly {
             $.slot := VOTING_RECIPIENT_REGISTRY_STORAGE
         }

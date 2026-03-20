@@ -30,11 +30,7 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     bytes32 private constant BASIS_POINTS_VOTING_MODULE_STORAGE =
         0x36e581454c484c4e200212d5304c93307b309208c9d5c05d80ca836f1eed6600;
 
-    function _getBasisPointsVotingModuleStorage()
-        private
-        pure
-        returns (BasisPointsVotingModuleStorage storage $)
-    {
+    function _getBasisPointsVotingModuleStorage() private pure returns (BasisPointsVotingModuleStorage storage $) {
         assembly {
             $.slot := BASIS_POINTS_VOTING_MODULE_STORAGE
         }

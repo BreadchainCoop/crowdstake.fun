@@ -69,7 +69,8 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         if (recipients.length == 0) revert NoRecipients();
         if (amount < recipients.length) revert InsufficientYieldForRecipients();
 
-        uint256[] memory currentVotes = _getVotingDistributionStrategyStorage().votingModule.getCurrentVotingDistribution();
+        uint256[] memory currentVotes =
+            _getVotingDistributionStrategyStorage().votingModule.getCurrentVotingDistribution();
         if (currentVotes.length != recipients.length) revert InvalidVotesLength();
 
         uint256 totalVotes = 0;
