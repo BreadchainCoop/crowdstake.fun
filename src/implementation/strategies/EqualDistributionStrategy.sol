@@ -33,5 +33,9 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
             yieldToken().safeTransfer(recipients[i], amountPerRecipient);
             emit Distributed(recipients[i], amountPerRecipient);
         }
+
+        AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();
+        $.distributionId++;
+        emit DistributionExecuted($.distributionId);
     }
 }

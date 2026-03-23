@@ -87,6 +87,10 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
                 emit Distributed(recipients[i], recipientShare);
             }
         }
+
+        AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();
+        $.distributionId++;
+        emit DistributionExecuted($.distributionId);
     }
 
     /// @notice Updates the voting module
