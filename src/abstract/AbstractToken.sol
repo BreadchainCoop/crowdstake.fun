@@ -17,6 +17,7 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     error OnlyClaimer();
     error NoPendingClaimer();
     error PendingClaimer();
+    error TimelockNotElapsed();
     error AlreadySetClaimer();
     error SameClaimer();
     error NativeTransferFailed();
@@ -158,7 +159,9 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     function finalizeNewYieldClaimer() external {
         AbstractTokenStorage storage $ = _getAbstractTokenStorage();
         if ($.pendingFinishedAt == 0) revert NoPendingClaimer();
+        if (block.timestamp < $.pendingFinishedAt) revert TimelockNotElapsed();
         $.yieldClaimer = $.pendingYieldClaimer;
+        $.pendingYieldClaimer = address(0);
         $.pendingFinishedAt = 0;
 
         emit YieldClaimerSet($.yieldClaimer);
