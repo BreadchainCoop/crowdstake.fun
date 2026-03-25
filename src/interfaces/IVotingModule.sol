@@ -43,6 +43,9 @@ interface IVotingModule {
     /// @notice Thrown when recipient registry is not set
     error RecipientRegistryNotSet();
 
+    /// @notice Thrown when a zero address is provided
+    error ZeroAddress();
+
     // ============ Events ============
 
     /// @notice Emitted when a vote is cast with a signature

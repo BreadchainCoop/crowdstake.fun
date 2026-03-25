@@ -105,7 +105,7 @@ contract VotingModuleTest is Test {
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
 
-        votingModule.initialize(MAX_POINTS, strategies, address(0), address(recipientRegistry), address(cycleModule));
+        votingModule.initialize(MAX_POINTS, strategies, address(0xBEEF), address(recipientRegistry), address(cycleModule));
     }
 
     // Helper function to create vote signature

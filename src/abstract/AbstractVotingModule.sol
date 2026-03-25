@@ -112,6 +112,10 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
         __EIP712_init(EIP712_NAME, EIP712_VERSION);
         __Ownable_init(msg.sender);
 
+        if (_distributionModule == address(0)) revert ZeroAddress();
+        if (_recipientRegistry == address(0)) revert ZeroAddress();
+        if (_cycleModule == address(0)) revert ZeroAddress();
+
         AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
         $.distributionModule = IDistributionModule(_distributionModule);
         $.recipientRegistry = IRecipientRegistry(_recipientRegistry);
