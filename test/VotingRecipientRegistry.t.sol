@@ -46,8 +46,14 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
-        (address candidate, bool isAddition, uint256 voteCount, uint256 requiredVotes, bool executed, uint256 createdAt) =
-            registry.getProposal(proposalId);
+        (
+            address candidate,
+            bool isAddition,
+            uint256 voteCount,
+            uint256 requiredVotes,
+            bool executed,
+            uint256 createdAt
+        ) = registry.getProposal(proposalId);
 
         assertEq(candidate, NEW_RECIPIENT);
         assertTrue(isAddition);
@@ -145,7 +151,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeRemoval(RECIPIENT_3);
 
-        (address candidate, bool isAddition, uint256 voteCount, uint256 requiredVotes,,) = registry.getProposal(proposalId);
+        (address candidate, bool isAddition, uint256 voteCount, uint256 requiredVotes,,) =
+            registry.getProposal(proposalId);
 
         assertEq(candidate, RECIPIENT_3);
         assertFalse(isAddition);
