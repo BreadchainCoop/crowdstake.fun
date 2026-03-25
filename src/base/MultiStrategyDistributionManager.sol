@@ -36,6 +36,7 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
 
     // ============ Public Getters ============
 
+    /// @notice Ordered list of strategies that receive yield
     function strategies(uint256 index) public view returns (IDistributionStrategy) {
         return _getMultiStrategyDistributionManagerStorage().strategies[index];
     }
@@ -46,6 +47,11 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     event StrategiesInitialized(IDistributionStrategy[] strategies);
 
     /// @notice Initializes the MultiStrategyDistributionManager with multiple strategies
+    /// @param _cycleManager Address of the cycle manager
+    /// @param _recipientRegistry Address of the recipient registry
+    /// @param _baseToken Address of the base token with yield
+    /// @param _votingModule Address of the voting module
+    /// @param _strategies Array of distribution strategies to distribute to
     function initialize(
         address _cycleManager,
         address _recipientRegistry,
@@ -66,6 +72,7 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Checks if distribution is ready based on cycle completion, votes, recipients, strategies, and yield
+    /// @return ready True if cycle is complete, there are votes, recipients, configured strategies, and sufficient yield
     function isDistributionReady() public view override returns (bool ready) {
         if (!cycleManager().isCycleComplete()) return false;
 
@@ -120,11 +127,13 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Gets all configured strategies
+    /// @return Array of distribution strategies
     function getStrategies() external view returns (IDistributionStrategy[] memory) {
         return _getMultiStrategyDistributionManagerStorage().strategies;
     }
 
     /// @notice Gets the number of configured strategies
+    /// @return The number of strategies
     function getStrategyCount() external view returns (uint256) {
         return _getMultiStrategyDistributionManagerStorage().strategies.length;
     }

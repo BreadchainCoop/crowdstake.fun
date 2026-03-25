@@ -29,12 +29,15 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     string private constant EIP712_VERSION = "1";
 
     /// @notice Precision factor for calculations to avoid rounding errors
+    /// @dev Used in vote weight calculations to maintain precision
     uint256 public constant PRECISION = 1e18;
 
     /// @notice Maximum number of votes that can be cast in a single batch transaction
+    /// @dev Prevents gas limit issues and potential DOS attacks
     uint256 public constant MAX_BATCH_SIZE = 200;
 
     /// @notice EIP-712 typehash for vote signature verification
+    /// @dev Keccak256 hash of the Vote type structure for EIP-712 signing
     bytes32 public constant VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)");
 
     // ============ EIP-7201 Namespaced Storage ============
@@ -42,18 +45,25 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     /// @custom:storage-location erc7201:crowdstake.storage.AbstractVotingModule
     struct AbstractVotingModuleStorage {
         /// @notice Array of voting power calculation strategies
+        /// @dev Multiple strategies can be used to calculate combined voting power
         IVotingPowerStrategy[] votingPowerStrategies;
         /// @notice Tracks used nonces for each voter to prevent replay attacks
+        /// @dev voter => nonce => used
         mapping(address => mapping(uint256 => bool)) usedNonces;
         /// @notice Tracks the block number when an account last voted
+        /// @dev voter => block number
         mapping(address => uint256) accountLastVotedBlock;
         /// @notice Total voting power used in each cycle
+        /// @dev cycle => total voting power
         mapping(uint256 => uint256) totalCycleVotingPower;
         /// @notice Reference to the distribution module for yield allocation
+        /// @dev Handles the actual distribution of rewards based on voting results
         IDistributionModule distributionModule;
         /// @notice Reference to the recipient registry for validation
+        /// @dev Maintains the list of valid recipients that can receive votes
         IRecipientRegistry recipientRegistry;
         /// @notice Reference to the cycle module for cycle management
+        /// @dev Manages voting cycles and transitions between periods
         ICycleModule cycleModule;
     }
 
@@ -69,30 +79,45 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
 
     // ============ Public Getters ============
 
+    /// @notice Returns the voting power strategy at the given index
+    /// @param index The index in the strategies array
     function votingPowerStrategies(uint256 index) public view returns (IVotingPowerStrategy) {
         return _getAbstractVotingModuleStorage().votingPowerStrategies[index];
     }
 
+    /// @notice Returns whether a nonce has been used by a voter
+    /// @param voter The voter address
+    /// @param nonce The nonce to check
     function usedNonces(address voter, uint256 nonce) public view returns (bool) {
         return _getAbstractVotingModuleStorage().usedNonces[voter][nonce];
     }
 
+    /// @notice Returns the block number when the account last voted
+    /// @param voter The voter address
     function accountLastVotedBlock(address voter) public view returns (uint256) {
         return _getAbstractVotingModuleStorage().accountLastVotedBlock[voter];
     }
 
+    /// @notice Returns the total voting power used in a given cycle
+    /// @param cycle The cycle number
     function totalCycleVotingPower(uint256 cycle) public view returns (uint256) {
         return _getAbstractVotingModuleStorage().totalCycleVotingPower[cycle];
     }
 
+    /// @notice Returns the distribution module reference
+    /// @dev Handles the actual distribution of rewards based on voting results
     function distributionModule() public view returns (IDistributionModule) {
         return _getAbstractVotingModuleStorage().distributionModule;
     }
 
+    /// @notice Returns the recipient registry reference
+    /// @dev Maintains the list of valid recipients that can receive votes
     function recipientRegistry() public view returns (IRecipientRegistry) {
         return _getAbstractVotingModuleStorage().recipientRegistry;
     }
 
+    /// @notice Returns the cycle module reference
+    /// @dev Manages voting cycles and transitions between periods
     function cycleModule() public view returns (ICycleModule) {
         return _getAbstractVotingModuleStorage().cycleModule;
     }

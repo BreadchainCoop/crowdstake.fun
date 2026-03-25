@@ -53,14 +53,17 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
 
     // ============ Public Getters ============
 
+    /// @notice ERC-20 token being distributed as yield
     function yieldToken() public view returns (IERC20) {
         return _getAbstractDistributionStrategyStorage().yieldToken;
     }
 
+    /// @notice Registry that supplies the list of eligible recipients
     function recipientRegistry() public view returns (IRecipientRegistry) {
         return _getAbstractDistributionStrategyStorage().recipientRegistry;
     }
 
+    /// @notice The distribution manager authorized to call distribute
     function distributionManager() public view returns (address) {
         return _getAbstractDistributionStrategyStorage().distributionManager;
     }

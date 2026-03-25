@@ -36,6 +36,7 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
 
     // ============ Public Getters ============
 
+    /// @notice Module that provides the current vote distribution weights
     function votingModule() public view returns (IVotingModule) {
         return _getVotingDistributionStrategyStorage().votingModule;
     }
@@ -50,6 +51,10 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     // ============ Initialization ============
 
     /// @dev Initializes the voting distribution strategy
+    /// @param _yieldToken Address of the yield token to distribute
+    /// @param _recipientRegistry Address of the recipient registry
+    /// @param _votingModule Address of the voting module
+    /// @param _distributionManager Address of the distribution manager
     function initialize(
         address _yieldToken,
         address _recipientRegistry,
@@ -90,6 +95,7 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     }
 
     /// @notice Updates the voting module
+    /// @param _votingModule Address of the voting module
     function setVotingModule(address _votingModule) external onlyOwner {
         if (_votingModule == address(0)) revert ZeroAddress();
         _getVotingDistributionStrategyStorage().votingModule = IVotingModule(_votingModule);

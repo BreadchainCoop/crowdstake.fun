@@ -49,22 +49,27 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
 
     // ============ Public Getters ============
 
+    /// @notice Module that exposes yield accrual on the base token
     function yieldModule() public view returns (IYieldModule) {
         return _getAbstractDistributionManagerStorage().yieldModule;
     }
 
+    /// @notice Module that tracks voting power and distribution weights
     function votingModule() public view returns (IVotingModule) {
         return _getAbstractDistributionManagerStorage().votingModule;
     }
 
+    /// @notice Registry of eligible distribution recipients
     function recipientRegistry() public view returns (IRecipientRegistry) {
         return _getAbstractDistributionManagerStorage().recipientRegistry;
     }
 
+    /// @notice Cycle module that governs distribution timing
     function cycleManager() public view returns (ICycleModule) {
         return _getAbstractDistributionManagerStorage().cycleManager;
     }
 
+    /// @notice ERC-20 token from which yield is claimed and distributed
     function baseToken() public view returns (IERC20) {
         return _getAbstractDistributionManagerStorage().baseToken;
     }

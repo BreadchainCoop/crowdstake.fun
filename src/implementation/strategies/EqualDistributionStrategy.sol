@@ -12,6 +12,9 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
     using SafeERC20 for IERC20;
 
     /// @dev Initializes the equal distribution strategy
+    /// @param _yieldToken Address of the yield token to distribute
+    /// @param _recipientRegistry Address of the recipient registry
+    /// @param _distributionManager Address of the distribution manager
     function initialize(address _yieldToken, address _recipientRegistry, address _distributionManager)
         external
         initializer

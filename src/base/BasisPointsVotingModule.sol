@@ -17,12 +17,16 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @custom:storage-location erc7201:crowdstake.storage.BasisPointsVotingModule
     struct BasisPointsVotingModuleStorage {
         /// @notice Maximum points that can be allocated to a single recipient
+        /// @dev Configurable per implementation to control vote distribution
         uint256 maxPoints;
         /// @notice Vote distribution across projects for each cycle
+        /// @dev cycle => array of weighted votes per project
         mapping(uint256 => uint256[]) projectDistributions;
         /// @notice Tracks voting power used by each voter in each cycle
+        /// @dev cycle => voter => voting power used
         mapping(uint256 => mapping(address => uint256)) voterCyclePower;
         /// @notice Tracks points allocated by each voter in each cycle
+        /// @dev cycle => voter => points array
         mapping(uint256 => mapping(address => uint256[])) voterCyclePoints;
     }
 
@@ -38,24 +42,34 @@ contract BasisPointsVotingModule is AbstractVotingModule {
 
     // ============ Public Getters ============
 
+    /// @notice Maximum points that can be allocated to a single recipient
+    /// @dev Configurable per implementation to control vote distribution
     function maxPoints() public view returns (uint256) {
         return _getBasisPointsVotingModuleStorage().maxPoints;
     }
 
+    /// @notice Vote distribution across projects for each cycle
+    /// @dev cycle => array of weighted votes per project
     function projectDistributions(uint256 cycle, uint256 index) public view returns (uint256) {
         return _getBasisPointsVotingModuleStorage().projectDistributions[cycle][index];
     }
 
+    /// @notice Tracks voting power used by each voter in each cycle
+    /// @dev cycle => voter => voting power used
     function voterCyclePower(uint256 cycle, address voter) public view returns (uint256) {
         return _getBasisPointsVotingModuleStorage().voterCyclePower[cycle][voter];
     }
 
+    /// @notice Tracks points allocated by each voter in each cycle
+    /// @dev cycle => voter => points array
     function voterCyclePoints(uint256 cycle, address voter, uint256 index) public view returns (uint256) {
         return _getBasisPointsVotingModuleStorage().voterCyclePoints[cycle][voter][index];
     }
 
     // ============ Constructor ============
 
+    /// @notice Creates a new BasisPointsVotingModule instance
+    /// @dev Initializes the implementation contract. Must be initialized before use.
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // _disableInitializers(); // Only for proxy deployments
@@ -64,6 +78,13 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     // ============ Initialization ============
 
     /// @notice Initializes the basis points voting module
+    /// @dev Sets up the voting module with strategies and external dependencies.
+    ///      Can only be called once due to initializer modifier.
+    /// @param _maxPoints Maximum points that can be allocated per recipient (e.g., 100 for percentage-based)
+    /// @param _strategies Array of voting power strategy contracts to use for power calculation
+    /// @param _distributionModule Address of the distribution module for reward allocation
+    /// @param _recipientRegistry Address of the recipient registry for valid recipients
+    /// @param _cycleModule Address of the cycle module for cycle management
     function initialize(
         uint256 _maxPoints,
         IVotingPowerStrategy[] calldata _strategies,
@@ -78,6 +99,12 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     // ============ External Functions ============
 
     /// @notice Casts a vote with an EIP-712 signature
+    /// @dev Validates the signature and processes the vote using the voter's current voting power.
+    ///      The signature must be valid and the nonce must not have been used.
+    /// @param voter The address of the voter casting the vote
+    /// @param points Array of basis points to allocate to each recipient (must sum to <= maxPoints per recipient)
+    /// @param nonce Unique nonce for this vote to prevent replay attacks
+    /// @param signature EIP-712 signature authorizing this vote
     function castVoteWithSignature(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
         external
     {
@@ -85,6 +112,12 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     }
 
     /// @notice Casts multiple votes in a single transaction for gas efficiency
+    /// @dev Processes multiple votes atomically. If any vote fails, the entire batch reverts.
+    ///      Limited to MAX_BATCH_SIZE votes per transaction to prevent gas limit issues.
+    /// @param voters Array of voter addresses
+    /// @param points Array of point allocations for each voter
+    /// @param nonces Array of nonces for each vote
+    /// @param signatures Array of EIP-712 signatures for each vote
     function castBatchVotesWithSignature(
         address[] calldata voters,
         uint256[][] calldata points,
@@ -112,12 +145,17 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     // ============ View Functions ============
 
     /// @notice Gets the current voting distribution for the active cycle
+    /// @dev Returns the array of weighted votes for each project in the current cycle
+    /// @return Array of vote weights for each project
     function getCurrentVotingDistribution() external view returns (uint256[] memory) {
         uint256 currentCycle = cycleModule().getCurrentCycle();
         return _getBasisPointsVotingModuleStorage().projectDistributions[currentCycle];
     }
 
     /// @notice Gets the vote distribution for a specific cycle
+    /// @dev Returns the weighted vote totals for each recipient
+    /// @param cycle The cycle number to check
+    /// @return Array of weighted vote totals for each recipient
     function getProjectDistributions(uint256 cycle) external view returns (uint256[] memory) {
         return _getBasisPointsVotingModuleStorage().projectDistributions[cycle];
     }
@@ -125,6 +163,8 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     // ============ Admin Functions ============
 
     /// @notice Sets the maximum points that can be allocated per recipient
+    /// @dev Only callable by owner
+    /// @param _maxPoints The new maximum points value
     function setMaxPoints(uint256 _maxPoints) external onlyOwner {
         _getBasisPointsVotingModuleStorage().maxPoints = _maxPoints;
         emit MaxPointsSet(_maxPoints);
@@ -133,6 +173,10 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     // ============ Internal Functions ============
 
     /// @notice Processes and records a vote
+    /// @dev Updates project distributions and cycle voting power. Handles vote recasting by replacing previous vote.
+    /// @param voter Address of the voter
+    /// @param points Array of points allocated to each recipient
+    /// @param votingPower Total voting power of the voter
     function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal override {
         AbstractVotingModuleStorage storage base = _getAbstractVotingModuleStorage();
         BasisPointsVotingModuleStorage storage $ = _getBasisPointsVotingModuleStorage();
@@ -186,6 +230,9 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     }
 
     /// @notice Validates vote points distribution
+    /// @dev Checks if points array is valid according to basis points rules
+    /// @param points Array of points to validate
+    /// @return True if points are valid, false otherwise
     function _validateVotePoints(uint256[] calldata points) internal view override returns (bool) {
         if (points.length == 0) return false;
 

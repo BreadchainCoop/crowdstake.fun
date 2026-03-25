@@ -32,6 +32,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
 
     // ============ Public Getters ============
 
+    /// @notice The single strategy that receives all claimed yield
     function distributionStrategy() public view returns (IDistributionStrategy) {
         return _getBaseDistributionManagerStorage().distributionStrategy;
     }
@@ -42,6 +43,11 @@ contract BaseDistributionManager is AbstractDistributionManager {
     event StrategySet(address indexed strategy);
 
     /// @notice Initializes the BaseDistributionManager with a single distribution strategy
+    /// @param _cycleManager Address of the cycle manager
+    /// @param _recipientRegistry Address of the recipient registry
+    /// @param _baseToken Address of the base token with yield
+    /// @param _votingModule Address of the voting module
+    /// @param _strategy Address of the distribution strategy to use
     function initialize(
         address _cycleManager,
         address _recipientRegistry,
@@ -60,6 +66,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Sets the distribution strategy
+    /// @param _strategy Address of the distribution strategy
     function setDistributionStrategy(address _strategy) external onlyOwner {
         if (_strategy == address(0)) revert ZeroAddress();
         _getBaseDistributionManagerStorage().distributionStrategy = IDistributionStrategy(_strategy);
@@ -67,6 +74,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Checks if distribution is ready based on cycle completion, votes, and yield
+    /// @return ready True if cycle is complete, there are votes, recipients, and sufficient yield
     function isDistributionReady() public view override returns (bool ready) {
         if (!cycleManager().isCycleComplete()) return false;
 
