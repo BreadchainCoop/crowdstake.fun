@@ -66,6 +66,7 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
         require(_strategies.length > 0, "No strategies provided");
         MultiStrategyDistributionManagerStorage storage $ = _getMultiStrategyDistributionManagerStorage();
         for (uint256 i = 0; i < _strategies.length; i++) {
+            if (address(_strategies[i]) == address(0)) revert ZeroAddress();
             $.strategies.push(_strategies[i]);
         }
         emit StrategiesInitialized(_strategies);
