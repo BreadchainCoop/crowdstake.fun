@@ -10,6 +10,10 @@ interface IDistributionStrategy {
     /// @param amount Amount distributed
     event Distributed(address indexed recipient, uint256 amount);
 
+    /// @notice Emitted once per distribute() call with a unique sequential identifier
+    /// @param distributionId Auto-incrementing identifier for this distribution
+    event DistributionExecuted(uint256 indexed distributionId);
+
     /// @notice Distributes the received yield
     /// @param amount Amount of yield to distribute
     function distribute(uint256 amount) external;

@@ -35,6 +35,8 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
         IRecipientRegistry recipientRegistry;
         /// @notice The distribution manager authorized to call distribute
         address distributionManager;
+        /// @notice Auto-incrementing identifier for distribution events
+        uint256 distributionId;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractDistributionStrategy")) - 1)) & ~bytes32(uint256(0xff))
@@ -66,6 +68,10 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
     /// @notice The distribution manager authorized to call distribute
     function distributionManager() public view returns (address) {
         return _getAbstractDistributionStrategyStorage().distributionManager;
+    }
+
+    function distributionId() public view returns (uint256) {
+        return _getAbstractDistributionStrategyStorage().distributionId;
     }
 
     // ============ Modifiers ============
