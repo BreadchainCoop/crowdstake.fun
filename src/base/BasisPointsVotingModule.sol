@@ -251,4 +251,16 @@ contract BasisPointsVotingModule is AbstractVotingModule {
 
         return true;
     }
+
+    // Issue #43: Store required votes at proposal creation in VotingRecipientRegistry
+    // https://github.com/BreadchainCoop/breadkit/issues/43
+    // TODO: Implement when VotingRecipientRegistry is added
+    // /// @notice Gets the required number of votes for a proposal
+    // /// @dev Returns the stored required votes for proposal execution
+    // /// @param proposalId The ID of the proposal
+    // /// @return The number of required votes
+    // function getRequiredVotes(uint256 proposalId) external view override returns (uint256) {
+    //     // Will be implemented when VotingRecipientRegistry is added
+    //     // return votingRecipientRegistry.getRequiredVotes(proposalId);
+    // }
 }

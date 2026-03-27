@@ -366,4 +366,22 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
         Proposal storage proposal = $.proposals[proposalId];
         return block.timestamp > proposal.createdAt + $.proposalExpiry;
     }
+
+    // TODO: Temporarily commented out pending resolution of issue #43
+    // See: https://github.com/BreadchainCoop/breadkit/issues/43
+
+    // /// @notice Calculate the number of votes required for a proposal to pass
+    // /// @dev Addition proposals require all current recipients to vote (100% consensus)
+    // /// @dev Removal proposals require all recipients except the one being removed
+    // /// @dev This number can change if recipients are added/removed while proposal is active
+    // /// @param proposalId The ID of the proposal to check requirements for
+    // /// @return requiredVotes Number of votes needed for the proposal to be executable
+    // function getRequiredVotes(uint256 proposalId) external view returns (uint256 requiredVotes) {
+    //     Proposal storage proposal = proposals[proposalId];
+    //     if (proposal.candidate == address(0)) revert ProposalNotFound();
+
+    //     // Addition proposals need unanimous consent from all current recipients
+    //     // Removal proposals need consent from all recipients except the one being removed
+    //     return proposal.isAddition ? recipients.length : recipients.length - 1;
+    // }
 }

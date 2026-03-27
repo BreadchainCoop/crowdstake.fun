@@ -74,12 +74,14 @@ abstract contract AbstractCycleModule is ICycleModule {
         _;
     }
 
+    /// @dev Reverts if the caller is not an authorized address
     function _onlyAuthorized() internal view {
         if (!authorized[msg.sender]) {
             revert NotAuthorized();
         }
     }
 
+    /// @dev Reverts if the module has not been initialized
     function _onlyInitialized() internal view {
         if (!initialized) {
             revert NotInitialized();

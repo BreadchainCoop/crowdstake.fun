@@ -50,7 +50,8 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
 
     // ============ Initialization ============
 
-    /// @dev Initializes the voting distribution strategy
+    /// @notice Initializes the voting distribution strategy
+    /// @dev Sets up the strategy with yield token, recipient registry, voting module, and distribution manager
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _votingModule Address of the voting module
@@ -66,7 +67,9 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         _getVotingDistributionStrategyStorage().votingModule = IVotingModule(_votingModule);
     }
 
-    /// @dev Distributes amount based on voting weights
+    /// @notice Distributes yield proportionally based on voting weights
+    /// @dev Recipients with zero votes receive nothing; dust from rounding is left in the contract
+    /// @param amount The total amount of yield to distribute
     function distribute(uint256 amount) external override onlyDistributionManager {
         if (amount == 0) revert ZeroAmount();
 

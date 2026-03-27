@@ -38,6 +38,10 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice The cycle module for period tracking and lookback derivation
     ICycleModule public immutable cycleModule;
 
+    /// @notice Constructs the time-weighted voting power strategy
+    /// @dev Reverts if either token or cycle module address is zero
+    /// @param _votingToken The ERC20Votes token with checkpoint support
+    /// @param _cycleModule The cycle module for period tracking
     constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();

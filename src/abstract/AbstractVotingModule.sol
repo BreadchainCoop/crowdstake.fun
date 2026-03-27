@@ -38,6 +38,7 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
 
     /// @notice EIP-712 typehash for vote signature verification
     /// @dev Keccak256 hash of the Vote type structure for EIP-712 signing
+    /// @dev keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)") = 0x75bc59ee506a0b0e949fb3a7df4ed9c67afe07055fed85f523f130ba4f0bfaea
     bytes32 public constant VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)");
 
     // ============ EIP-7201 Namespaced Storage ============
@@ -125,6 +126,12 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     // ============ Initialization ============
 
     /// @notice Initializes the abstract voting module
+    /// @dev Sets up EIP-712 domain, ownership, and core parameters.
+    ///      Must be called by inheriting contract's initializer.
+    /// @param _strategies Array of voting power strategy contracts
+    /// @param _distributionModule Address of the distribution module
+    /// @param _recipientRegistry Address of the recipient registry
+    /// @param _cycleModule Address of the cycle module
     // solhint-disable-next-line func-name-mixedcase
     function __AbstractVotingModule_init(
         IVotingPowerStrategy[] calldata _strategies,
@@ -160,26 +167,39 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     // ============ External Functions ============
 
     /// @notice Gets the voting power of an account from the voting strategies
+    /// @dev Queries the configured voting strategies for the account's power
+    /// @param account The address to check voting power for
+    /// @return The total voting power from all strategies
     function getVotingPower(address account) external view virtual returns (uint256) {
         return _calculateTotalVotingPower(account);
     }
 
     /// @notice Returns the EIP-712 domain separator for signature verification
+    /// @dev Used by external contracts to verify signatures
+    /// @return The domain separator hash
     function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
         return _domainSeparatorV4();
     }
 
     /// @notice Checks if a nonce has been used for a voter
+    /// @dev Used to prevent replay attacks
+    /// @param voter The voter's address
+    /// @param nonce The nonce to check
+    /// @return True if the nonce has been used, false otherwise
     function isNonceUsed(address voter, uint256 nonce) public view virtual returns (bool) {
         return _getAbstractVotingModuleStorage().usedNonces[voter][nonce];
     }
 
     /// @notice Gets all configured voting power strategies
+    /// @dev Returns the array of strategy contracts
+    /// @return Array of voting power strategy contracts
     function getVotingPowerStrategies() external view virtual returns (IVotingPowerStrategy[] memory) {
         return _getAbstractVotingModuleStorage().votingPowerStrategies;
     }
 
     /// @notice Gets the expected number of vote points based on active recipients
+    /// @dev Used to validate vote arrays have correct length
+    /// @return The number of active recipients
     function getExpectedPointsLength() external view returns (uint256) {
         AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
         if (address($.recipientRegistry) == address(0)) revert RecipientRegistryNotSet();
@@ -188,14 +208,23 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
 
     // ============ Getter Functions ============
 
+    /// @notice Gets the precision factor used in calculations
+    /// @dev Returns the constant PRECISION value for external contracts
+    /// @return The precision factor (1e18)
     function getPrecision() external pure returns (uint256) {
         return PRECISION;
     }
 
+    /// @notice Gets the maximum batch size for batch voting
+    /// @dev Returns the constant MAX_BATCH_SIZE value
+    /// @return The maximum number of votes in a batch (200)
     function getMaxBatchSize() external pure returns (uint256) {
         return MAX_BATCH_SIZE;
     }
 
+    /// @notice Gets the EIP-712 typehash for vote signatures
+    /// @dev Returns the constant VOTE_TYPEHASH for external verification
+    /// @return The keccak256 hash of the Vote type structure
     function getVoteTypehash() external pure returns (bytes32) {
         return VOTE_TYPEHASH;
     }
@@ -203,6 +232,9 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     // ============ View Functions ============
 
     /// @notice Checks if a voter has already voted in the current cycle
+    /// @dev Used to determine if a vote would be a recast
+    /// @param voter The address to check
+    /// @return True if the voter has voted in the current cycle
     function hasVotedInCurrentCycle(address voter) public view returns (bool) {
         AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
         uint256 cycleStartBlock = $.cycleModule.lastCycleStartBlock();
@@ -210,6 +242,9 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     }
 
     /// @notice Gets the total voting power used in a specific cycle
+    /// @dev Useful for calculating voting participation and weight
+    /// @param cycle The cycle number to check
+    /// @return The total voting power used in that cycle
     function getTotalCycleVotingPower(uint256 cycle) external view returns (uint256) {
         return _getAbstractVotingModuleStorage().totalCycleVotingPower[cycle];
     }
@@ -217,6 +252,11 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     // ============ Internal Functions ============
 
     /// @notice Processes a single vote with signature verification
+    /// @dev Validates signature, nonce, and voting power before processing
+    /// @param voter Address of the voter
+    /// @param points Array of points to allocate to each recipient
+    /// @param nonce Unique nonce for replay protection
+    /// @param signature EIP-712 signature from the voter
     function _castSingleVote(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
         internal
     {
@@ -244,6 +284,9 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     }
 
     /// @notice Gets voting power directly from the voting strategies
+    /// @dev Queries each configured voting strategy for the account's power
+    /// @param account Address to get voting power for
+    /// @return totalPower Total voting power from all strategies
     function _calculateTotalVotingPower(address account) internal view returns (uint256) {
         AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
         uint256 totalPower = 0;
@@ -256,12 +299,25 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     }
 
     /// @notice Processes and records a vote
+    /// @dev Updates project distributions and cycle voting power. Handles vote recasting.
+    /// @param voter Address of the voter
+    /// @param points Array of points allocated to each recipient
+    /// @param votingPower Total voting power of the voter
     function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal virtual;
 
     /// @notice Validates vote points distribution
+    /// @dev Checks if points array is valid according to module rules
+    /// @param points Array of points to validate
+    /// @return True if points are valid, false otherwise
     function _validateVotePoints(uint256[] calldata points) internal view virtual returns (bool);
 
     /// @notice Validates a vote signature
+    /// @dev Verifies that a signature is valid for the given vote parameters
+    /// @param voter The address of the voter
+    /// @param points Array of points allocated to each project
+    /// @param nonce The nonce for replay protection
+    /// @param signature The signature to validate
+    /// @return True if signature is valid, false otherwise
     function validateSignature(address voter, uint256[] calldata points, uint256 nonce, bytes calldata signature)
         public
         view
