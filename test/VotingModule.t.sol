@@ -13,6 +13,7 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
 
 // Mock token implementation for testing
 contract MockToken is ERC20, ERC20Votes, ERC20Permit {
@@ -41,6 +42,7 @@ contract VotingModuleTest is Test {
     MockToken public token;
     MockRecipientRegistry public recipientRegistry;
     CycleModule public cycleModule;
+    MockDistributionModule public distributionModule;
 
     // Test accounts
     address public owner;
@@ -100,13 +102,16 @@ contract VotingModuleTest is Test {
         cycleModule = new CycleModule();
         cycleModule.initialize(1000); // 1000 blocks per cycle
 
+        // Deploy mock distribution module
+        distributionModule = new MockDistributionModule();
+
         // Deploy and initialize voting module
         votingModule = new BasisPointsVotingModule();
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
 
         votingModule.initialize(
-            MAX_POINTS, strategies, address(0xBEEF), address(recipientRegistry), address(cycleModule)
+            MAX_POINTS, strategies, address(distributionModule), address(recipientRegistry), address(cycleModule)
         );
     }
 

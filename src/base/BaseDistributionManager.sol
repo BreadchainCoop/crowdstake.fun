@@ -37,6 +37,11 @@ contract BaseDistributionManager is AbstractDistributionManager {
         return _getBaseDistributionManagerStorage().distributionStrategy;
     }
 
+    // ============ Errors ============
+
+    /// @notice Thrown when no distribution strategy has been configured
+    error StrategyNotSet();
+
     // ============ Events ============
 
     /// @notice Emitted when the distribution strategy is set or changed
@@ -91,7 +96,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     function claimAndDistribute() external override {
         if (!isDistributionReady()) revert DistributionNotReady();
         IDistributionStrategy strategy = _getBaseDistributionManagerStorage().distributionStrategy;
-        if (address(strategy) == address(0)) revert("No strategy set");
+        if (address(strategy) == address(0)) revert StrategyNotSet();
 
         // Get the amount of yield available
         uint256 yieldAmount = yieldModule().yieldAccrued();

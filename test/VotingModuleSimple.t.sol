@@ -9,6 +9,7 @@ import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
 
 // Simple mock token for testing (non-upgradeable)
 contract MockToken is IVotes {
@@ -100,6 +101,7 @@ contract VotingModuleSimpleTest is Test {
     MockToken public token;
     MockRecipientRegistry public recipientRegistry;
     CycleModule public cycleModule;
+    MockDistributionModule public distributionModule;
 
     // Test accounts
     address public owner;
@@ -141,12 +143,15 @@ contract VotingModuleSimpleTest is Test {
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
 
+        // Deploy mock distribution module
+        distributionModule = new MockDistributionModule();
+
         // Deploy and initialize cycle module
         cycleModule = new CycleModule();
         cycleModule.initialize(1000); // 1000 blocks per cycle
 
         votingModule.initialize(
-            MAX_POINTS, strategies, address(0xBEEF), address(recipientRegistry), address(cycleModule)
+            MAX_POINTS, strategies, address(distributionModule), address(recipientRegistry), address(cycleModule)
         );
     }
 

@@ -8,6 +8,7 @@ import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
 import {IToken} from "../src/interfaces/IToken.sol";
 import {IWXDAI} from "../src/interfaces/IWXDAI.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AbstractToken} from "../src/abstract/AbstractToken.sol";
 
 contract BreadKitTest is TestWrapper {
     address constant WX_DAI = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d;
@@ -80,5 +81,49 @@ contract BreadKitTest is TestWrapper {
         token.mint(address(this), 1 ether);
 
         assertEq(token.balanceOf(address(this)), 1.5 ether);
+    }
+
+    function test_finalizeNewYieldClaimer_revertsBeforeTimelock() public {
+        address newClaimer = address(0xCAFE);
+
+        token.prepareNewYieldClaimer(newClaimer);
+
+        // Warp forward less than 14 days
+        vm.warp(block.timestamp + 13 days);
+
+        vm.expectRevert(AbstractToken.TimelockNotElapsed.selector);
+        token.finalizeNewYieldClaimer();
+    }
+
+    function test_finalizeNewYieldClaimer_succeedsAfterTimelock() public {
+        address newClaimer = address(0xCAFE);
+
+        token.prepareNewYieldClaimer(newClaimer);
+
+        // Warp forward past 14 days
+        vm.warp(block.timestamp + 14 days + 1);
+
+        token.finalizeNewYieldClaimer();
+
+        assertEq(AbstractToken(address(token)).yieldClaimer(), newClaimer);
+    }
+
+    function test_finalizeNewYieldClaimer_clearsPendingState() public {
+        address newClaimer = address(0xCAFE);
+
+        token.prepareNewYieldClaimer(newClaimer);
+
+        // Verify pending state is set
+        assertEq(AbstractToken(address(token)).pendingYieldClaimer(), newClaimer);
+        assertGt(AbstractToken(address(token)).pendingFinishedAt(), 0);
+
+        // Warp forward past 14 days
+        vm.warp(block.timestamp + 14 days + 1);
+
+        token.finalizeNewYieldClaimer();
+
+        // Verify pending state is cleared
+        assertEq(AbstractToken(address(token)).pendingYieldClaimer(), address(0));
+        assertEq(AbstractToken(address(token)).pendingFinishedAt(), 0);
     }
 }

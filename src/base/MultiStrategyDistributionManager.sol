@@ -113,12 +113,15 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
         // Calculate amount per strategy (equal distribution)
         uint256 amountPerStrategy = yieldAmount / $.strategies.length;
 
+        // Cache storage getter before loop
+        IERC20 baseToken_ = baseToken();
+
         // Distribute to each strategy
         for (uint256 i = 0; i < $.strategies.length; i++) {
             IDistributionStrategy strategy = $.strategies[i];
 
             // Transfer tokens to strategy
-            baseToken().safeTransfer(address(strategy), amountPerStrategy);
+            baseToken_.safeTransfer(address(strategy), amountPerStrategy);
 
             // Trigger distribution in strategy
             strategy.distribute(amountPerStrategy);

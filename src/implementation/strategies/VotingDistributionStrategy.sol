@@ -88,10 +88,11 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
 
         if (totalVotes == 0) revert NoVotes();
 
+        IERC20 yieldToken_ = yieldToken();
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 recipientShare = (amount * currentVotes[i]) / totalVotes;
             if (recipientShare > 0) {
-                yieldToken().safeTransfer(recipients[i], recipientShare);
+                yieldToken_.safeTransfer(recipients[i], recipientShare);
                 emit Distributed(recipients[i], recipientShare);
             }
         }
