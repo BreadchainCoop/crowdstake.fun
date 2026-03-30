@@ -63,6 +63,8 @@ abstract contract AbstractCycleModule is Initializable, ICycleModule {
     /// @notice Error thrown when module is not initialized
     error NotInitialized();
 
+    error ZeroAddress();
+
     // ============ Events ============
 
     /// @notice Emitted when a new cycle starts
@@ -126,6 +128,9 @@ abstract contract AbstractCycleModule is Initializable, ICycleModule {
     function initialize(uint256 _cycleLength, address _authorized) external initializer {
         if (_cycleLength == 0) {
             revert InvalidCycleLength();
+        }
+        if (_authorized == address(0)) {
+            revert ZeroAddress();
         }
 
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();

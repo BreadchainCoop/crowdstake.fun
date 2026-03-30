@@ -130,7 +130,7 @@ contract FactoryModuleDeploymentTest is Test {
 
     // ============ Multiple Modules with Different Salts ============
 
-    function test_createMultipleModulesSameBaconDifferentSalts() public {
+    function test_createMultipleModulesSameBeaconDifferentSalts() public {
         address impl = address(new CycleModule());
         address beacon = address(new UpgradeableBeacon(impl, owner));
 

@@ -145,13 +145,16 @@ contract CycleModuleTest is Test {
         cycleModule.updateCycleLength(200);
     }
 
-    function testUnauthorizedCannotInitialize() public {
+    function testCannotDoubleInitialize() public {
         CycleModule newModule = new CycleModule();
 
-        // Anyone can call initialize on a fresh module since there's no authorization check before init
-        // The initializer modifier prevents double initialization
+        // First initialization succeeds
         newModule.initialize(100, user);
         assertTrue(newModule.authorized(user));
+
+        // Second initialization reverts due to initializer modifier
+        vm.expectRevert();
+        newModule.initialize(200, user);
     }
 
     function testMultipleCycles() public {
