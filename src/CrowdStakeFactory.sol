@@ -41,11 +41,7 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @notice Computes the deterministic address for a beacon proxy deployment
-    function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
-        external
-        view
-        returns (address)
-    {
+    function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_) external view returns (address) {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
