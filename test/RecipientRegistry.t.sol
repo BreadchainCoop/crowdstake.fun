@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {TestWrapper} from "./TestWrapper.sol";
 import {RecipientRegistry} from "../src/implementation/registries/RecipientRegistry.sol";
+import {IRecipientRegistry} from "../src/interfaces/IRecipientRegistry.sol";
 
 contract RecipientRegistryTest is TestWrapper {
     RecipientRegistry public registry;
@@ -11,11 +12,6 @@ contract RecipientRegistryTest is TestWrapper {
     address public constant RECIPIENT_2 = address(0x2);
     address public constant RECIPIENT_3 = address(0x3);
     address public constant RECIPIENT_4 = address(0x4);
-
-    event RecipientQueued(address indexed recipient, bool isAddition);
-    event RecipientAdded(address indexed recipient);
-    event RecipientRemoved(address indexed recipient);
-    event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     function setUp() public {
         registry = new RecipientRegistry();
@@ -29,7 +25,7 @@ contract RecipientRegistryTest is TestWrapper {
 
     function test_QueueRecipientAddition() public {
         vm.expectEmit(true, true, false, true);
-        emit RecipientQueued(RECIPIENT_1, true);
+        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, true);
 
         registry.queueRecipientAddition(RECIPIENT_1);
 
@@ -64,11 +60,11 @@ contract RecipientRegistryTest is TestWrapper {
         expectedNew[1] = RECIPIENT_2;
 
         vm.expectEmit(true, false, false, true);
-        emit RecipientAdded(RECIPIENT_1);
+        emit IRecipientRegistry.RecipientAdded(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
-        emit RecipientAdded(RECIPIENT_2);
+        emit IRecipientRegistry.RecipientAdded(RECIPIENT_2);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
+        emit IRecipientRegistry.QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 
@@ -87,7 +83,7 @@ contract RecipientRegistryTest is TestWrapper {
 
         // Queue removal
         vm.expectEmit(true, true, false, true);
-        emit RecipientQueued(RECIPIENT_1, false);
+        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, false);
 
         registry.queueRecipientRemoval(RECIPIENT_1);
 
@@ -116,11 +112,11 @@ contract RecipientRegistryTest is TestWrapper {
         expectedNew[0] = RECIPIENT_2;
 
         vm.expectEmit(true, false, false, true);
-        emit RecipientRemoved(RECIPIENT_1);
+        emit IRecipientRegistry.RecipientRemoved(RECIPIENT_1);
         vm.expectEmit(true, false, false, true);
-        emit RecipientRemoved(RECIPIENT_3);
+        emit IRecipientRegistry.RecipientRemoved(RECIPIENT_3);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
+        emit IRecipientRegistry.QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 
@@ -156,7 +152,7 @@ contract RecipientRegistryTest is TestWrapper {
         expectedNew[2] = RECIPIENT_4;
 
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
+        emit IRecipientRegistry.QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
 
         registry.processQueue();
 

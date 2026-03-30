@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {TestWrapper} from "./TestWrapper.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
+import {IRecipientRegistry} from "../src/interfaces/IRecipientRegistry.sol";
 
 contract AdminRecipientRegistryTest is TestWrapper {
     AdminRecipientRegistry public registry;
@@ -12,11 +13,6 @@ contract AdminRecipientRegistryTest is TestWrapper {
     address public constant RECIPIENT_2 = address(0x2);
     address public constant RECIPIENT_3 = address(0x3);
     address public constant RECIPIENT_4 = address(0x4);
-
-    event RecipientAdded(address indexed recipient);
-    event RecipientRemoved(address indexed recipient);
-    event RecipientQueued(address indexed recipient, bool isAddition);
-    event QueueProcessed(address[] added, address[] removed, address[] newRecipients);
 
     function setUp() public {
         registry = new AdminRecipientRegistry();
@@ -31,7 +27,7 @@ contract AdminRecipientRegistryTest is TestWrapper {
     function test_QueueAndUpdateRecipient() public {
         vm.prank(ADMIN);
         vm.expectEmit(true, false, false, false);
-        emit RecipientQueued(RECIPIENT_1, true);
+        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, true);
         registry.queueRecipientAddition(RECIPIENT_1);
 
         assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
@@ -44,9 +40,9 @@ contract AdminRecipientRegistryTest is TestWrapper {
         expectedNew[0] = RECIPIENT_1;
 
         vm.expectEmit(true, false, false, false);
-        emit RecipientAdded(RECIPIENT_1);
+        emit IRecipientRegistry.RecipientAdded(RECIPIENT_1);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
+        emit IRecipientRegistry.QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
         registry.processQueue();
 
         assertTrue(registry.isRecipient(RECIPIENT_1));
@@ -86,7 +82,7 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.processQueue();
 
         vm.expectEmit(true, false, false, false);
-        emit RecipientQueued(RECIPIENT_1, false);
+        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, false);
         registry.queueRecipientRemoval(RECIPIENT_1);
 
         address[] memory expectedAdded = new address[](0);
@@ -96,9 +92,9 @@ contract AdminRecipientRegistryTest is TestWrapper {
         expectedNew[0] = RECIPIENT_2;
 
         vm.expectEmit(true, false, false, false);
-        emit RecipientRemoved(RECIPIENT_1);
+        emit IRecipientRegistry.RecipientRemoved(RECIPIENT_1);
         vm.expectEmit(false, false, false, true);
-        emit QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
+        emit IRecipientRegistry.QueueProcessed(expectedAdded, expectedRemoved, expectedNew);
         registry.processQueue();
         vm.stopPrank();
 

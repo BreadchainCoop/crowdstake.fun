@@ -15,8 +15,6 @@ contract VotingRecipientRegistryTest is TestWrapper {
     address public constant NEW_RECIPIENT = address(0x4);
     address public constant NON_RECIPIENT = address(0xdead);
 
-    event RecipientAdded(address indexed recipient);
-    event RecipientRemoved(address indexed recipient);
     event ProposalCreated(uint256 indexed proposalId, address indexed candidate, bool isAddition);
     event VoteCast(uint256 indexed proposalId, address indexed voter);
     event ProposalExecuted(uint256 indexed proposalId);
@@ -101,7 +99,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
 
         // Process the queue to actually add the recipient
         vm.expectEmit(true, false, false, false);
-        emit RecipientAdded(NEW_RECIPIENT);
+        emit IRecipientRegistry.RecipientAdded(NEW_RECIPIENT);
         registry.processQueue();
 
         // Now verify the recipient is actually added
