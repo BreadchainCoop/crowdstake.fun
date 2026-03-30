@@ -54,7 +54,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
         // Start at block 1 so getPastVotes works (can't query block 0)
         vm.roll(1);
-        cycleModule.initialize(CYCLE_LENGTH);
+        cycleModule.initialize(CYCLE_LENGTH, address(this));
 
         strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
     }

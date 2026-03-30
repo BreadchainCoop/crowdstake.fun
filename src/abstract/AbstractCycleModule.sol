@@ -2,25 +2,54 @@
 pragma solidity ^0.8.20;
 
 import {ICycleModule} from "../interfaces/ICycleModule.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /// @title AbstractCycleModule
 /// @notice Abstract contract providing core cycle functionality with fixed cycle implementation
-/// @dev All cycle utilities merged into a single abstract module
-abstract contract AbstractCycleModule is ICycleModule {
-    /// @notice The length of each cycle in blocks
-    uint256 public cycleLength;
+/// @dev All cycle utilities merged into a single abstract module. Uses EIP-7201 namespaced storage for proxy compatibility.
+abstract contract AbstractCycleModule is Initializable, ICycleModule {
+    // ============ EIP-7201 Namespaced Storage ============
 
-    /// @notice The current cycle number
-    uint256 public currentCycle;
+    /// @custom:storage-location erc7201:crowdstake.storage.AbstractCycleModule
+    struct AbstractCycleModuleStorage {
+        /// @notice The length of each cycle in blocks
+        uint256 cycleLength;
+        /// @notice The current cycle number
+        uint256 currentCycle;
+        /// @notice The block number when the current cycle started
+        uint256 lastCycleStartBlock;
+        /// @notice Addresses authorized to trigger cycle transitions
+        mapping(address => bool) authorized;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ABSTRACT_CYCLE_MODULE_STORAGE =
+        0x9c8b48e7932311e94122d6adb2ad4f3b3618192da290ca37b1af1f4f2fb82200;
+
+    function _getAbstractCycleModuleStorage() internal pure returns (AbstractCycleModuleStorage storage $) {
+        assembly {
+            $.slot := ABSTRACT_CYCLE_MODULE_STORAGE
+        }
+    }
+
+    // ============ Public Getters ============
+
+    /// @notice The length of each cycle in blocks
+    function cycleLength() public view returns (uint256) {
+        return _getAbstractCycleModuleStorage().cycleLength;
+    }
 
     /// @notice The block number when the current cycle started
-    uint256 public lastCycleStartBlock;
+    function lastCycleStartBlock() public view returns (uint256) {
+        return _getAbstractCycleModuleStorage().lastCycleStartBlock;
+    }
 
     /// @notice Addresses authorized to trigger cycle transitions
-    mapping(address => bool) public authorized;
+    function authorized(address account) public view returns (bool) {
+        return _getAbstractCycleModuleStorage().authorized[account];
+    }
 
-    /// @notice Tracks whether the module has been initialized
-    bool public initialized;
+    // ============ Errors ============
 
     /// @notice Error thrown when caller is not authorized
     error NotAuthorized();
@@ -31,11 +60,10 @@ abstract contract AbstractCycleModule is ICycleModule {
     /// @notice Error thrown when cycle transition is invalid
     error InvalidCycleTransition();
 
-    /// @notice Error thrown when module is already initialized
-    error AlreadyInitialized();
-
     /// @notice Error thrown when module is not initialized
     error NotInitialized();
+
+    // ============ Events ============
 
     /// @notice Emitted when a new cycle starts
     /// @param cycleNumber The number of the new cycle
@@ -62,6 +90,8 @@ abstract contract AbstractCycleModule is ICycleModule {
     /// @param startBlock The starting block number
     event ModuleInitialized(uint256 cycleLength, uint256 startBlock);
 
+    // ============ Modifiers ============
+
     /// @notice Modifier to restrict access to authorized addresses
     modifier onlyAuthorized() {
         _onlyAuthorized();
@@ -76,41 +106,35 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @dev Reverts if the caller is not an authorized address
     function _onlyAuthorized() internal view {
-        if (!authorized[msg.sender]) {
+        if (!_getAbstractCycleModuleStorage().authorized[msg.sender]) {
             revert NotAuthorized();
         }
     }
 
     /// @dev Reverts if the module has not been initialized
     function _onlyInitialized() internal view {
-        if (!initialized) {
+        if (_getAbstractCycleModuleStorage().currentCycle == 0) {
             revert NotInitialized();
         }
     }
 
-    /// @notice Constructor sets up initial authorization
-    constructor() {
-        // Authorize the deployer
-        authorized[msg.sender] = true;
-        emit AuthorizationUpdated(msg.sender, true);
-    }
+    // ============ Initialization ============
 
     /// @notice Initializes the cycle module with fixed cycle parameters
     /// @param _cycleLength The length of each cycle in blocks
-    function initialize(uint256 _cycleLength) external onlyAuthorized {
-        if (initialized) {
-            revert AlreadyInitialized();
-        }
-
+    /// @param _authorized Address to authorize for cycle management
+    function initialize(uint256 _cycleLength, address _authorized) external initializer {
         if (_cycleLength == 0) {
             revert InvalidCycleLength();
         }
 
-        cycleLength = _cycleLength;
-        lastCycleStartBlock = block.number;
-        currentCycle = 1;
-        initialized = true;
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        $.cycleLength = _cycleLength;
+        $.lastCycleStartBlock = block.number;
+        $.currentCycle = 1;
+        $.authorized[_authorized] = true;
 
+        emit AuthorizationUpdated(_authorized, true);
         emit ModuleInitialized(_cycleLength, block.number);
     }
 
@@ -118,20 +142,21 @@ abstract contract AbstractCycleModule is ICycleModule {
     /// @param account The address to update
     /// @param isAuthorized The authorization status to set
     function setAuthorization(address account, bool isAuthorized) external onlyAuthorized {
-        authorized[account] = isAuthorized;
+        _getAbstractCycleModuleStorage().authorized[account] = isAuthorized;
         emit AuthorizationUpdated(account, isAuthorized);
     }
 
     /// @notice Gets the current cycle number
     /// @return The current cycle number
     function getCurrentCycle() external view virtual onlyInitialized returns (uint256) {
-        return currentCycle;
+        return _getAbstractCycleModuleStorage().currentCycle;
     }
 
     /// @notice Checks if the cycle timing allows for distribution
     /// @return Whether the current cycle has completed
     function isCycleComplete() public view virtual onlyInitialized returns (bool) {
-        return block.number >= lastCycleStartBlock + cycleLength;
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        return block.number >= $.lastCycleStartBlock + $.cycleLength;
     }
 
     /// @notice Starts a new cycle
@@ -141,18 +166,20 @@ abstract contract AbstractCycleModule is ICycleModule {
             revert InvalidCycleTransition();
         }
 
-        currentCycle++;
-        lastCycleStartBlock = block.number;
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        $.currentCycle++;
+        $.lastCycleStartBlock = block.number;
 
-        uint256 endBlock = lastCycleStartBlock + cycleLength;
-        emit CycleStarted(currentCycle, lastCycleStartBlock, endBlock);
-        emit CycleTransitionValidated(currentCycle);
+        uint256 endBlock = $.lastCycleStartBlock + $.cycleLength;
+        emit CycleStarted($.currentCycle, $.lastCycleStartBlock, endBlock);
+        emit CycleTransitionValidated($.currentCycle);
     }
 
     /// @notice Gets the number of blocks until the next cycle
     /// @return The number of blocks remaining in the current cycle
     function getBlocksUntilNextCycle() external view virtual onlyInitialized returns (uint256) {
-        uint256 endBlock = lastCycleStartBlock + cycleLength;
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        uint256 endBlock = $.lastCycleStartBlock + $.cycleLength;
         if (block.number >= endBlock) {
             return 0;
         }
@@ -162,11 +189,12 @@ abstract contract AbstractCycleModule is ICycleModule {
     /// @notice Gets the progress of the current cycle as a percentage
     /// @return The cycle progress (0-100)
     function getCycleProgress() external view virtual onlyInitialized returns (uint256) {
-        uint256 blocksElapsed = block.number - lastCycleStartBlock;
-        if (blocksElapsed >= cycleLength) {
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        uint256 blocksElapsed = block.number - $.lastCycleStartBlock;
+        if (blocksElapsed >= $.cycleLength) {
             return 100;
         }
-        return (blocksElapsed * 100) / cycleLength;
+        return (blocksElapsed * 100) / $.cycleLength;
     }
 
     /// @notice Updates the cycle length for future cycles
@@ -176,8 +204,9 @@ abstract contract AbstractCycleModule is ICycleModule {
             revert InvalidCycleLength();
         }
 
-        uint256 oldLength = cycleLength;
-        cycleLength = newCycleLength;
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+        uint256 oldLength = $.cycleLength;
+        $.cycleLength = newCycleLength;
 
         emit CycleLengthUpdated(oldLength, newCycleLength);
     }

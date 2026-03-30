@@ -148,7 +148,7 @@ contract VotingModuleSimpleTest is Test {
 
         // Deploy and initialize cycle module
         cycleModule = new CycleModule();
-        cycleModule.initialize(1000); // 1000 blocks per cycle
+        cycleModule.initialize(1000, address(this)); // 1000 blocks per cycle
 
         votingModule.initialize(
             MAX_POINTS, strategies, address(distributionModule), address(recipientRegistry), address(cycleModule)

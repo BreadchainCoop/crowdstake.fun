@@ -100,7 +100,7 @@ contract VotingModuleTest is Test {
 
         // Deploy and initialize cycle module
         cycleModule = new CycleModule();
-        cycleModule.initialize(1000); // 1000 blocks per cycle
+        cycleModule.initialize(1000, address(this)); // 1000 blocks per cycle
 
         // Deploy mock distribution module
         distributionModule = new MockDistributionModule();
