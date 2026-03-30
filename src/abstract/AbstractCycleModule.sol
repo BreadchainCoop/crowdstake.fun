@@ -134,17 +134,10 @@ abstract contract AbstractCycleModule is ICycleModule {
         }
     }
 
-    /// @notice Constructor sets up initial authorization
-    constructor() {
-        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
-        // Authorize the deployer
-        $.authorized[msg.sender] = true;
-        emit AuthorizationUpdated(msg.sender, true);
-    }
-
     /// @notice Initializes the cycle module with fixed cycle parameters
+    /// @dev Authorizes msg.sender as the first authorized address. Can only be called once.
     /// @param _cycleLength The length of each cycle in blocks
-    function initialize(uint256 _cycleLength) external onlyAuthorized {
+    function initialize(uint256 _cycleLength) external {
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
         if ($.initialized) {
             revert AlreadyInitialized();
@@ -154,11 +147,13 @@ abstract contract AbstractCycleModule is ICycleModule {
             revert InvalidCycleLength();
         }
 
+        $.authorized[msg.sender] = true;
         $.cycleLength = _cycleLength;
         $.lastCycleStartBlock = block.number;
         $.currentCycle = 1;
         $.initialized = true;
 
+        emit AuthorizationUpdated(msg.sender, true);
         emit ModuleInitialized(_cycleLength, block.number);
     }
 
@@ -185,7 +180,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Starts a new cycle
     /// @dev Only callable by authorized contracts when cycle is complete
-    function startNewCycle() external virtual onlyAuthorized onlyInitialized {
+    function startNewCycle() external virtual onlyInitialized onlyAuthorized {
         if (!isCycleComplete()) {
             revert InvalidCycleTransition();
         }
@@ -223,7 +218,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Updates the cycle length for future cycles
     /// @param newCycleLength The new cycle length in blocks
-    function updateCycleLength(uint256 newCycleLength) external virtual onlyAuthorized onlyInitialized {
+    function updateCycleLength(uint256 newCycleLength) external virtual onlyInitialized onlyAuthorized {
         if (newCycleLength == 0) {
             revert InvalidCycleLength();
         }

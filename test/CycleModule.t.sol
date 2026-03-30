@@ -145,12 +145,20 @@ contract CycleModuleTest is Test {
         cycleModule.updateCycleLength(200);
     }
 
-    function testUnauthorizedCannotInitialize() public {
+    function testAnyoneCanInitializeOnce() public {
         CycleModule newModule = new CycleModule();
 
         vm.prank(user);
-        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
         newModule.initialize(100);
+
+        // User is now authorized as the initializer
+        assertTrue(newModule.authorized(user));
+        assertEq(newModule.cycleLength(), 100);
+        assertTrue(newModule.initialized());
+
+        // Cannot reinitialize
+        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
+        newModule.initialize(200);
     }
 
     function testMultipleCycles() public {

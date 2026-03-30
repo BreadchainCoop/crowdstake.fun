@@ -6,7 +6,4 @@ import {AbstractCycleModule} from "../abstract/AbstractCycleModule.sol";
 /// @title CycleModule
 /// @notice Concrete implementation of the cycle module
 /// @dev Extends AbstractCycleModule with any protocol-specific logic
-contract CycleModule is AbstractCycleModule {
-    /// @notice Constructor only sets up authorization (via parent constructor)
-    constructor() AbstractCycleModule() {}
-}
+contract CycleModule is AbstractCycleModule {}

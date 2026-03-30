@@ -17,6 +17,7 @@ contract CrowdStakeFactory is Ownable {
     event WhitelistBeacons(address[] beacons);
     event BlacklistBeacons(address[] beacons);
     event CreateToken(address token, address beacon, bytes payload);
+    event CreateModule(address module, address beacon, bytes payload);
     event CreateYieldDistributor(
         address yieldClaimer, address token, address[] initialRecipients, uint256 percentVoted, address owner
     );
@@ -46,6 +47,43 @@ contract CrowdStakeFactory is Ownable {
         if (token == address(0)) revert Create2Failed();
 
         emit CreateToken(token, beacon_, payload_);
+    }
+
+    function create(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address module) {
+        if (!_beacons.contains(beacon_)) {
+            revert NotWhitelistedBeacon();
+        }
+
+        bytes32 salt;
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, caller())
+            mstore(add(ptr, 0x20), salt_)
+            salt := keccak256(ptr, 0x40)
+        }
+        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
+        assembly {
+            module := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
+        }
+        if (module == address(0)) revert Create2Failed();
+
+        emit CreateModule(module, beacon_, payload_);
+    }
+
+    function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
+        external
+        view
+        returns (address module)
+    {
+        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
+        bytes32 salt;
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, caller())
+            mstore(add(ptr, 0x20), salt_)
+            salt := keccak256(ptr, 0x40)
+        }
+        module = _getCreate2Address(salt, keccak256(bytecode));
     }
 
     function createDefaultYieldClaimer(

@@ -1,0 +1,192 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Test} from "forge-std/Test.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {CrowdStakeFactory} from "../src/CrowdStakeFactory.sol";
+import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {ICycleModule} from "../src/interfaces/ICycleModule.sol";
+import {BasisPointsVotingModule} from "../src/base/BasisPointsVotingModule.sol";
+import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
+import {BaseDistributionManager} from "../src/base/BaseDistributionManager.sol";
+import {MultiStrategyDistributionManager} from "../src/base/MultiStrategyDistributionManager.sol";
+import {EqualDistributionStrategy} from "../src/implementation/strategies/EqualDistributionStrategy.sol";
+import {VotingDistributionStrategy} from "../src/implementation/strategies/VotingDistributionStrategy.sol";
+import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
+import {RecipientRegistry} from "../src/implementation/registries/RecipientRegistry.sol";
+import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
+import {IDistributionStrategy} from "../src/interfaces/IDistributionStrategy.sol";
+
+contract FactoryModuleDeploymentTest is Test {
+    CrowdStakeFactory public factory;
+    address public owner;
+
+    // Beacons for each module type
+    address public cycleModuleBeacon;
+    address public votingModuleBeacon;
+    address public baseDistManagerBeacon;
+    address public multiDistManagerBeacon;
+    address public equalStrategyBeacon;
+    address public votingStrategyBeacon;
+    address public adminRegistryBeacon;
+    address public registryBeacon;
+    address public votingRegistryBeacon;
+
+    function setUp() public {
+        owner = address(this);
+        factory = new CrowdStakeFactory(owner);
+
+        // Deploy implementations and create beacons
+        cycleModuleBeacon = _createBeacon(address(new CycleModule()));
+        votingModuleBeacon = _createBeacon(address(new BasisPointsVotingModule()));
+        baseDistManagerBeacon = _createBeacon(address(new BaseDistributionManager()));
+        multiDistManagerBeacon = _createBeacon(address(new MultiStrategyDistributionManager()));
+        equalStrategyBeacon = _createBeacon(address(new EqualDistributionStrategy()));
+        votingStrategyBeacon = _createBeacon(address(new VotingDistributionStrategy()));
+        adminRegistryBeacon = _createBeacon(address(new AdminRecipientRegistry()));
+        registryBeacon = _createBeacon(address(new RecipientRegistry()));
+        votingRegistryBeacon = _createBeacon(address(new VotingRecipientRegistry()));
+
+        // Whitelist all beacons
+        address[] memory beacons = new address[](9);
+        beacons[0] = cycleModuleBeacon;
+        beacons[1] = votingModuleBeacon;
+        beacons[2] = baseDistManagerBeacon;
+        beacons[3] = multiDistManagerBeacon;
+        beacons[4] = equalStrategyBeacon;
+        beacons[5] = votingStrategyBeacon;
+        beacons[6] = adminRegistryBeacon;
+        beacons[7] = registryBeacon;
+        beacons[8] = votingRegistryBeacon;
+        factory.whitelistBeacons(beacons);
+    }
+
+    function _createBeacon(address impl) internal returns (address) {
+        return address(new UpgradeableBeacon(impl, owner));
+    }
+
+    // ============ CycleModule via Factory ============
+
+    function test_createCycleModule() public {
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        address module = factory.create(cycleModuleBeacon, payload, keccak256("cycle-salt"));
+
+        ICycleModule cycle = ICycleModule(module);
+        assertEq(cycle.getCurrentCycle(), 1);
+        assertEq(CycleModule(module).cycleLength(), 1000);
+        assertTrue(CycleModule(module).initialized());
+        // Factory is the caller of create, which calls initialize via the proxy constructor
+        // The msg.sender in initialize is the factory (since BeaconProxy forwards the call)
+    }
+
+    // ============ AdminRecipientRegistry via Factory ============
+
+    function test_createAdminRecipientRegistry() public {
+        bytes memory payload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address module = factory.create(adminRegistryBeacon, payload, keccak256("admin-registry-salt"));
+
+        AdminRecipientRegistry registry = AdminRecipientRegistry(module);
+        assertEq(registry.getRecipientCount(), 0);
+    }
+
+    // ============ RecipientRegistry via Factory ============
+
+    function test_createRecipientRegistry() public {
+        bytes memory payload = abi.encodeWithSelector(RecipientRegistry.initialize.selector, owner);
+        address module = factory.create(registryBeacon, payload, keccak256("registry-salt"));
+
+        RecipientRegistry registry = RecipientRegistry(module);
+        assertEq(registry.getRecipientCount(), 0);
+    }
+
+    // ============ VotingRecipientRegistry via Factory ============
+
+    function test_createVotingRecipientRegistry() public {
+        address[] memory initialRecipients = new address[](2);
+        initialRecipients[0] = address(0x111);
+        initialRecipients[1] = address(0x222);
+
+        bytes memory payload = abi.encodeWithSelector(
+            VotingRecipientRegistry.initialize.selector, owner, initialRecipients, 7 days
+        );
+        address module = factory.create(votingRegistryBeacon, payload, keccak256("voting-registry-salt"));
+
+        VotingRecipientRegistry registry = VotingRecipientRegistry(module);
+        assertEq(registry.getRecipientCount(), 2);
+        assertTrue(registry.isRecipient(address(0x111)));
+        assertTrue(registry.isRecipient(address(0x222)));
+    }
+
+    // ============ EqualDistributionStrategy via Factory ============
+
+    function test_createEqualDistributionStrategy() public {
+        // Deploy a registry first for the strategy to use
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registry = factory.create(adminRegistryBeacon, registryPayload, keccak256("strat-registry-salt"));
+
+        address mockYieldToken = address(0xABC);
+        address mockDistManager = address(0xDEF);
+        vm.etch(mockYieldToken, hex"00"); // ensure it has code for the strategy
+
+        bytes memory payload =
+            abi.encodeWithSelector(EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager);
+        address module = factory.create(equalStrategyBeacon, payload, keccak256("equal-strat-salt"));
+
+        EqualDistributionStrategy strategy = EqualDistributionStrategy(module);
+        assertEq(address(strategy.recipientRegistry()), registry);
+    }
+
+    // ============ Deterministic Address Computation ============
+
+    function test_computeAddress() public view {
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        bytes32 salt = keccak256("compute-test");
+
+        address predicted = factory.computeAddress(cycleModuleBeacon, payload, salt);
+        assertTrue(predicted != address(0));
+    }
+
+    function test_computeAddressMatchesCreate() public {
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 500);
+        bytes32 salt = keccak256("match-test");
+
+        address predicted = factory.computeAddress(cycleModuleBeacon, payload, salt);
+        address actual = factory.create(cycleModuleBeacon, payload, salt);
+        assertEq(predicted, actual);
+    }
+
+    // ============ Access Control ============
+
+    function test_createRevertsForNonWhitelistedBeacon() public {
+        address fakeBeacon = address(0x999);
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+
+        vm.expectRevert(CrowdStakeFactory.NotWhitelistedBeacon.selector);
+        factory.create(fakeBeacon, payload, keccak256("bad-salt"));
+    }
+
+    // ============ Full System Assembly via Factory ============
+
+    function test_assembleFullSystemViaFactory() public {
+        // 1. Deploy CycleModule
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        address cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256("sys-cycle"));
+
+        // 2. Deploy AdminRecipientRegistry
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registryAddr = factory.create(adminRegistryBeacon, registryPayload, keccak256("sys-registry"));
+
+        // All modules deployed and initialized via the factory
+        CycleModule cycle = CycleModule(cycleAddr);
+        AdminRecipientRegistry registry = AdminRecipientRegistry(registryAddr);
+
+        assertEq(cycle.getCurrentCycle(), 1);
+        assertEq(registry.getRecipientCount(), 0);
+
+        // Add a recipient through the registry
+        registry.queueRecipientAddition(address(0x111));
+        registry.processQueue();
+        assertEq(registry.getRecipientCount(), 1);
+    }
+}
