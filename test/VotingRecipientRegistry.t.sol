@@ -366,7 +366,13 @@ contract VotingRecipientRegistryTest is TestWrapper {
         // Original proposal still requires only 3 votes (snapshotted at creation)
         assertEq(registry.getRequiredVotes(proposalId), 3);
 
-        // Complete voting on the original proposal — still only needs 3
+        // New recipient is NOT eligible to vote on the pre-existing proposal
+        assertFalse(registry.isEligibleVoter(proposalId, address(0x55)));
+        vm.prank(address(0x55));
+        vm.expectRevert(VotingRecipientRegistry.NotEligibleVoter.selector);
+        registry.vote(proposalId);
+
+        // Original recipients can still vote and execute
         vm.prank(RECIPIENT_2);
         registry.vote(proposalId);
         vm.prank(RECIPIENT_3);

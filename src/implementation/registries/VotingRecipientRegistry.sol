@@ -19,6 +19,8 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
         uint256 voteCount;
         /// @notice Mapping of addresses to whether they have voted on this proposal
         mapping(address => bool) hasVoted;
+        /// @notice Mapping of addresses eligible to vote, snapshotted at proposal creation
+        mapping(address => bool) isEligibleVoter;
         /// @notice Whether this proposal has been executed (prevents double execution)
         bool executed;
         /// @notice Timestamp when this proposal was created (for expiry calculation)
@@ -124,6 +126,9 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
 
     /// @notice Thrown when attempting to execute a proposal without sufficient votes
     error NotEnoughVotes();
+
+    /// @notice Thrown when a voter was not a recipient at the time the proposal was created
+    error NotEligibleVoter();
 
     /// @notice Thrown when attempting to initialize the registry with an empty recipients array
     error NoRecipients();
@@ -254,6 +259,11 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
         AbstractRecipientRegistryStorage storage base = _getAbstractRecipientRegistryStorage();
         proposal.requiredVotes = isAddition ? base.recipients.length : base.recipients.length - 1;
 
+        // Snapshot eligible voters from the current recipient set
+        for (uint256 i = 0; i < base.recipients.length; i++) {
+            proposal.isEligibleVoter[base.recipients[i]] = true;
+        }
+
         // Proposer automatically votes for their proposal
         proposal.hasVoted[msg.sender] = true;
         proposal.voteCount = 1;
@@ -278,6 +288,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
         if (proposal.candidate == address(0)) revert ProposalNotFound();
         if (proposal.executed) revert ProposalAlreadyExecuted();
         if (block.timestamp > proposal.createdAt + $.proposalExpiry) revert ProposalExpired();
+        if (!proposal.isEligibleVoter[msg.sender]) revert NotEligibleVoter();
         if (proposal.hasVoted[msg.sender]) revert AlreadyVoted();
 
         proposal.hasVoted[msg.sender] = true;
@@ -371,6 +382,15 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
     /// @return hasVoted_ True if the address has voted on this proposal, false otherwise
     function hasVoted(uint256 proposalId, address voter) external view returns (bool hasVoted_) {
         return _getVotingRecipientRegistryStorage().proposals[proposalId].hasVoted[voter];
+    }
+
+    /// @notice Check if an address was eligible to vote on a proposal
+    /// @dev Eligibility is snapshotted at proposal creation from the recipient set at that time
+    /// @param proposalId The ID of the proposal to check
+    /// @param voter The address to check eligibility for
+    /// @return isEligible True if the address was a recipient when the proposal was created
+    function isEligibleVoter(uint256 proposalId, address voter) external view returns (bool isEligible) {
+        return _getVotingRecipientRegistryStorage().proposals[proposalId].isEligibleVoter[voter];
     }
 
     /// @notice Check if a proposal has expired and can no longer be voted on
