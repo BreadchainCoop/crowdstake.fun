@@ -107,9 +107,8 @@ contract FactoryModuleDeploymentTest is Test {
         initialRecipients[0] = address(0x111);
         initialRecipients[1] = address(0x222);
 
-        bytes memory payload = abi.encodeWithSelector(
-            VotingRecipientRegistry.initialize.selector, owner, initialRecipients, 7 days
-        );
+        bytes memory payload =
+            abi.encodeWithSelector(VotingRecipientRegistry.initialize.selector, owner, initialRecipients, 7 days);
         address module = factory.create(votingRegistryBeacon, payload, keccak256("voting-registry-salt"));
 
         VotingRecipientRegistry registry = VotingRecipientRegistry(module);
@@ -129,8 +128,9 @@ contract FactoryModuleDeploymentTest is Test {
         address mockDistManager = address(0xDEF);
         vm.etch(mockYieldToken, hex"00"); // ensure it has code for the strategy
 
-        bytes memory payload =
-            abi.encodeWithSelector(EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager);
+        bytes memory payload = abi.encodeWithSelector(
+            EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager
+        );
         address module = factory.create(equalStrategyBeacon, payload, keccak256("equal-strat-salt"));
 
         EqualDistributionStrategy strategy = EqualDistributionStrategy(module);
