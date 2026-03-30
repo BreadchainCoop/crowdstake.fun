@@ -25,7 +25,7 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ABSTRACT_CYCLE_MODULE_STORAGE =
-        0x936ff5152b3d54f3fe52282be2e9e970748fc6d49841c8d0ead5bb961ed5c600;
+        0x9c8b48e7932311e94122d6adb2ad4f3b3618192da290ca37b1af1f4f2fb82200;
 
     function _getAbstractCycleModuleStorage() internal pure returns (AbstractCycleModuleStorage storage $) {
         assembly {
