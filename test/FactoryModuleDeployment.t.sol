@@ -17,6 +17,7 @@ import {AdminRecipientRegistry} from "../src/implementation/registries/AdminReci
 import {RecipientRegistry} from "../src/implementation/registries/RecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {IDistributionStrategy} from "../src/interfaces/IDistributionStrategy.sol";
+import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
 
 contract FactoryModuleDeploymentTest is Test {
     CrowdStakeFactory public factory;
@@ -69,15 +70,17 @@ contract FactoryModuleDeploymentTest is Test {
     // ============ CycleModule via Factory ============
 
     function test_createCycleModule() public {
-        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
         address module = factory.create(cycleModuleBeacon, payload, keccak256("cycle-salt"));
 
         ICycleModule cycle = ICycleModule(module);
         assertEq(cycle.getCurrentCycle(), 1);
         assertEq(CycleModule(module).cycleLength(), 1000);
         assertTrue(CycleModule(module).initialized());
-        // Factory is the caller of create, which calls initialize via the proxy constructor
-        // The msg.sender in initialize is the factory (since BeaconProxy forwards the call)
+        // Note: the test contract calls factory.create(), which deploys the proxy and triggers
+        // initialize via the proxy constructor; the explicit _initialAuthorized param controls
+        // who gets authorized, avoiding msg.sender issues with the factory as intermediary.
+        assertTrue(CycleModule(module).authorized(owner));
     }
 
     // ============ AdminRecipientRegistry via Factory ============
@@ -88,6 +91,7 @@ contract FactoryModuleDeploymentTest is Test {
 
         AdminRecipientRegistry registry = AdminRecipientRegistry(module);
         assertEq(registry.getRecipientCount(), 0);
+        assertEq(registry.owner(), owner);
     }
 
     // ============ RecipientRegistry via Factory ============
@@ -98,6 +102,7 @@ contract FactoryModuleDeploymentTest is Test {
 
         RecipientRegistry registry = RecipientRegistry(module);
         assertEq(registry.getRecipientCount(), 0);
+        assertEq(registry.owner(), owner);
     }
 
     // ============ VotingRecipientRegistry via Factory ============
@@ -115,6 +120,7 @@ contract FactoryModuleDeploymentTest is Test {
         assertEq(registry.getRecipientCount(), 2);
         assertTrue(registry.isRecipient(address(0x111)));
         assertTrue(registry.isRecipient(address(0x222)));
+        assertEq(registry.owner(), owner);
     }
 
     // ============ EqualDistributionStrategy via Factory ============
@@ -135,12 +141,146 @@ contract FactoryModuleDeploymentTest is Test {
 
         EqualDistributionStrategy strategy = EqualDistributionStrategy(module);
         assertEq(address(strategy.recipientRegistry()), registry);
+        assertEq(strategy.distributionManager(), mockDistManager);
+    }
+
+    // ============ VotingDistributionStrategy via Factory ============
+
+    function test_createVotingDistributionStrategy() public {
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registry = factory.create(adminRegistryBeacon, registryPayload, keccak256("vstrat-registry-salt"));
+
+        address mockYieldToken = address(0xABC);
+        address mockDistManager = address(0xDEF);
+        address mockVotingModule = address(0xBEEF);
+        vm.etch(mockYieldToken, hex"00");
+        vm.etch(mockVotingModule, hex"00");
+
+        bytes memory payload = abi.encodeWithSelector(
+            VotingDistributionStrategy.initialize.selector, mockYieldToken, registry, mockVotingModule, mockDistManager
+        );
+        address module = factory.create(votingStrategyBeacon, payload, keccak256("voting-strat-salt"));
+
+        VotingDistributionStrategy strategy = VotingDistributionStrategy(module);
+        assertEq(address(strategy.recipientRegistry()), registry);
+        assertEq(address(strategy.votingModule()), mockVotingModule);
+        assertEq(strategy.distributionManager(), mockDistManager);
+    }
+
+    // ============ BasisPointsVotingModule via Factory ============
+
+    function test_createBasisPointsVotingModule() public {
+        // Deploy dependencies first
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
+        address cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256("vm-cycle-salt"));
+
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registryAddr = factory.create(adminRegistryBeacon, registryPayload, keccak256("vm-registry-salt"));
+
+        MockDistributionModule distModule = new MockDistributionModule();
+
+        // Use a mock voting power strategy
+        address mockStrategy = address(0xFACE);
+        vm.etch(mockStrategy, hex"00");
+        vm.mockCall(mockStrategy, abi.encodeWithSignature("getCurrentVotingPower(address)"), abi.encode(uint256(0)));
+
+        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
+        strategies[0] = IVotingPowerStrategy(mockStrategy);
+
+        bytes memory payload = abi.encodeWithSelector(
+            BasisPointsVotingModule.initialize.selector,
+            100, // maxPoints
+            strategies,
+            address(distModule),
+            registryAddr,
+            cycleAddr
+        );
+        address module = factory.create(votingModuleBeacon, payload, keccak256("voting-module-salt"));
+
+        BasisPointsVotingModule votingModule = BasisPointsVotingModule(module);
+        assertEq(votingModule.maxPoints(), 100);
+        assertEq(address(votingModule.recipientRegistry()), registryAddr);
+        assertEq(address(votingModule.cycleModule()), cycleAddr);
+        // Owner is the factory (msg.sender during initialize), which is expected
+        // for modules that use OwnableUpgradeable - the owner parameter is set internally
+    }
+
+    // ============ BaseDistributionManager via Factory ============
+
+    function test_createBaseDistributionManager() public {
+        // Deploy dependencies
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
+        address cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256("bdm-cycle-salt"));
+
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registryAddr = factory.create(adminRegistryBeacon, registryPayload, keccak256("bdm-registry-salt"));
+
+        // Mock base token and voting module
+        address mockBaseToken = address(0xB0BA);
+        address mockVotingModule = address(0xBEEF);
+        address mockStrategy = address(0xCAFE);
+        vm.etch(mockBaseToken, hex"00");
+        vm.etch(mockVotingModule, hex"00");
+        vm.etch(mockStrategy, hex"00");
+
+        bytes memory payload = abi.encodeWithSelector(
+            BaseDistributionManager.initialize.selector,
+            cycleAddr,
+            registryAddr,
+            mockBaseToken,
+            mockVotingModule,
+            mockStrategy
+        );
+        address module = factory.create(baseDistManagerBeacon, payload, keccak256("base-dist-salt"));
+
+        BaseDistributionManager manager = BaseDistributionManager(module);
+        assertEq(address(manager.cycleManager()), cycleAddr);
+        assertEq(address(manager.recipientRegistry()), registryAddr);
+        assertEq(address(manager.distributionStrategy()), mockStrategy);
+    }
+
+    // ============ MultiStrategyDistributionManager via Factory ============
+
+    function test_createMultiStrategyDistributionManager() public {
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
+        address cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256("msdm-cycle-salt"));
+
+        bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
+        address registryAddr = factory.create(adminRegistryBeacon, registryPayload, keccak256("msdm-registry-salt"));
+
+        address mockBaseToken = address(0xB0BA);
+        address mockVotingModule = address(0xBEEF);
+        address mockStrategy1 = address(0xCAFE);
+        address mockStrategy2 = address(0xFACE);
+        vm.etch(mockBaseToken, hex"00");
+        vm.etch(mockVotingModule, hex"00");
+        vm.etch(mockStrategy1, hex"00");
+        vm.etch(mockStrategy2, hex"00");
+
+        IDistributionStrategy[] memory strategies = new IDistributionStrategy[](2);
+        strategies[0] = IDistributionStrategy(mockStrategy1);
+        strategies[1] = IDistributionStrategy(mockStrategy2);
+
+        bytes memory payload = abi.encodeWithSelector(
+            MultiStrategyDistributionManager.initialize.selector,
+            cycleAddr,
+            registryAddr,
+            mockBaseToken,
+            mockVotingModule,
+            strategies
+        );
+        address module = factory.create(multiDistManagerBeacon, payload, keccak256("multi-dist-salt"));
+
+        MultiStrategyDistributionManager manager = MultiStrategyDistributionManager(module);
+        assertEq(address(manager.cycleManager()), cycleAddr);
+        assertEq(address(manager.recipientRegistry()), registryAddr);
+        assertEq(manager.getStrategyCount(), 2);
     }
 
     // ============ Deterministic Address Computation ============
 
     function test_computeAddress() public view {
-        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
         bytes32 salt = keccak256("compute-test");
 
         address predicted = factory.computeAddress(cycleModuleBeacon, payload, salt);
@@ -148,7 +288,7 @@ contract FactoryModuleDeploymentTest is Test {
     }
 
     function test_computeAddressMatchesCreate() public {
-        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 500);
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 500, owner);
         bytes32 salt = keccak256("match-test");
 
         address predicted = factory.computeAddress(cycleModuleBeacon, payload, salt);
@@ -160,7 +300,7 @@ contract FactoryModuleDeploymentTest is Test {
 
     function test_createRevertsForNonWhitelistedBeacon() public {
         address fakeBeacon = address(0x999);
-        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
 
         vm.expectRevert(CrowdStakeFactory.NotWhitelistedBeacon.selector);
         factory.create(fakeBeacon, payload, keccak256("bad-salt"));
@@ -170,7 +310,7 @@ contract FactoryModuleDeploymentTest is Test {
 
     function test_assembleFullSystemViaFactory() public {
         // 1. Deploy CycleModule
-        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000);
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
         address cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256("sys-cycle"));
 
         // 2. Deploy AdminRecipientRegistry
@@ -182,7 +322,9 @@ contract FactoryModuleDeploymentTest is Test {
         AdminRecipientRegistry registry = AdminRecipientRegistry(registryAddr);
 
         assertEq(cycle.getCurrentCycle(), 1);
+        assertTrue(cycle.authorized(owner));
         assertEq(registry.getRecipientCount(), 0);
+        assertEq(registry.owner(), owner);
 
         // Add a recipient through the registry
         registry.queueRecipientAddition(address(0x111));

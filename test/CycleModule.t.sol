@@ -16,7 +16,7 @@ contract CycleModuleTest is Test {
     function setUp() public {
         vm.roll(START_BLOCK);
         cycleModule = new CycleModule();
-        cycleModule.initialize(CYCLE_LENGTH);
+        cycleModule.initialize(CYCLE_LENGTH, owner);
     }
 
     function testInitialState() public view {
@@ -29,7 +29,7 @@ contract CycleModuleTest is Test {
 
     function testCannotReinitialize() public {
         vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
-        cycleModule.initialize(200);
+        cycleModule.initialize(200, owner);
     }
 
     function testNotInitializedFunctions() public {
@@ -149,7 +149,7 @@ contract CycleModuleTest is Test {
         CycleModule newModule = new CycleModule();
 
         vm.prank(user);
-        newModule.initialize(100);
+        newModule.initialize(100, user);
 
         // User is now authorized as the initializer
         assertTrue(newModule.authorized(user));
@@ -158,7 +158,13 @@ contract CycleModuleTest is Test {
 
         // Cannot reinitialize
         vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
-        newModule.initialize(200);
+        newModule.initialize(200, user);
+    }
+
+    function testCannotInitializeWithZeroAddress() public {
+        CycleModule newModule = new CycleModule();
+        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
+        newModule.initialize(100, address(0));
     }
 
     function testMultipleCycles() public {

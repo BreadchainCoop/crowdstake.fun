@@ -28,62 +28,34 @@ contract CrowdStakeFactory is Ownable {
         _initializeOwner(_owner);
     }
 
+    /// @notice Creates a beacon proxy for a token (legacy entrypoint, delegates to create)
     function createToken(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address token) {
-        if (!_beacons.contains(beacon_)) {
-            revert NotWhitelistedBeacon();
-        }
-
-        bytes32 salt;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), salt_)
-            salt := keccak256(ptr, 0x40)
-        }
-        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
-        assembly {
-            token := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
-        }
-        if (token == address(0)) revert Create2Failed();
-
+        token = _createBeaconProxy(beacon_, payload_, salt_);
         emit CreateToken(token, beacon_, payload_);
     }
 
+    /// @notice Creates a beacon proxy for any module type
     function create(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address module) {
-        if (!_beacons.contains(beacon_)) {
-            revert NotWhitelistedBeacon();
-        }
-
-        bytes32 salt;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), salt_)
-            salt := keccak256(ptr, 0x40)
-        }
-        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
-        assembly {
-            module := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
-        }
-        if (module == address(0)) revert Create2Failed();
-
+        module = _createBeaconProxy(beacon_, payload_, salt_);
         emit CreateModule(module, beacon_, payload_);
     }
 
+    /// @notice Computes the deterministic address for a beacon proxy deployment
     function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
         external
         view
-        returns (address module)
+        returns (address)
     {
-        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
-        bytes32 salt;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), salt_)
-            salt := keccak256(ptr, 0x40)
-        }
-        module = _getCreate2Address(salt, keccak256(bytecode));
+        return _computeBeaconProxyAddress(beacon_, payload_, salt_);
+    }
+
+    /// @notice Computes the deterministic address for a token (legacy entrypoint, delegates to computeAddress)
+    function computeTokenAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
+        external
+        view
+        returns (address)
+    {
+        return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
     function createDefaultYieldClaimer(
@@ -94,13 +66,7 @@ contract CrowdStakeFactory is Ownable {
         bytes32 salt_
     ) external returns (address yieldClaimer) {
         bytes memory bytecode = _getYieldDistributorInitCode(token_, initialRecipients_, percentVoted_, owner_);
-        bytes32 salt;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), salt_)
-            salt := keccak256(ptr, 0x40)
-        }
+        bytes32 salt = _deriveSalt(salt_);
         assembly {
             yieldClaimer := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
         }
@@ -150,22 +116,6 @@ contract CrowdStakeFactory is Ownable {
         return _beacons.contains(beacon_);
     }
 
-    function computeTokenAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
-        external
-        view
-        returns (address token)
-    {
-        bytes memory bytecode = _getTokenInitCode(beacon_, payload_);
-        bytes32 salt;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, caller())
-            mstore(add(ptr, 0x20), salt_)
-            salt := keccak256(ptr, 0x40)
-        }
-        token = _getCreate2Address(salt, keccak256(bytecode));
-    }
-
     function computeClaimerAddress(
         address token_,
         address[] memory initialRecipients_,
@@ -174,17 +124,48 @@ contract CrowdStakeFactory is Ownable {
         bytes32 salt_
     ) external view returns (address yieldClaimer) {
         bytes memory bytecode = _getYieldDistributorInitCode(token_, initialRecipients_, percentVoted_, owner_);
-        bytes32 salt;
+        bytes32 salt = _deriveSalt(salt_);
+        yieldClaimer = _getCreate2Address(salt, keccak256(bytecode));
+    }
+
+    // ============ Internal Helpers ============
+
+    function _createBeaconProxy(address beacon_, bytes calldata payload_, bytes32 salt_)
+        internal
+        returns (address proxy)
+    {
+        if (!_beacons.contains(beacon_)) {
+            revert NotWhitelistedBeacon();
+        }
+
+        bytes32 salt = _deriveSalt(salt_);
+        bytes memory bytecode = _getBeaconProxyInitCode(beacon_, payload_);
+        assembly {
+            proxy := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
+        }
+        if (proxy == address(0)) revert Create2Failed();
+    }
+
+    function _computeBeaconProxyAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
+        internal
+        view
+        returns (address)
+    {
+        bytes memory bytecode = _getBeaconProxyInitCode(beacon_, payload_);
+        bytes32 salt = _deriveSalt(salt_);
+        return _getCreate2Address(salt, keccak256(bytecode));
+    }
+
+    function _deriveSalt(bytes32 salt_) internal view returns (bytes32 salt) {
         assembly {
             let ptr := mload(0x40)
             mstore(ptr, caller())
             mstore(add(ptr, 0x20), salt_)
             salt := keccak256(ptr, 0x40)
         }
-        yieldClaimer = _getCreate2Address(salt, keccak256(bytecode));
     }
 
-    function _getTokenInitCode(address beacon_, bytes calldata payload_) internal pure returns (bytes memory) {
+    function _getBeaconProxyInitCode(address beacon_, bytes calldata payload_) internal pure returns (bytes memory) {
         return abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon_, payload_));
     }
 

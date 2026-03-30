@@ -135,9 +135,10 @@ abstract contract AbstractCycleModule is ICycleModule {
     }
 
     /// @notice Initializes the cycle module with fixed cycle parameters
-    /// @dev Authorizes msg.sender as the first authorized address. Can only be called once.
+    /// @dev Can only be called once. The provided address becomes the first authorized address.
     /// @param _cycleLength The length of each cycle in blocks
-    function initialize(uint256 _cycleLength) external {
+    /// @param _initialAuthorized The address to authorize as the initial controller
+    function initialize(uint256 _cycleLength, address _initialAuthorized) external {
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
         if ($.initialized) {
             revert AlreadyInitialized();
@@ -147,13 +148,17 @@ abstract contract AbstractCycleModule is ICycleModule {
             revert InvalidCycleLength();
         }
 
-        $.authorized[msg.sender] = true;
+        if (_initialAuthorized == address(0)) {
+            revert NotAuthorized();
+        }
+
+        $.authorized[_initialAuthorized] = true;
         $.cycleLength = _cycleLength;
         $.lastCycleStartBlock = block.number;
         $.currentCycle = 1;
         $.initialized = true;
 
-        emit AuthorizationUpdated(msg.sender, true);
+        emit AuthorizationUpdated(_initialAuthorized, true);
         emit ModuleInitialized(_cycleLength, block.number);
     }
 
