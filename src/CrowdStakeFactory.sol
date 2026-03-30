@@ -72,10 +72,7 @@ contract CrowdStakeFactory is Ownable {
         emit CreateYieldDistributor(yieldClaimer, token_, initialRecipients_, percentVoted_, owner_);
     }
 
-    function createModule(address beacon_, bytes calldata payload_, bytes32 salt_)
-        external
-        returns (address module)
-    {
+    function createModule(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address module) {
         if (!_beacons.contains(beacon_)) {
             revert NotWhitelistedBeacon();
         }
