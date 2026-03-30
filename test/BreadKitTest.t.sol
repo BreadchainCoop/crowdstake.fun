@@ -21,12 +21,12 @@ contract BreadKitTest is TestWrapper {
     function setUp() public {
         factory = new CrowdStakeFactory(address(this));
 
-        /// @dev this is how we deploy and whitelist a new token type
+        /// @dev this is how we deploy and allowlist a new token type
         address impl = address(new SexyDaiYield(WX_DAI, SX_DAI));
         address beacon = address(new UpgradeableBeacon(impl, address(this)));
         address[] memory beacons = new address[](1);
         beacons[0] = beacon;
-        factory.whitelistBeacons(beacons);
+        factory.allowlistBeacons(beacons);
 
         /// @dev this is how we deploy a new token
 

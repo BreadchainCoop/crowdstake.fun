@@ -151,8 +151,8 @@ classDiagram
     class BreadKitFactory {
         +AddressSet beacons
         +createToken(beacon, payload, salt)
-        +whitelistBeacons(beacons)
-        +blacklistBeacons(beacons)
+        +allowlistBeacons(beacons)
+        +denylistBeacons(beacons)
         +computeTokenAddress(beacon, payload, salt, sender)
     }
     
