@@ -273,16 +273,13 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
     }
 
     /// @notice Cast a vote on an existing proposal
-    /// @dev Only existing recipients can vote on proposals
+    /// @dev Only recipients who were active at proposal creation can vote (snapshotted eligibility)
     /// @dev Voters cannot vote twice on the same proposal
     /// @dev Voting is not allowed on expired or already executed proposals
     /// @dev Automatically executes the proposal if enough votes are reached
     /// @dev Emits VoteCast event and potentially ProposalExecuted if threshold reached
     /// @param proposalId The ID of the proposal to vote on
     function vote(uint256 proposalId) external {
-        AbstractRecipientRegistryStorage storage base = _getAbstractRecipientRegistryStorage();
-        if (!base.isRecipientMapping[msg.sender]) revert NotARecipient();
-
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
         Proposal storage proposal = $.proposals[proposalId];
         if (proposal.candidate == address(0)) revert ProposalNotFound();
@@ -305,8 +302,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
     /// @notice Manually execute a proposal that has received sufficient votes
     /// @dev Anyone can call this function if the proposal has enough votes
     /// @dev Proposals cannot be executed if they are expired or already executed
-    /// @dev Addition proposals require votes from all current recipients
-    /// @dev Removal proposals require votes from all recipients except the one being removed
+    /// @dev Vote threshold is snapshotted at proposal creation and does not change
     /// @param proposalId The ID of the proposal to execute
     function executeProposal(uint256 proposalId) external {
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();

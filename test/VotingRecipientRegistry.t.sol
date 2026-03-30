@@ -218,7 +218,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
         vm.prank(NON_RECIPIENT);
-        vm.expectRevert(VotingRecipientRegistry.NotARecipient.selector);
+        vm.expectRevert(VotingRecipientRegistry.NotEligibleVoter.selector);
         registry.vote(proposalId);
     }
 
