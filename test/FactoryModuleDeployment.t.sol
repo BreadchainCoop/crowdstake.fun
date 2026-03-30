@@ -49,7 +49,7 @@ contract FactoryModuleDeploymentTest is Test {
         registryBeacon = _createBeacon(address(new RecipientRegistry()));
         votingRegistryBeacon = _createBeacon(address(new VotingRecipientRegistry()));
 
-        // Whitelist all beacons
+        // Allowlist all beacons
         address[] memory beacons = new address[](9);
         beacons[0] = cycleModuleBeacon;
         beacons[1] = votingModuleBeacon;
@@ -60,7 +60,7 @@ contract FactoryModuleDeploymentTest is Test {
         beacons[6] = adminRegistryBeacon;
         beacons[7] = registryBeacon;
         beacons[8] = votingRegistryBeacon;
-        factory.whitelistBeacons(beacons);
+        factory.allowlistBeacons(beacons);
     }
 
     function _createBeacon(address impl) internal returns (address) {
@@ -298,11 +298,11 @@ contract FactoryModuleDeploymentTest is Test {
 
     // ============ Access Control ============
 
-    function test_createRevertsForNonWhitelistedBeacon() public {
+    function test_createRevertsForNonAllowlistedBeacon() public {
         address fakeBeacon = address(0x999);
         bytes memory payload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
 
-        vm.expectRevert(CrowdStakeFactory.NotWhitelistedBeacon.selector);
+        vm.expectRevert(CrowdStakeFactory.NotAllowlistedBeacon.selector);
         factory.create(fakeBeacon, payload, keccak256("bad-salt"));
     }
 

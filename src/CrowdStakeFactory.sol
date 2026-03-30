@@ -6,46 +6,98 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {DefaultYieldClaimer} from "./implementation/DefaultYieldClaimer.sol";
 
+/// @title CrowdStakeFactory
+/// @notice Factory contract for deploying deterministic beacon proxies and yield claimers.
+/// @dev Uses CREATE2 for deterministic deployments with sender-scoped salts.
+///      Only beacons on the allowlist can be used to create proxies.
 contract CrowdStakeFactory is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    error AlreadyWhitelistedBeacon();
+    /// @notice Thrown when attempting to add a beacon that is already on the allowlist.
+    error AlreadyAllowlistedBeacon();
+
+    /// @notice Thrown when the provided address has no code deployed (not a valid beacon).
     error NotBeacon();
-    error NotWhitelistedBeacon();
+
+    /// @notice Thrown when attempting to use or remove a beacon that is not on the allowlist.
+    error NotAllowlistedBeacon();
+
+    /// @notice Thrown when a CREATE2 deployment returns the zero address.
     error Create2Failed();
 
-    event WhitelistBeacons(address[] beacons);
-    event BlacklistBeacons(address[] beacons);
+    /// @notice Emitted when beacons are added to the allowlist.
+    /// @param beacons The array of beacon addresses added.
+    event AllowlistBeacons(address[] beacons);
+
+    /// @notice Emitted when beacons are removed from the allowlist.
+    /// @param beacons The array of beacon addresses removed.
+    event DenylistBeacons(address[] beacons);
+
+    /// @notice Emitted when a token proxy is created via the legacy `createToken` entrypoint.
+    /// @param token The address of the deployed token proxy.
+    /// @param beacon The beacon address used for the proxy.
+    /// @param payload The initialization payload forwarded to the proxy.
     event CreateToken(address token, address beacon, bytes payload);
+
+    /// @notice Emitted when a module proxy is created via `create`.
+    /// @param module The address of the deployed module proxy.
+    /// @param beacon The beacon address used for the proxy.
+    /// @param payload The initialization payload forwarded to the proxy.
     event CreateModule(address module, address beacon, bytes payload);
+
+    /// @notice Emitted when a default yield claimer is deployed.
+    /// @param yieldClaimer The address of the deployed yield claimer.
+    /// @param token The token address the claimer is associated with.
+    /// @param initialRecipients The initial set of yield recipients.
+    /// @param percentVoted The percentage threshold for voted distributions.
+    /// @param owner The owner of the yield claimer.
     event CreateYieldDistributor(
         address yieldClaimer, address token, address[] initialRecipients, uint256 percentVoted, address owner
     );
 
+    /// @dev Set of beacon addresses currently on the allowlist.
     EnumerableSet.AddressSet internal _beacons;
 
+    /// @notice Deploys a new CrowdStakeFactory and sets the initial owner.
+    /// @param _owner The address that will own this factory.
     constructor(address _owner) {
         _initializeOwner(_owner);
     }
 
-    /// @notice Creates a beacon proxy for a token (legacy entrypoint, delegates to create)
+    /// @notice Creates a beacon proxy for a token (legacy entrypoint, delegates to `_createBeaconProxy`).
+    /// @param beacon_ The allowlisted beacon to use for the proxy.
+    /// @param payload_ The ABI-encoded initialization calldata forwarded to the proxy constructor.
+    /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
+    /// @return token The address of the newly deployed token proxy.
     function createToken(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address token) {
         token = _createBeaconProxy(beacon_, payload_, salt_);
         emit CreateToken(token, beacon_, payload_);
     }
 
-    /// @notice Creates a beacon proxy for any module type
+    /// @notice Creates a beacon proxy for any module type.
+    /// @param beacon_ The allowlisted beacon to use for the proxy.
+    /// @param payload_ The ABI-encoded initialization calldata forwarded to the proxy constructor.
+    /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
+    /// @return module The address of the newly deployed module proxy.
     function create(address beacon_, bytes calldata payload_, bytes32 salt_) external returns (address module) {
         module = _createBeaconProxy(beacon_, payload_, salt_);
         emit CreateModule(module, beacon_, payload_);
     }
 
-    /// @notice Computes the deterministic address for a beacon proxy deployment
+    /// @notice Computes the deterministic address for a beacon proxy deployment without deploying it.
+    /// @param beacon_ The beacon address that would be used.
+    /// @param payload_ The initialization payload that would be used.
+    /// @param salt_ The user-provided salt that would be used.
+    /// @return The predicted deployment address.
     function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_) external view returns (address) {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
-    /// @notice Computes the deterministic address for a token (legacy entrypoint, delegates to computeAddress)
+    /// @notice Computes the deterministic address for a token proxy (legacy entrypoint).
+    /// @param beacon_ The beacon address that would be used.
+    /// @param payload_ The initialization payload that would be used.
+    /// @param salt_ The user-provided salt that would be used.
+    /// @return The predicted deployment address.
     function computeTokenAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
         external
         view
@@ -54,6 +106,13 @@ contract CrowdStakeFactory is Ownable {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
+    /// @notice Deploys a new `DefaultYieldClaimer` using CREATE2.
+    /// @param token_ The token address the claimer will serve.
+    /// @param initialRecipients_ The initial set of yield recipients.
+    /// @param percentVoted_ The percentage threshold for voted distributions.
+    /// @param owner_ The owner of the deployed yield claimer.
+    /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
+    /// @return yieldClaimer The address of the newly deployed yield claimer.
     function createDefaultYieldClaimer(
         address token_,
         address[] memory initialRecipients_,
@@ -71,7 +130,10 @@ contract CrowdStakeFactory is Ownable {
         emit CreateYieldDistributor(yieldClaimer, token_, initialRecipients_, percentVoted_, owner_);
     }
 
-    function whitelistBeacons(address[] calldata beacons_) external onlyOwner {
+    /// @notice Adds beacon addresses to the allowlist. Only callable by the owner.
+    /// @param beacons_ The array of beacon addresses to add.
+    /// @dev Reverts if any address has no deployed code or is already allowlisted.
+    function allowlistBeacons(address[] calldata beacons_) external onlyOwner {
         uint256 length = beacons_.length;
 
         for (uint256 i; i < length; i++) {
@@ -79,39 +141,54 @@ contract CrowdStakeFactory is Ownable {
 
             if (beacon.code.length == 0) revert NotBeacon();
             if (_beacons.contains(beacon)) {
-                revert AlreadyWhitelistedBeacon();
+                revert AlreadyAllowlistedBeacon();
             }
 
             _beacons.add(beacon);
         }
 
-        emit WhitelistBeacons(beacons_);
+        emit AllowlistBeacons(beacons_);
     }
 
-    function blacklistBeacons(address[] calldata beacons_) external onlyOwner {
+    /// @notice Removes beacon addresses from the allowlist. Only callable by the owner.
+    /// @param beacons_ The array of beacon addresses to remove.
+    /// @dev Reverts if any address is not currently on the allowlist.
+    function denylistBeacons(address[] calldata beacons_) external onlyOwner {
         uint256 length = beacons_.length;
 
         for (uint256 i; i < length; i++) {
             address beacon = beacons_[i];
 
             if (!_beacons.contains(beacon)) {
-                revert NotWhitelistedBeacon();
+                revert NotAllowlistedBeacon();
             }
 
             _beacons.remove(beacon);
         }
 
-        emit BlacklistBeacons(beacons_);
+        emit DenylistBeacons(beacons_);
     }
 
+    /// @notice Returns all beacon addresses currently on the allowlist.
+    /// @return An array of allowlisted beacon addresses.
     function beacons() external view returns (address[] memory) {
         return _beacons.values();
     }
 
+    /// @notice Checks whether a beacon address is on the allowlist.
+    /// @param beacon_ The beacon address to check.
+    /// @return isContained True if the beacon is allowlisted.
     function beaconsContains(address beacon_) external view returns (bool isContained) {
         return _beacons.contains(beacon_);
     }
 
+    /// @notice Computes the deterministic address for a yield claimer deployment.
+    /// @param token_ The token address the claimer would serve.
+    /// @param initialRecipients_ The initial recipients that would be used.
+    /// @param percentVoted_ The percentage threshold that would be used.
+    /// @param owner_ The owner that would be set.
+    /// @param salt_ The user-provided salt that would be used.
+    /// @return yieldClaimer The predicted deployment address.
     function computeClaimerAddress(
         address token_,
         address[] memory initialRecipients_,
@@ -126,12 +203,14 @@ contract CrowdStakeFactory is Ownable {
 
     // ============ Internal Helpers ============
 
+    /// @dev Deploys a beacon proxy using CREATE2 with a sender-scoped salt.
+    ///      Reverts if the beacon is not allowlisted or if deployment fails.
     function _createBeaconProxy(address beacon_, bytes calldata payload_, bytes32 salt_)
         internal
         returns (address proxy)
     {
         if (!_beacons.contains(beacon_)) {
-            revert NotWhitelistedBeacon();
+            revert NotAllowlistedBeacon();
         }
 
         bytes32 salt = _deriveSalt(salt_);
@@ -142,6 +221,7 @@ contract CrowdStakeFactory is Ownable {
         if (proxy == address(0)) revert Create2Failed();
     }
 
+    /// @dev Computes the predicted address for a beacon proxy deployment.
     function _computeBeaconProxyAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
         internal
         view
@@ -152,6 +232,7 @@ contract CrowdStakeFactory is Ownable {
         return _getCreate2Address(salt, keccak256(bytecode));
     }
 
+    /// @dev Derives a sender-scoped salt by hashing `msg.sender` with the user-provided salt.
     function _deriveSalt(bytes32 salt_) internal view returns (bytes32 salt) {
         assembly {
             let ptr := mload(0x40)
@@ -161,10 +242,12 @@ contract CrowdStakeFactory is Ownable {
         }
     }
 
+    /// @dev Returns the creation code for a `BeaconProxy` with the given beacon and payload.
     function _getBeaconProxyInitCode(address beacon_, bytes calldata payload_) internal pure returns (bytes memory) {
         return abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon_, payload_));
     }
 
+    /// @dev Returns the creation code for a `DefaultYieldClaimer` with the given parameters.
     function _getYieldDistributorInitCode(
         address token_,
         address[] memory initialRecipients_,
@@ -176,6 +259,7 @@ contract CrowdStakeFactory is Ownable {
         );
     }
 
+    /// @dev Computes a CREATE2 address from a salt and bytecode hash.
     function _getCreate2Address(bytes32 salt_, bytes32 bytecodeHash_) internal view returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt_, bytecodeHash_)))));
     }
