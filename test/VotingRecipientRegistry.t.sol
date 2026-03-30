@@ -346,4 +346,33 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.expectRevert();
         registry.setProposalExpiry(3 days);
     }
+
+    function test_RequiredVotesUnchangedAfterRecipientSetChanges() public {
+        // Create an addition proposal while there are 3 recipients (requires 3 votes)
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
+        assertEq(registry.getRequiredVotes(proposalId), 3);
+
+        // Add a 4th recipient via a separate proposal
+        vm.prank(RECIPIENT_1);
+        uint256 addProposal = registry.proposeAddition(address(0x55));
+        vm.prank(RECIPIENT_2);
+        registry.vote(addProposal);
+        vm.prank(RECIPIENT_3);
+        registry.vote(addProposal);
+        registry.processQueue();
+        assertEq(registry.getRecipientCount(), 4);
+
+        // Original proposal still requires only 3 votes (snapshotted at creation)
+        assertEq(registry.getRequiredVotes(proposalId), 3);
+
+        // Complete voting on the original proposal — still only needs 3
+        vm.prank(RECIPIENT_2);
+        registry.vote(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.vote(proposalId);
+
+        (,,,, bool executed,) = registry.getProposal(proposalId);
+        assertTrue(executed);
+    }
 }

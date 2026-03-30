@@ -304,6 +304,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry {
         if (proposal.executed) revert ProposalAlreadyExecuted();
         if (block.timestamp > proposal.createdAt + $.proposalExpiry) revert ProposalExpired();
 
+        if (proposal.requiredVotes == 0) revert NotEnoughVotes();
         if (proposal.voteCount < proposal.requiredVotes) revert NotEnoughVotes();
 
         _executeProposal(proposalId);
