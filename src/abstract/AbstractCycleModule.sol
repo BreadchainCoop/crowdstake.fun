@@ -7,6 +7,8 @@ import {ICycleModule} from "../interfaces/ICycleModule.sol";
 /// @notice Abstract contract providing core cycle functionality with fixed cycle implementation
 /// @dev All cycle utilities merged into a single abstract module
 abstract contract AbstractCycleModule is ICycleModule {
+    uint256 private constant PERCENTAGE_SCALE = 100;
+
     // ============ EIP-7201 Namespaced Storage ============
 
     /// @custom:storage-location erc7201:crowdstake.storage.AbstractCycleModule
@@ -214,9 +216,9 @@ abstract contract AbstractCycleModule is ICycleModule {
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
         uint256 blocksElapsed = block.number - $.lastCycleStartBlock;
         if (blocksElapsed >= $.cycleLength) {
-            return 100;
+            return PERCENTAGE_SCALE;
         }
-        return (blocksElapsed * 100) / $.cycleLength;
+        return (blocksElapsed * PERCENTAGE_SCALE) / $.cycleLength;
     }
 
     /// @notice Updates the cycle length for future cycles
