@@ -77,6 +77,8 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         return _getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval.length;
     }
 
+    /// @notice Mapping to quickly check if an address is an active recipient
+    /// @dev Maps recipient address to true if active, false otherwise
     function isRecipientMapping(address account) public view returns (bool) {
         return _getAbstractRecipientRegistryStorage().isRecipientMapping[account];
     }
