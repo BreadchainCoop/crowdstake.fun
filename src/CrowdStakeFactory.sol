@@ -85,18 +85,20 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @notice Computes the deterministic address for a beacon proxy deployment without deploying it.
+    /// @dev The predicted address is scoped to `msg.sender` — different callers with the same arguments will get different addresses.
     /// @param beacon_ The beacon address that would be used.
     /// @param payload_ The initialization payload that would be used.
-    /// @param salt_ The user-provided salt that would be used.
+    /// @param salt_ The user-provided salt that, together with `msg.sender`, derives the CREATE2 salt.
     /// @return The predicted deployment address.
     function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_) external view returns (address) {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
     /// @notice Computes the deterministic address for a token proxy (legacy entrypoint).
+    /// @dev The predicted address is scoped to `msg.sender` — different callers with the same arguments will get different addresses.
     /// @param beacon_ The beacon address that would be used.
     /// @param payload_ The initialization payload that would be used.
-    /// @param salt_ The user-provided salt that would be used.
+    /// @param salt_ The user-provided salt that, together with `msg.sender`, derives the CREATE2 salt.
     /// @return The predicted deployment address.
     function computeTokenAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
         external
@@ -183,12 +185,13 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @notice Computes the deterministic address for a yield claimer deployment.
+    /// @dev The predicted address is scoped to `msg.sender` — different callers with the same arguments will get different addresses.
     /// @param token_ The token address the claimer would serve.
     /// @param initialRecipients_ The initial recipients that would be used.
     /// @param percentVoted_ The percentage threshold that would be used.
     /// @param owner_ The owner that would be set.
-    /// @param salt_ The user-provided salt that would be used.
-    /// @return yieldClaimer The predicted deployment address.
+    /// @param salt_ The user-provided salt that, together with `msg.sender`, derives the CREATE2 salt.
+    /// @return yieldClaimer The predicted deployment address for a claimer that `msg.sender` would deploy with these arguments.
     function computeClaimerAddress(
         address token_,
         address[] memory initialRecipients_,
