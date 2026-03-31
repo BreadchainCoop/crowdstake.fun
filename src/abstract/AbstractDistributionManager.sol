@@ -74,6 +74,21 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         return _getAbstractDistributionManagerStorage().baseToken;
     }
 
+    // ============ Events ============
+
+    /// @notice Emitted when the voting module is set or changed
+    event VotingModuleSet(address indexed votingModule);
+
+    // ============ Admin ============
+
+    /// @notice Sets the voting module reference
+    /// @param _votingModule Address of the voting module
+    function setVotingModule(address _votingModule) external onlyOwner {
+        if (_votingModule == address(0)) revert ZeroAddress();
+        _getAbstractDistributionManagerStorage().votingModule = IVotingModule(_votingModule);
+        emit VotingModuleSet(_votingModule);
+    }
+
     // ============ Initialization ============
 
     /// @dev Initializes the distribution manager
