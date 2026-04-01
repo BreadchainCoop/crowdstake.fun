@@ -9,13 +9,13 @@ import {DefaultYieldClaimer} from "./implementation/DefaultYieldClaimer.sol";
 contract CrowdStakeFactory is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    error AlreadyWhitelistedBeacon();
+    error AlreadyAllowlistedBeacon();
     error NotBeacon();
-    error NotWhitelistedBeacon();
+    error NotAllowlistedBeacon();
     error Create2Failed();
 
-    event WhitelistBeacons(address[] beacons);
-    event BlacklistBeacons(address[] beacons);
+    event AllowlistBeacons(address[] beacons);
+    event DenylistBeacons(address[] beacons);
     event CreateToken(address token, address beacon, bytes payload);
     event CreateModule(address module, address beacon, bytes payload);
     event CreateYieldDistributor(
@@ -71,7 +71,7 @@ contract CrowdStakeFactory is Ownable {
         emit CreateYieldDistributor(yieldClaimer, token_, initialRecipients_, percentVoted_, owner_);
     }
 
-    function whitelistBeacons(address[] calldata beacons_) external onlyOwner {
+    function allowlistBeacons(address[] calldata beacons_) external onlyOwner {
         uint256 length = beacons_.length;
 
         for (uint256 i; i < length; i++) {
@@ -79,29 +79,29 @@ contract CrowdStakeFactory is Ownable {
 
             if (beacon.code.length == 0) revert NotBeacon();
             if (_beacons.contains(beacon)) {
-                revert AlreadyWhitelistedBeacon();
+                revert AlreadyAllowlistedBeacon();
             }
 
             _beacons.add(beacon);
         }
 
-        emit WhitelistBeacons(beacons_);
+        emit AllowlistBeacons(beacons_);
     }
 
-    function blacklistBeacons(address[] calldata beacons_) external onlyOwner {
+    function denylistBeacons(address[] calldata beacons_) external onlyOwner {
         uint256 length = beacons_.length;
 
         for (uint256 i; i < length; i++) {
             address beacon = beacons_[i];
 
             if (!_beacons.contains(beacon)) {
-                revert NotWhitelistedBeacon();
+                revert NotAllowlistedBeacon();
             }
 
             _beacons.remove(beacon);
         }
 
-        emit BlacklistBeacons(beacons_);
+        emit DenylistBeacons(beacons_);
     }
 
     function beacons() external view returns (address[] memory) {
@@ -131,7 +131,7 @@ contract CrowdStakeFactory is Ownable {
         returns (address proxy)
     {
         if (!_beacons.contains(beacon_)) {
-            revert NotWhitelistedBeacon();
+            revert NotAllowlistedBeacon();
         }
 
         bytes32 salt = _deriveSalt(salt_);

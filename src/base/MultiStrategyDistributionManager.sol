@@ -57,10 +57,11 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
         address _recipientRegistry,
         address _baseToken,
         address _votingModule,
-        IDistributionStrategy[] calldata _strategies
+        IDistributionStrategy[] calldata _strategies,
+        address _owner
     ) external initializer {
         // Initialize parent AbstractDistributionManager
-        __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule);
+        __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _owner);
 
         // Store strategies
         require(_strategies.length > 0, "No strategies provided");

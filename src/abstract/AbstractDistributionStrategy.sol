@@ -93,9 +93,10 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
     function __AbstractDistributionStrategy_init(
         address _yieldToken,
         address _recipientRegistry,
-        address _distributionManager
+        address _distributionManager,
+        address _owner
     ) internal onlyInitializing {
-        __Ownable_init(msg.sender);
+        __Ownable_init(_owner);
         __AbstractDistributionStrategy_init_unchained(_yieldToken, _recipientRegistry, _distributionManager);
     }
 

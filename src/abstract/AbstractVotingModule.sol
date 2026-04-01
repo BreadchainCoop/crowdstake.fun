@@ -137,12 +137,13 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
         IVotingPowerStrategy[] calldata _strategies,
         address _distributionModule,
         address _recipientRegistry,
-        address _cycleModule
+        address _cycleModule,
+        address _owner
     ) internal onlyInitializing {
         if (_strategies.length == 0) revert NoStrategiesProvided();
 
         __EIP712_init(EIP712_NAME, EIP712_VERSION);
-        __Ownable_init(msg.sender);
+        __Ownable_init(_owner);
 
         if (_distributionModule == address(0)) revert ZeroAddress();
         if (_recipientRegistry == address(0)) revert ZeroAddress();

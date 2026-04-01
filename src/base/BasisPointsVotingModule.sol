@@ -90,10 +90,11 @@ contract BasisPointsVotingModule is AbstractVotingModule {
         IVotingPowerStrategy[] calldata _strategies,
         address _distributionModule,
         address _recipientRegistry,
-        address _cycleModule
+        address _cycleModule,
+        address _owner
     ) external initializer {
         _getBasisPointsVotingModuleStorage().maxPoints = _maxPoints;
-        __AbstractVotingModule_init(_strategies, _distributionModule, _recipientRegistry, _cycleModule);
+        __AbstractVotingModule_init(_strategies, _distributionModule, _recipientRegistry, _cycleModule, _owner);
     }
 
     // ============ External Functions ============

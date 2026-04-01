@@ -58,10 +58,11 @@ contract BaseDistributionManager is AbstractDistributionManager {
         address _recipientRegistry,
         address _baseToken,
         address _votingModule,
-        address _strategy
+        address _strategy,
+        address _owner
     ) external initializer {
         // Initialize parent AbstractDistributionManager
-        __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule);
+        __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _owner);
 
         // Set the single strategy
         if (_strategy != address(0)) {

@@ -24,7 +24,7 @@ import {IVotesCheckpoints} from "../src/interfaces/IVotesCheckpoints.sol";
 
 /// @title Deploy
 /// @notice Deploys the entire CrowdStake system via the factory pattern.
-///         Step 1: Deploy factory + implementations + beacons + whitelist
+///         Step 1: Deploy factory + implementations + beacons + allowlist
 ///         Step 2: Deploy a full system instance via the factory
 contract Deploy is Script {
     // ============ Deployed Infrastructure ============
@@ -147,7 +147,7 @@ contract Deploy is Script {
         votingRegistryBeacon = address(new UpgradeableBeacon(votingRegImpl, owner));
         tokenBeacon = address(new UpgradeableBeacon(tokenImpl, owner));
 
-        // 4. Whitelist all beacons
+        // 4. Allowlist all beacons
         address[] memory beacons = new address[](10);
         beacons[0] = cycleModuleBeacon;
         beacons[1] = votingModuleBeacon;
@@ -159,12 +159,23 @@ contract Deploy is Script {
         beacons[7] = registryBeacon;
         beacons[8] = votingRegistryBeacon;
         beacons[9] = tokenBeacon;
-        factory.whitelistBeacons(beacons);
+        factory.allowlistBeacons(beacons);
 
-        console.log("All beacons deployed and whitelisted");
+        console.log("All beacons deployed and allowlisted");
     }
 
     // ============ Internal: System Instance ============
+
+    struct SystemParams {
+        address owner;
+        uint256 cycleLength;
+        string tokenName;
+        string tokenSymbol;
+        address yieldToken;
+        address baseToken;
+        uint256 maxVotingPoints;
+        string salt;
+    }
 
     function _deploySystemInstance(
         address owner,
@@ -176,26 +187,27 @@ contract Deploy is Script {
         uint256 maxVotingPoints,
         string memory salt
     ) internal {
-        bytes32 baseSalt = keccak256(abi.encodePacked(salt));
+        SystemParams memory p = SystemParams(owner, cycleLength, tokenName, tokenSymbol, yieldToken, baseToken, maxVotingPoints, salt);
+        bytes32 baseSalt = keccak256(abi.encodePacked(p.salt));
 
         // 1. CycleModule
         cycleModule = factory.create(
             cycleModuleBeacon,
-            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, cycleLength, owner),
+            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, p.cycleLength, p.owner),
             keccak256(abi.encodePacked(baseSalt, "cycle"))
         );
 
         // 2. AdminRecipientRegistry
         registry = factory.create(
             adminRegistryBeacon,
-            abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner),
+            abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, p.owner),
             keccak256(abi.encodePacked(baseSalt, "registry"))
         );
 
         // 3. Token (SexyDaiYield)
         token = factory.createToken(
             tokenBeacon,
-            abi.encodeWithSelector(SexyDaiYield.initialize.selector, tokenName, tokenSymbol, owner),
+            abi.encodeWithSelector(SexyDaiYield.initialize.selector, p.tokenName, p.tokenSymbol, p.owner),
             keccak256(abi.encodePacked(baseSalt, "token"))
         );
 
@@ -221,9 +233,10 @@ contract Deploy is Script {
                 BaseDistributionManager.initialize.selector,
                 cycleModule,
                 registry,
-                baseToken,
-                owner, // placeholder — corrected in step 5e
-                address(0) // strategy set in step 5e
+                p.baseToken,
+                p.owner, // placeholder — corrected in step 5d
+                address(0), // strategy set in step 5d
+                p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "dist-manager"))
         );
@@ -232,7 +245,7 @@ contract Deploy is Script {
         distributionStrategy = factory.create(
             equalStrategyBeacon,
             abi.encodeWithSelector(
-                EqualDistributionStrategy.initialize.selector, yieldToken, registry, distributionManager
+                EqualDistributionStrategy.initialize.selector, p.yieldToken, registry, distributionManager, p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "strategy"))
         );
@@ -245,11 +258,12 @@ contract Deploy is Script {
             votingModuleBeacon,
             abi.encodeWithSelector(
                 BasisPointsVotingModule.initialize.selector,
-                maxVotingPoints,
+                p.maxVotingPoints,
                 vpStrategies,
                 distributionManager,
                 registry,
-                cycleModule
+                cycleModule,
+                p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );

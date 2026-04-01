@@ -16,11 +16,11 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _distributionManager Address of the distribution manager
-    function initialize(address _yieldToken, address _recipientRegistry, address _distributionManager)
+    function initialize(address _yieldToken, address _recipientRegistry, address _distributionManager, address _owner)
         external
         initializer
     {
-        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager);
+        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager, _owner);
     }
 
     /// @notice Distributes yield equally among all recipients
