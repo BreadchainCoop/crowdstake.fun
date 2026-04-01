@@ -149,8 +149,7 @@ contract Deploy is Script {
         cycleModuleBeacon = address(new UpgradeableBeacon(address(new CycleModule()), owner));
         votingModuleBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), owner));
         baseDistManagerBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), owner));
-        multiDistManagerBeacon =
-            address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), owner));
+        multiDistManagerBeacon = address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), owner));
         equalStrategyBeacon = address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), owner));
         votingStrategyBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), owner));
         adminRegistryBeacon = address(new UpgradeableBeacon(address(new AdminRecipientRegistry()), owner));
