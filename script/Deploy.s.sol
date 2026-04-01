@@ -187,7 +187,9 @@ contract Deploy is Script {
         uint256 maxVotingPoints,
         string memory salt
     ) internal {
-        SystemParams memory p = SystemParams(owner, cycleLength, tokenName, tokenSymbol, yieldToken, baseToken, maxVotingPoints, salt);
+        SystemParams memory p = SystemParams(
+            owner, cycleLength, tokenName, tokenSymbol, yieldToken, baseToken, maxVotingPoints, salt
+        );
         bytes32 baseSalt = keccak256(abi.encodePacked(p.salt));
 
         // 1. CycleModule

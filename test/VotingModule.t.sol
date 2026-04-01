@@ -111,7 +111,12 @@ contract VotingModuleTest is Test {
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
 
         votingModule.initialize(
-            MAX_POINTS, strategies, address(distributionModule), address(recipientRegistry), address(cycleModule), address(this)
+            MAX_POINTS,
+            strategies,
+            address(distributionModule),
+            address(recipientRegistry),
+            address(cycleModule),
+            address(this)
         );
     }
 

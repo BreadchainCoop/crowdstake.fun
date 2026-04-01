@@ -157,7 +157,12 @@ contract FactoryModuleDeploymentTest is Test {
         vm.etch(mockVotingModule, hex"00");
 
         bytes memory payload = abi.encodeWithSelector(
-            VotingDistributionStrategy.initialize.selector, mockYieldToken, registry, mockVotingModule, mockDistManager, owner
+            VotingDistributionStrategy.initialize.selector,
+            mockYieldToken,
+            registry,
+            mockVotingModule,
+            mockDistManager,
+            owner
         );
         address module = factory.create(votingStrategyBeacon, payload, keccak256("voting-strat-salt"));
 
