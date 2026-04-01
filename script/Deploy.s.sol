@@ -119,8 +119,9 @@ contract Deploy is Script {
     // ============ Internal: Infrastructure ============
 
     function _deployInfrastructure(address owner, address wxDai, address sxDai) internal {
-        // 1. Deploy factory
-        factory = new CrowdStakeFactory(owner);
+        // 1. Deploy factory owned by deployer (msg.sender) so we can allowlist beacons,
+        //    then transfer ownership to the intended owner at the end.
+        factory = new CrowdStakeFactory(msg.sender);
         console.log("Factory deployed at:        ", address(factory));
 
         // 2. Deploy implementations
@@ -160,6 +161,11 @@ contract Deploy is Script {
         beacons[8] = votingRegistryBeacon;
         beacons[9] = tokenBeacon;
         factory.allowlistBeacons(beacons);
+
+        // Transfer factory ownership to the intended owner
+        if (owner != msg.sender) {
+            factory.transferOwnership(owner);
+        }
 
         console.log("All beacons deployed and allowlisted");
     }
@@ -228,7 +234,8 @@ contract Deploy is Script {
         //    for votingModule, address(0) for strategy), then deploy votingModule + strategy
         //    with the real distManager address, then wire both back via setters.
 
-        // 5a. Deploy BaseDistributionManager (votingModule=placeholder, strategy=zero)
+        // 5a. Deploy BaseDistributionManager owned by deployer so we can wire
+        //     references in step 5d, then transfer ownership to the intended owner.
         distributionManager = factory.create(
             baseDistManagerBeacon,
             abi.encodeWithSelector(
@@ -236,9 +243,9 @@ contract Deploy is Script {
                 cycleModule,
                 registry,
                 p.baseToken,
-                p.owner, // placeholder — corrected in step 5d
+                p.owner, // placeholder votingModule — corrected in step 5d
                 address(0), // strategy set in step 5d
-                p.owner
+                msg.sender // deployer owns it temporarily for wiring
             ),
             keccak256(abi.encodePacked(baseSalt, "dist-manager"))
         );
@@ -270,9 +277,12 @@ contract Deploy is Script {
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );
 
-        // 5d. Wire the real references into the distManager
+        // 5d. Wire the real references into the distManager, then transfer ownership
         BaseDistributionManager(distributionManager).setDistributionStrategy(distributionStrategy);
         AbstractDistributionManager(distributionManager).setVotingModule(votingModule);
+        if (p.owner != msg.sender) {
+            AbstractDistributionManager(distributionManager).transferOwnership(p.owner);
+        }
     }
 
     // ============ Logging ============
