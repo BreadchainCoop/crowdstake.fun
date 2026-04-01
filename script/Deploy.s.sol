@@ -24,7 +24,7 @@ import {IVotesCheckpoints} from "../src/interfaces/IVotesCheckpoints.sol";
 
 /// @title Deploy
 /// @notice Deploys the entire CrowdStake system via the factory pattern.
-///         Step 1: Deploy factory + implementations + beacons + whitelist
+///         Step 1: Deploy factory + implementations + beacons + allowlist
 ///         Step 2: Deploy a full system instance via the factory
 contract Deploy is Script {
     // ============ Deployed Infrastructure ============
@@ -159,9 +159,9 @@ contract Deploy is Script {
         beacons[7] = registryBeacon;
         beacons[8] = votingRegistryBeacon;
         beacons[9] = tokenBeacon;
-        factory.whitelistBeacons(beacons);
+        factory.allowlistBeacons(beacons);
 
-        console.log("All beacons deployed and whitelisted");
+        console.log("All beacons deployed and allowlisted");
     }
 
     // ============ Internal: System Instance ============
