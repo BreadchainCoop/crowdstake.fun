@@ -100,9 +100,10 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         address _cycleManager,
         address _recipientRegistry,
         address _baseToken,
-        address _votingModule
+        address _votingModule,
+        address _owner
     ) internal onlyInitializing {
-        __Ownable_init(msg.sender);
+        __Ownable_init(_owner);
         __AbstractDistributionManager_init_unchained(_cycleManager, _recipientRegistry, _baseToken, _votingModule);
     }
 

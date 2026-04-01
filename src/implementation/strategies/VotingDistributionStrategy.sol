@@ -60,9 +60,10 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         address _yieldToken,
         address _recipientRegistry,
         address _votingModule,
-        address _distributionManager
+        address _distributionManager,
+        address _owner
     ) external initializer {
-        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager);
+        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager, _owner);
         if (_votingModule == address(0)) revert ZeroAddress();
         _getVotingDistributionStrategyStorage().votingModule = IVotingModule(_votingModule);
     }

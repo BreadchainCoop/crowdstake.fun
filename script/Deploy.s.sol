@@ -119,8 +119,9 @@ contract Deploy is Script {
     // ============ Internal: Infrastructure ============
 
     function _deployInfrastructure(address owner, address wxDai, address sxDai) internal {
-        // 1. Deploy factory
-        factory = new CrowdStakeFactory(owner);
+        // 1. Deploy factory owned by deployer (msg.sender) so we can allowlist beacons,
+        //    then transfer ownership to the intended owner at the end.
+        factory = new CrowdStakeFactory(msg.sender);
         console.log("Factory deployed at:        ", address(factory));
 
         // 2. Deploy implementations
@@ -147,7 +148,7 @@ contract Deploy is Script {
         votingRegistryBeacon = address(new UpgradeableBeacon(votingRegImpl, owner));
         tokenBeacon = address(new UpgradeableBeacon(tokenImpl, owner));
 
-        // 4. Whitelist all beacons
+        // 4. Allowlist all beacons
         address[] memory beacons = new address[](10);
         beacons[0] = cycleModuleBeacon;
         beacons[1] = votingModuleBeacon;
@@ -161,10 +162,26 @@ contract Deploy is Script {
         beacons[9] = tokenBeacon;
         factory.allowlistBeacons(beacons);
 
+        // Transfer factory ownership to the intended owner
+        if (owner != msg.sender) {
+            factory.transferOwnership(owner);
+        }
+
         console.log("All beacons deployed and allowlisted");
     }
 
     // ============ Internal: System Instance ============
+
+    struct SystemParams {
+        address owner;
+        uint256 cycleLength;
+        string tokenName;
+        string tokenSymbol;
+        address yieldToken;
+        address baseToken;
+        uint256 maxVotingPoints;
+        string salt;
+    }
 
     function _deploySystemInstance(
         address owner,
@@ -176,26 +193,29 @@ contract Deploy is Script {
         uint256 maxVotingPoints,
         string memory salt
     ) internal {
-        bytes32 baseSalt = keccak256(abi.encodePacked(salt));
+        SystemParams memory p = SystemParams(
+            owner, cycleLength, tokenName, tokenSymbol, yieldToken, baseToken, maxVotingPoints, salt
+        );
+        bytes32 baseSalt = keccak256(abi.encodePacked(p.salt));
 
         // 1. CycleModule
         cycleModule = factory.create(
             cycleModuleBeacon,
-            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, cycleLength, owner),
+            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, p.cycleLength, p.owner),
             keccak256(abi.encodePacked(baseSalt, "cycle"))
         );
 
         // 2. AdminRecipientRegistry
         registry = factory.create(
             adminRegistryBeacon,
-            abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner),
+            abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, p.owner),
             keccak256(abi.encodePacked(baseSalt, "registry"))
         );
 
         // 3. Token (SexyDaiYield)
         token = factory.createToken(
             tokenBeacon,
-            abi.encodeWithSelector(SexyDaiYield.initialize.selector, tokenName, tokenSymbol, owner),
+            abi.encodeWithSelector(SexyDaiYield.initialize.selector, p.tokenName, p.tokenSymbol, p.owner),
             keccak256(abi.encodePacked(baseSalt, "token"))
         );
 
@@ -214,16 +234,18 @@ contract Deploy is Script {
         //    for votingModule, address(0) for strategy), then deploy votingModule + strategy
         //    with the real distManager address, then wire both back via setters.
 
-        // 5a. Deploy BaseDistributionManager (votingModule=placeholder, strategy=zero)
+        // 5a. Deploy BaseDistributionManager owned by deployer so we can wire
+        //     references in step 5d, then transfer ownership to the intended owner.
         distributionManager = factory.create(
             baseDistManagerBeacon,
             abi.encodeWithSelector(
                 BaseDistributionManager.initialize.selector,
                 cycleModule,
                 registry,
-                baseToken,
-                owner, // placeholder — corrected in step 5e
-                address(0) // strategy set in step 5e
+                p.baseToken,
+                p.owner, // placeholder votingModule — corrected in step 5d
+                address(0), // strategy set in step 5d
+                msg.sender // deployer owns it temporarily for wiring
             ),
             keccak256(abi.encodePacked(baseSalt, "dist-manager"))
         );
@@ -232,7 +254,7 @@ contract Deploy is Script {
         distributionStrategy = factory.create(
             equalStrategyBeacon,
             abi.encodeWithSelector(
-                EqualDistributionStrategy.initialize.selector, yieldToken, registry, distributionManager
+                EqualDistributionStrategy.initialize.selector, p.yieldToken, registry, distributionManager, p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "strategy"))
         );
@@ -245,18 +267,22 @@ contract Deploy is Script {
             votingModuleBeacon,
             abi.encodeWithSelector(
                 BasisPointsVotingModule.initialize.selector,
-                maxVotingPoints,
+                p.maxVotingPoints,
                 vpStrategies,
                 distributionManager,
                 registry,
-                cycleModule
+                cycleModule,
+                p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );
 
-        // 5d. Wire the real references into the distManager
+        // 5d. Wire the real references into the distManager, then transfer ownership
         BaseDistributionManager(distributionManager).setDistributionStrategy(distributionStrategy);
         AbstractDistributionManager(distributionManager).setVotingModule(votingModule);
+        if (p.owner != msg.sender) {
+            AbstractDistributionManager(distributionManager).transferOwnership(p.owner);
+        }
     }
 
     // ============ Logging ============

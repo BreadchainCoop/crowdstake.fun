@@ -135,7 +135,7 @@ contract FactoryModuleDeploymentTest is Test {
         vm.etch(mockYieldToken, hex"00"); // ensure it has code for the strategy
 
         bytes memory payload = abi.encodeWithSelector(
-            EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager
+            EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager, owner
         );
         address module = factory.create(equalStrategyBeacon, payload, keccak256("equal-strat-salt"));
 
@@ -157,7 +157,12 @@ contract FactoryModuleDeploymentTest is Test {
         vm.etch(mockVotingModule, hex"00");
 
         bytes memory payload = abi.encodeWithSelector(
-            VotingDistributionStrategy.initialize.selector, mockYieldToken, registry, mockVotingModule, mockDistManager
+            VotingDistributionStrategy.initialize.selector,
+            mockYieldToken,
+            registry,
+            mockVotingModule,
+            mockDistManager,
+            owner
         );
         address module = factory.create(votingStrategyBeacon, payload, keccak256("voting-strat-salt"));
 
@@ -193,7 +198,8 @@ contract FactoryModuleDeploymentTest is Test {
             strategies,
             address(distModule),
             registryAddr,
-            cycleAddr
+            cycleAddr,
+            owner
         );
         address module = factory.create(votingModuleBeacon, payload, keccak256("voting-module-salt"));
 
@@ -229,7 +235,8 @@ contract FactoryModuleDeploymentTest is Test {
             registryAddr,
             mockBaseToken,
             mockVotingModule,
-            mockStrategy
+            mockStrategy,
+            owner
         );
         address module = factory.create(baseDistManagerBeacon, payload, keccak256("base-dist-salt"));
 
@@ -267,7 +274,8 @@ contract FactoryModuleDeploymentTest is Test {
             registryAddr,
             mockBaseToken,
             mockVotingModule,
-            strategies
+            strategies,
+            owner
         );
         address module = factory.create(multiDistManagerBeacon, payload, keccak256("multi-dist-salt"));
 
