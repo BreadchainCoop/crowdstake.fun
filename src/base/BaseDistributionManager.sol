@@ -53,6 +53,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     /// @param _baseToken Address of the base token with yield
     /// @param _votingModule Address of the voting module
     /// @param _strategy Address of the distribution strategy to use
+    /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         address _cycleManager,
         address _recipientRegistry,

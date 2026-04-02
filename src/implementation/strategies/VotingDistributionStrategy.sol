@@ -56,6 +56,7 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _votingModule Address of the voting module
     /// @param _distributionManager Address of the distribution manager
+    /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         address _yieldToken,
         address _recipientRegistry,

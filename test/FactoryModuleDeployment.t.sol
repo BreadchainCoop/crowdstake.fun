@@ -207,8 +207,8 @@ contract FactoryModuleDeploymentTest is Test {
         assertEq(votingModule.maxPoints(), 100);
         assertEq(address(votingModule.recipientRegistry()), registryAddr);
         assertEq(address(votingModule.cycleModule()), cycleAddr);
-        // Owner is the factory (msg.sender during initialize), which is expected
-        // for modules that use OwnableUpgradeable - the owner parameter is set internally
+        // Owner is set via the _owner argument in initialize
+        assertEq(votingModule.owner(), owner);
     }
 
     // ============ BaseDistributionManager via Factory ============

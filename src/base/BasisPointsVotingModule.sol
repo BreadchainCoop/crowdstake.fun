@@ -85,6 +85,7 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @param _distributionModule Address of the distribution module for reward allocation
     /// @param _recipientRegistry Address of the recipient registry for valid recipients
     /// @param _cycleModule Address of the cycle module for cycle management
+    /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         uint256 _maxPoints,
         IVotingPowerStrategy[] calldata _strategies,

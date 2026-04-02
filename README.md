@@ -150,10 +150,12 @@ classDiagram
     
     class BreadKitFactory {
         +AddressSet beacons
+        +create(beacon, payload, salt)
         +createToken(beacon, payload, salt)
         +allowlistBeacons(beacons)
         +denylistBeacons(beacons)
-        +computeTokenAddress(beacon, payload, salt, sender)
+        +computeAddress(beacon, payload, salt)
+        +computeTokenAddress(beacon, payload, salt)
     }
     
     class CrossChainRelayer {
