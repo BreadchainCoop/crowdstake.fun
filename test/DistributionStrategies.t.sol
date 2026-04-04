@@ -243,6 +243,33 @@ contract MockYieldToken is IERC20, IYieldModule {
 
 // ============ Mock Strategy for MultiStrategyDistributionManager tests ============
 
+/// @dev Malicious strategy that attempts to re-enter claimAndDistribute during distribute()
+contract ReentrantStrategy is IDistributionStrategy {
+    MultiStrategyDistributionManager public manager;
+    IERC20 public token;
+    bool public shouldReenter;
+
+    constructor(address _manager, address _token) {
+        manager = MultiStrategyDistributionManager(_manager);
+        token = IERC20(_token);
+    }
+
+    function setShouldReenter(bool _shouldReenter) external {
+        shouldReenter = _shouldReenter;
+    }
+
+    function distribute(uint256) external override {
+        if (shouldReenter) {
+            shouldReenter = false;
+            manager.claimAndDistribute();
+        }
+    }
+
+    function withdrawToken(address to, uint256 amount) external {
+        token.transfer(to, amount);
+    }
+}
+
 /// @dev A lightweight strategy mock that accepts distribute() from anyone.
 /// Used to test MultiStrategyDistributionManager without needing circular init.
 contract MockDistributableStrategy is IDistributionStrategy {
@@ -795,6 +822,12 @@ contract MultiStrategyDistributionManagerTest is Test {
             address(votingModule),
             iStrategies
         );
+
+        // Set non-zero voting distribution so getTotalCurrentVotingPower() > 0
+        // (required since fix/77-zero-voter removed the zero-voter guard)
+        uint256[] memory votes = new uint256[](1);
+        votes[0] = 100;
+        votingModule.setDistribution(votes);
     }
 
     // Test 1: Dust absorbed by last strategy (100 / 3 = 33 each, last gets 34)
@@ -1008,4 +1041,5 @@ contract MultiStrategyDistributionManagerTest is Test {
         }
         assertEq(yieldToken.balanceOf(address(manager)), 0, "No dust in manager");
     }
+
 }

@@ -102,7 +102,6 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager, Reentr
     function claimAndDistribute() external override nonReentrant {
         if (!isDistributionReady()) revert DistributionNotReady();
         MultiStrategyDistributionManagerStorage storage $ = _getMultiStrategyDistributionManagerStorage();
-        require($.strategies.length > 0, "No strategies configured");
 
         // Get the amount of yield available
         uint256 yieldAmount = yieldModule().yieldAccrued();

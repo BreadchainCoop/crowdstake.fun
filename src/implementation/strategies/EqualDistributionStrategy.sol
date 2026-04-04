@@ -25,7 +25,7 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
 
     /// @notice Distributes yield equally among all recipients
     /// @dev Distributes the full amount with no dust left in the contract. The last
-    ///      recipient absorbs any wei remainder from integer division rounding.
+    ///      recipient absorbs any rounding remainder (up to N-1 wei where N is recipient count).
     /// @param amount The total amount of yield to distribute
     function distribute(uint256 amount) external override onlyDistributionManager nonReentrant {
         if (amount == 0) revert ZeroAmount();

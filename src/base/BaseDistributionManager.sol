@@ -5,11 +5,12 @@ import {AbstractDistributionManager} from "../abstract/AbstractDistributionManag
 import {IDistributionStrategy} from "../interfaces/IDistributionStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /// @title BaseDistributionManager
 /// @notice Concrete implementation of AbstractDistributionManager that distributes to a single strategy
 /// @dev Simple manager that distributes all yield to one configured strategy
-contract BaseDistributionManager is AbstractDistributionManager {
+contract BaseDistributionManager is AbstractDistributionManager, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     // ============ EIP-7201 Namespaced Storage ============
@@ -62,6 +63,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     ) external initializer {
         // Initialize parent AbstractDistributionManager
         __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule);
+        __ReentrancyGuard_init();
 
         // Set the single strategy
         if (_strategy != address(0)) {
@@ -93,7 +95,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Claims yield and distributes to the configured strategy
-    function claimAndDistribute() external override {
+    function claimAndDistribute() external override nonReentrant {
         if (!isDistributionReady()) revert DistributionNotReady();
         IDistributionStrategy strategy = _getBaseDistributionManagerStorage().distributionStrategy;
         if (address(strategy) == address(0)) revert StrategyNotSet();
