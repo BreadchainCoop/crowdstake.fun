@@ -13,7 +13,9 @@ interface IDistributionManager {
     error ZeroAddress();
 
     /// @notice Thrown when distribution conditions are not met
-    /// @dev Distribution is not ready when voting power is 0 or yield < recipient count
+    /// @dev Distribution is not ready when cycle is incomplete, there are no recipients,
+    ///      or yield is insufficient. Note: MultiStrategyDistributionManager allows
+    ///      zero-voter distributions for fixed-grant use cases.
     error DistributionNotReady();
 
     /// @notice Thrown when there is no yield available to distribute
