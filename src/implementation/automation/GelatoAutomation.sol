@@ -34,7 +34,11 @@ contract GelatoAutomation is AbstractAutomation {
     ///      Security: No msg.sender check is needed because executeDistribution() is
     ///      safe to call from any address; the DistributionManager enforces its own
     ///      internal invariants and prevents duplicate cycles.
-    function execute(bytes calldata /* execData */) external {
+    function execute(
+        bytes calldata /* execData */
+    )
+        external
+    {
         executeDistribution();
     }
 }
