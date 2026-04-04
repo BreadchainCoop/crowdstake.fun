@@ -870,11 +870,7 @@ contract MultiStrategyDistributionManagerTest is Test {
 
         manager = new MultiStrategyDistributionManager();
         manager.initialize(
-            address(cycleModule),
-            address(emptyRegistry),
-            address(yieldToken),
-            address(votingModule),
-            iStrategies
+            address(cycleModule), address(emptyRegistry), address(yieldToken), address(votingModule), iStrategies
         );
 
         cycleModule.setCycleComplete(true);
@@ -903,11 +899,7 @@ contract MultiStrategyDistributionManagerTest is Test {
 
         manager = new MultiStrategyDistributionManager();
         manager.initialize(
-            address(cycleModule),
-            address(multiRegistry),
-            address(yieldToken),
-            address(votingModule),
-            iStrategies
+            address(cycleModule), address(multiRegistry), address(yieldToken), address(votingModule), iStrategies
         );
 
         cycleModule.setCycleComplete(true);
@@ -977,11 +969,7 @@ contract MultiStrategyDistributionManagerTest is Test {
         manager = new MultiStrategyDistributionManager();
         vm.expectRevert("No strategies provided");
         manager.initialize(
-            address(cycleModule),
-            address(registry),
-            address(yieldToken),
-            address(votingModule),
-            strategies
+            address(cycleModule), address(registry), address(yieldToken), address(votingModule), strategies
         );
     }
 
@@ -992,11 +980,7 @@ contract MultiStrategyDistributionManagerTest is Test {
         manager = new MultiStrategyDistributionManager();
         vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
         manager.initialize(
-            address(cycleModule),
-            address(registry),
-            address(yieldToken),
-            address(votingModule),
-            strategies
+            address(cycleModule), address(registry), address(yieldToken), address(votingModule), strategies
         );
     }
 
@@ -1041,5 +1025,4 @@ contract MultiStrategyDistributionManagerTest is Test {
         }
         assertEq(yieldToken.balanceOf(address(manager)), 0, "No dust in manager");
     }
-
 }

@@ -13,7 +13,12 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 /// @notice Abstract base for distribution strategies that split yield among registry recipients
 /// @dev Concrete strategies implement `distribute` to define how yield is allocated.
 ///      Inherits ReentrancyGuardUpgradeable to protect all distribute() implementations.
-abstract contract AbstractDistributionStrategy is Initializable, IDistributionStrategy, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+abstract contract AbstractDistributionStrategy is
+    Initializable,
+    IDistributionStrategy,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
 
     /// @notice Thrown when a zero address is supplied where a valid address is required
