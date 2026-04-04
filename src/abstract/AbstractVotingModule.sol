@@ -253,6 +253,24 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
         return _getAbstractVotingModuleStorage().totalCycleVotingPower[cycle];
     }
 
+    // ============ Events ============
+
+    /// @notice Emitted when a vote is cast with additional parameters for downstream implementations
+    /// @param voter The voter who cast the vote
+    /// @param points The voting points allocated to each recipient
+    /// @param votingPower The voter's total voting power
+    /// @param nonce The unique nonce used for replay protection
+    /// @param signature The EIP-712 signature authorizing the vote
+    /// @param additionalData Arbitrary bytes data passed for downstream use (e.g., multipliers)
+    event VoteCastWithParams(
+        address indexed voter,
+        uint256[] points,
+        uint256 votingPower,
+        uint256 nonce,
+        bytes signature,
+        bytes additionalData
+    );
+
     // ============ Internal Functions ============
 
     /// @notice Processes a single vote with signature verification
@@ -308,6 +326,39 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     /// @param points Array of points allocated to each recipient
     /// @param votingPower Total voting power of the voter
     function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal virtual;
+
+    /// @notice Processes a vote with additional data for downstream implementations
+    /// @dev Called by _castSingleVoteWithParams. Default impl calls _processVote then
+    ///      _handleAdditionalVoteData. Override _handleAdditionalVoteData to act on additionalData.
+    /// @param voter Address of the voter
+    /// @param points Array of points allocated to each recipient
+    /// @param votingPower Total voting power of the voter
+    /// @param additionalData Arbitrary bytes data from the caller
+    function _processVoteWithParams(
+        address voter,
+        uint256[] calldata points,
+        uint256 votingPower,
+        bytes calldata additionalData
+    ) internal virtual {
+        _processVote(voter, points, votingPower);
+        _handleAdditionalVoteData(voter, points, votingPower, additionalData);
+    }
+
+    /// @notice Hook for downstream implementations to act on additional vote data
+    /// @dev No-op by default. Override in implementations that need to act on
+    ///      the additionalData bytes parameter (e.g., multiplier indices, metadata).
+    /// @param voter Address of the voter
+    /// @param points Array of points allocated to each recipient
+    /// @param votingPower Total voting power of the voter
+    /// @param additionalData Arbitrary bytes data from the caller
+    function _handleAdditionalVoteData(
+        address voter,
+        uint256[] calldata points,
+        uint256 votingPower,
+        bytes calldata additionalData
+    ) internal virtual {
+        // Default: no-op
+    }
 
     /// @notice Validates vote points distribution
     /// @dev Checks if points array is valid according to module rules
