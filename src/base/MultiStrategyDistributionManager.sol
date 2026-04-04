@@ -80,14 +80,14 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Checks if distribution is ready based on cycle completion, votes, recipients, strategies, and yield
-    /// @return ready True if cycle is complete, there are votes, recipients, configured strategies, and sufficient yield
+    /// @return ready True if cycle is complete, there are recipients, configured strategies, and sufficient yield
+    /// @dev Allows zero-voter distributions for small communities (matches breadchain contracts)
     function isDistributionReady() public view override returns (bool ready) {
         if (cycleManager().distributionManager() != address(this)) return false;
         if (!cycleManager().isCycleComplete()) return false;
 
-        uint256 totalVotes = getTotalCurrentVotingPower();
-        if (totalVotes == 0) return false;
-
+        // Allow zero-voter distributions — small communities may legitimately have no votes
+        // but still want to distribute to recipients (e.g., fixed grants).
         uint256 recipientCount = recipientRegistry().getRecipientCount();
         if (recipientCount == 0) return false;
 
