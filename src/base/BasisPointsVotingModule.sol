@@ -154,11 +154,10 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @param voters Array of voter addresses
     /// @param points Array of point allocations per voter
     /// @param data Array of arbitrary bytes data per voter
-    function voteWithDataBatch(
-        address[] calldata voters,
-        uint256[][] calldata points,
-        bytes[] calldata data
-    ) external onlyOwner {
+    function voteWithDataBatch(address[] calldata voters, uint256[][] calldata points, bytes[] calldata data)
+        external
+        onlyOwner
+    {
         if (voters.length != points.length) revert ArrayLengthMismatch();
         if (voters.length != data.length) revert ArrayLengthMismatch();
         if (voters.length > MAX_BATCH_SIZE) revert BatchTooLarge();
@@ -345,12 +344,7 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @dev BasisPointsVotingModule does not use additionalData — override this in
     ///      downstream implementations that need it (e.g., multiplier indices, metadata).
     ///      Marked virtual so that subclasses can override without mutability restrictions.
-    function _handleAdditionalVoteData(
-        address,
-        uint256[] calldata,
-        uint256,
-        bytes calldata
-    ) internal virtual override {
+    function _handleAdditionalVoteData(address, uint256[] calldata, uint256, bytes calldata) internal virtual override {
         // BasisPointsVotingModule: no-op. Override in downstream implementations.
     }
 
