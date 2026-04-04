@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {BasisPointsVotingModule} from "../src/base/BasisPointsVotingModule.sol";
+import {AbstractVotingModule} from "../src/abstract/AbstractVotingModule.sol";
 import {IVotingModule} from "../src/interfaces/IVotingModule.sol";
 import {TokenBasedVotingPower} from "../src/implementation/strategies/TokenBasedVotingPower.sol";
 import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
@@ -14,6 +15,25 @@ import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
+
+// ============ Mock helper for testing _handleAdditionalVoteData hook ============
+
+/// @dev Subclass that records whether _handleAdditionalVoteData was invoked
+///      so tests can assert the hook is actually called by voteWithData / voteWithDataBatch.
+contract MockBasisPointsVotingModule is BasisPointsVotingModule {
+    bool public handleAdditionalDataCalled;
+    address public lastHandledVoter;
+    bytes public lastHandledData;
+
+    function _handleAdditionalVoteData(address voter, uint256[] calldata, uint256, bytes calldata additionalData)
+        internal
+        override
+    {
+        handleAdditionalDataCalled = true;
+        lastHandledVoter = voter;
+        lastHandledData = additionalData;
+    }
+}
 
 // Mock token implementation for testing
 contract MockToken is ERC20, ERC20Votes, ERC20Permit {
@@ -57,6 +77,7 @@ contract VotingModuleTest is Test {
     event VoteCast(address indexed voter, uint256[] points, uint256 votingPower, uint256 nonce, bytes signature);
     event BatchVotesCast(address[] voters, uint256[] nonces);
     event VotingModuleInitialized(IVotingPowerStrategy[] strategies);
+    event VoteWithData(address indexed voter, uint256[] points, bytes data);
 
     function setUp() public {
         // Setup test accounts
@@ -457,5 +478,148 @@ contract VotingModuleTest is Test {
         bytes32 structHash = keccak256(abi.encode(voteTypehash, voter, keccak256(abi.encodePacked(points)), nonce));
 
         return keccak256(abi.encodePacked("\x19\x01", votingModule.DOMAIN_SEPARATOR(), structHash));
+    }
+
+    // ============ Issue #62: voteWithData / voteWithDataBatch tests ============
+
+    /// @notice voteWithData emits VoteWithData(voter, points, data)
+    function testVoteWithDataEmitsEvent() public {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+        bytes memory data = hex"1234";
+
+        vm.expectEmit(true, false, false, true);
+        emit VoteWithData(voter1, points, data);
+
+        vm.prank(voter1);
+        votingModule.voteWithData(points, data);
+    }
+
+    /// @notice voteWithData records the vote identically to castVoteWithSignature
+    function testVoteWithDataRecordsVote() public {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+
+        vm.prank(voter1);
+        votingModule.voteWithData(points, "");
+
+        // hasVotedInCurrentCycle should be true
+        assertTrue(votingModule.hasVotedInCurrentCycle(voter1), "voter1 should have voted in current cycle");
+
+        // Project distributions should match the points allocation
+        uint256 votingPower = votingModule.getVotingPower(voter1);
+        uint256[] memory dist = votingModule.getCurrentVotingDistribution();
+        assertEq(dist.length, 3, "distribution should have 3 entries");
+
+        uint256 totalPoints = 100; // 50 + 30 + 20
+        assertEq(dist[0], (50 * votingPower * 1e18) / totalPoints / 1e18, "project 0 allocation mismatch");
+        assertEq(dist[1], (30 * votingPower * 1e18) / totalPoints / 1e18, "project 1 allocation mismatch");
+        assertEq(dist[2], (20 * votingPower * 1e18) / totalPoints / 1e18, "project 2 allocation mismatch");
+    }
+
+    /// @notice _handleAdditionalVoteData hook is called by voteWithData with the correct args
+    function testVoteWithDataCallsHandleAdditionalVoteData() public {
+        // Deploy and initialise the mock subclass that records hook invocations
+        MockBasisPointsVotingModule mockModule = new MockBasisPointsVotingModule();
+        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
+        strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
+        mockModule.initialize(
+            MAX_POINTS, strategies, address(distributionModule), address(recipientRegistry), address(cycleModule)
+        );
+
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+        bytes memory data = hex"deadbeef";
+
+        vm.prank(voter1);
+        mockModule.voteWithData(points, data);
+
+        assertTrue(mockModule.handleAdditionalDataCalled(), "_handleAdditionalVoteData was not called");
+        assertEq(mockModule.lastHandledVoter(), voter1, "hook received wrong voter address");
+        assertEq(mockModule.lastHandledData(), data, "hook received wrong data bytes");
+    }
+
+    /// @notice voteWithDataBatch processes multiple voters in one call
+    function testVoteWithDataBatch() public {
+        address[] memory voters = new address[](2);
+        voters[0] = voter1;
+        voters[1] = voter2;
+
+        uint256[][] memory pointsArray = new uint256[][](2);
+        pointsArray[0] = new uint256[](3);
+        pointsArray[0][0] = 50;
+        pointsArray[0][1] = 30;
+        pointsArray[0][2] = 20;
+
+        pointsArray[1] = new uint256[](3);
+        pointsArray[1][0] = 60;
+        pointsArray[1][1] = 25;
+        pointsArray[1][2] = 15;
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = hex"1234";
+        data[1] = hex"5678";
+
+        // Expect VoteWithData events for each voter
+        vm.expectEmit(true, false, false, true);
+        emit VoteWithData(voter1, pointsArray[0], data[0]);
+        vm.expectEmit(true, false, false, true);
+        emit VoteWithData(voter2, pointsArray[1], data[1]);
+
+        votingModule.voteWithDataBatch(voters, pointsArray, data);
+
+        assertTrue(votingModule.hasVotedInCurrentCycle(voter1), "voter1 should have voted in current cycle");
+        assertTrue(votingModule.hasVotedInCurrentCycle(voter2), "voter2 should have voted in current cycle");
+
+        uint256[] memory dist = votingModule.getCurrentVotingDistribution();
+        assertEq(dist.length, 3, "distribution should have 3 entries");
+    }
+
+    /// @notice voteWithData succeeds and records the vote when data is empty bytes
+    function testVoteWithDataWithEmptyBytes() public {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+
+        vm.prank(voter1);
+        votingModule.voteWithData(points, "");
+
+        assertTrue(votingModule.hasVotedInCurrentCycle(voter1), "voter1 should have voted in current cycle");
+    }
+
+    /// @notice voteWithData reverts when the points array length does not match the recipient count
+    function testVoteWithDataRevertsInvalidPointsLength() public {
+        // Registry has 3 recipients — submitting 2 points should revert
+        uint256[] memory points = new uint256[](2);
+        points[0] = 50;
+        points[1] = 50;
+
+        vm.prank(voter1);
+        vm.expectRevert(IVotingModule.InvalidPointsDistribution.selector);
+        votingModule.voteWithData(points, "");
+    }
+
+    /// @notice voteWithData reverts if the caller already voted in the current cycle
+    function testVoteWithDataRevertsAlreadyVoted() public {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+
+        // First vote — should succeed
+        vm.prank(voter1);
+        votingModule.voteWithData(points, "");
+
+        // Second vote in the same cycle — should revert with AlreadyVotedInCurrentCycle
+        vm.prank(voter1);
+        vm.expectRevert(IVotingModule.AlreadyVotedInCurrentCycle.selector);
+        votingModule.voteWithData(points, "");
     }
 }

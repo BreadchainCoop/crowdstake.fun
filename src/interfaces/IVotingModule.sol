@@ -46,6 +46,9 @@ interface IVotingModule {
     /// @notice Thrown when a zero address is provided
     error ZeroAddress();
 
+    /// @notice Thrown when a voter tries to vote twice in the same cycle via voteWithData
+    error AlreadyVotedInCurrentCycle();
+
     // ============ Events ============
 
     /// @notice Emitted when a vote is cast with a signature
@@ -60,6 +63,12 @@ interface IVotingModule {
     /// @param voters Array of voter addresses
     /// @param nonces Array of nonces used
     event BatchVotesCast(address[] voters, uint256[] nonces);
+
+    /// @notice Emitted when a direct vote with additional data is cast
+    /// @param voter The voter who cast the vote
+    /// @param points The voting points allocated to each recipient
+    /// @param data Arbitrary bytes data passed by the caller
+    event VoteWithData(address indexed voter, uint256[] points, bytes data);
 
     /// @notice Emitted when the voting module is initialized
     /// @param strategies Array of voting power strategies

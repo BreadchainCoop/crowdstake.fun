@@ -111,6 +111,66 @@ contract BasisPointsVotingModule is AbstractVotingModule {
         _castSingleVote(voter, points, nonce, signature);
     }
 
+    /// @notice Casts a vote with an EIP-712 signature and additional bytes parameters
+    /// @dev Same as castVoteWithSignature but also passes arbitrary bytes data to downstream
+    ///      implementations (e.g., multiplier indices, metadata, conditional voting params).
+    ///      See _handleAdditionalVoteData for the downstream hook.
+    /// @param voter The address of the voter casting the vote
+    /// @param points Array of basis points to allocate to each recipient
+    /// @param nonce Unique nonce for this vote to prevent replay attacks
+    /// @param signature EIP-712 signature authorizing this vote
+    /// @param additionalData Arbitrary bytes data passed to downstream implementations
+    function castVoteWithSignatureAndParams(
+        address voter,
+        uint256[] calldata points,
+        uint256 nonce,
+        bytes calldata signature,
+        bytes calldata additionalData
+    ) external {
+        _castSingleVoteWithParams(voter, points, nonce, signature, additionalData);
+    }
+
+    /// @notice Casts a direct vote with additional bytes data (no EIP-712 signature required)
+    /// @dev msg.sender is the voter. Validates points, records the vote, and invokes the
+    ///      _handleAdditionalVoteData hook. Reverts if the caller already voted this cycle.
+    ///      Emits VoteWithData. See Issue #62.
+    /// @param points Array of basis points to allocate to each recipient
+    /// @param data Arbitrary bytes data forwarded to _handleAdditionalVoteData
+    function voteWithData(uint256[] calldata points, bytes calldata data) external {
+        if (hasVotedInCurrentCycle(msg.sender)) revert AlreadyVotedInCurrentCycle();
+        if (!_validateVotePoints(points)) revert InvalidPointsDistribution();
+
+        uint256 votingPower = _calculateTotalVotingPower(msg.sender);
+        _processVoteWithParams(msg.sender, points, votingPower, data);
+
+        emit VoteWithData(msg.sender, points, data);
+    }
+
+    /// @notice Casts multiple direct votes with additional data in a single transaction
+    /// @dev Processes each (voter, points, data) tuple atomically. If any entry fails, the
+    ///      entire batch reverts. Limited to MAX_BATCH_SIZE entries. Does NOT require
+    ///      EIP-712 signatures — suitable for keeper / relayer flows where voting power is
+    ///      determined by on-chain token holdings. See Issue #62.
+    /// @param voters Array of voter addresses
+    /// @param points Array of point allocations per voter
+    /// @param data Array of arbitrary bytes data per voter
+    function voteWithDataBatch(
+        address[] calldata voters,
+        uint256[][] calldata points,
+        bytes[] calldata data
+    ) external {
+        if (voters.length != points.length) revert ArrayLengthMismatch();
+        if (voters.length != data.length) revert ArrayLengthMismatch();
+        if (voters.length > MAX_BATCH_SIZE) revert BatchTooLarge();
+
+        for (uint256 i = 0; i < voters.length; i++) {
+            if (!_validateVotePoints(points[i])) revert InvalidPointsDistribution();
+            uint256 votingPower = _calculateTotalVotingPower(voters[i]);
+            _processVoteWithParams(voters[i], points[i], votingPower, data[i]);
+            emit VoteWithData(voters[i], points[i], data[i]);
+        }
+    }
+
     /// @notice Casts multiple votes in a single transaction for gas efficiency
     /// @dev Processes multiple votes atomically. If any vote fails, the entire batch reverts.
     ///      Limited to MAX_BATCH_SIZE votes per transaction to prevent gas limit issues.
@@ -250,6 +310,47 @@ contract BasisPointsVotingModule is AbstractVotingModule {
         if (totalPoints == 0) revert ZeroVotePoints();
 
         return true;
+    }
+
+    /// @notice Processes a single vote with additional data for downstream implementations
+    /// @dev Mirrors _castSingleVote but calls _processVoteWithParams to invoke the additionalData hook.
+    /// @param voter Address of the voter
+    /// @param points Array of points to allocate to each recipient
+    /// @param nonce Unique nonce for replay protection
+    /// @param signature EIP-712 signature from the voter
+    /// @param additionalData Arbitrary bytes data for downstream implementations
+    function _castSingleVoteWithParams(
+        address voter,
+        uint256[] calldata points,
+        uint256 nonce,
+        bytes calldata signature,
+        bytes calldata additionalData
+    ) internal {
+        AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
+
+        if (isNonceUsed(voter, nonce)) revert NonceAlreadyUsed();
+        if (!_validateVotePoints(points)) revert InvalidPointsDistribution();
+        if (!validateSignature(voter, points, nonce, signature)) revert InvalidSignature();
+
+        $.usedNonces[voter][nonce] = true;
+
+        uint256 votingPower = _calculateTotalVotingPower(voter);
+        _processVoteWithParams(voter, points, votingPower, additionalData);
+
+        emit VoteCastWithParams(voter, points, votingPower, nonce, signature, additionalData);
+    }
+
+    /// @notice Hook for downstream implementations to act on additional vote data
+    /// @dev BasisPointsVotingModule does not use additionalData — override this in
+    ///      downstream implementations that need it (e.g., multiplier indices, metadata).
+    ///      Marked virtual so that subclasses can override without mutability restrictions.
+    function _handleAdditionalVoteData(
+        address,
+        uint256[] calldata,
+        uint256,
+        bytes calldata
+    ) internal virtual override {
+        // BasisPointsVotingModule: no-op. Override in downstream implementations.
     }
 
     // Issue #43: Store required votes at proposal creation in VotingRecipientRegistry
