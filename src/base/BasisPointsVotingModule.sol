@@ -158,12 +158,13 @@ contract BasisPointsVotingModule is AbstractVotingModule {
         address[] calldata voters,
         uint256[][] calldata points,
         bytes[] calldata data
-    ) external {
+    ) external onlyOwner {
         if (voters.length != points.length) revert ArrayLengthMismatch();
         if (voters.length != data.length) revert ArrayLengthMismatch();
         if (voters.length > MAX_BATCH_SIZE) revert BatchTooLarge();
 
         for (uint256 i = 0; i < voters.length; i++) {
+            if (hasVotedInCurrentCycle(voters[i])) revert AlreadyVotedInCurrentCycle();
             if (!_validateVotePoints(points[i])) revert InvalidPointsDistribution();
             uint256 votingPower = _calculateTotalVotingPower(voters[i]);
             _processVoteWithParams(voters[i], points[i], votingPower, data[i]);

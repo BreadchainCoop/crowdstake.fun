@@ -12,6 +12,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
@@ -53,6 +54,16 @@ contract MockToken is ERC20, ERC20Votes, ERC20Permit {
 }
 
 contract VotingModuleTest is Test {
+    // Local event declaration so vm.expectEmit can find it
+    event VoteCastWithParams(
+        address indexed voter,
+        uint256[] points,
+        uint256 votingPower,
+        uint256 nonce,
+        bytes signature,
+        bytes additionalData
+    );
+
     // Constants
     uint256 constant MAX_POINTS = 100;
 
@@ -547,6 +558,7 @@ contract VotingModuleTest is Test {
 
     /// @notice voteWithDataBatch processes multiple voters in one call
     function testVoteWithDataBatch() public {
+        // msg.sender is the test contract (owner) — batch voting is owner-only
         address[] memory voters = new address[](2);
         voters[0] = voter1;
         voters[1] = voter2;
@@ -621,5 +633,99 @@ contract VotingModuleTest is Test {
         vm.prank(voter1);
         vm.expectRevert(IVotingModule.AlreadyVotedInCurrentCycle.selector);
         votingModule.voteWithData(points, "");
+    }
+
+    /// @notice voteWithDataBatch reverts when called by non-owner
+    function testVoteWithDataBatchRevertsNonOwner() public {
+        address[] memory voters = new address[](1);
+        voters[0] = voter1;
+
+        uint256[][] memory pointsArray = new uint256[][](1);
+        pointsArray[0] = new uint256[](3);
+        pointsArray[0][0] = 50;
+        pointsArray[0][1] = 30;
+        pointsArray[0][2] = 20;
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = hex"1234";
+
+        // Non-owner should not be able to batch-vote on behalf of others
+        vm.prank(voter1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, voter1));
+        votingModule.voteWithDataBatch(voters, pointsArray, data);
+    }
+
+    /// @notice voteWithDataBatch reverts when a voter has already voted this cycle
+    function testVoteWithDataBatchRevertsAlreadyVoted() public {
+        // voter1 votes first via voteWithData
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+
+        vm.prank(voter1);
+        votingModule.voteWithData(points, "");
+
+        // Now try to include voter1 in a batch — should revert
+        address[] memory voters = new address[](1);
+        voters[0] = voter1;
+
+        uint256[][] memory pointsArray = new uint256[][](1);
+        pointsArray[0] = new uint256[](3);
+        pointsArray[0][0] = 60;
+        pointsArray[0][1] = 25;
+        pointsArray[0][2] = 15;
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = "";
+
+        vm.expectRevert(IVotingModule.AlreadyVotedInCurrentCycle.selector);
+        votingModule.voteWithDataBatch(voters, pointsArray, data);
+    }
+
+    /// @notice voteWithDataBatch reverts when duplicate voters appear in the same batch
+    function testVoteWithDataBatchRevertsDuplicateVoter() public {
+        address[] memory voters = new address[](2);
+        voters[0] = voter1;
+        voters[1] = voter1; // duplicate
+
+        uint256[][] memory pointsArray = new uint256[][](2);
+        pointsArray[0] = new uint256[](3);
+        pointsArray[0][0] = 50;
+        pointsArray[0][1] = 30;
+        pointsArray[0][2] = 20;
+        pointsArray[1] = new uint256[](3);
+        pointsArray[1][0] = 60;
+        pointsArray[1][1] = 25;
+        pointsArray[1][2] = 15;
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = "";
+        data[1] = "";
+
+        vm.expectRevert(IVotingModule.AlreadyVotedInCurrentCycle.selector);
+        votingModule.voteWithDataBatch(voters, pointsArray, data);
+    }
+
+    /// @notice castVoteWithSignatureAndParams emits VoteCastWithParams and records the vote
+    function testCastVoteWithSignatureAndParams() public {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+        bytes memory additionalData = hex"cafe";
+        uint256 nonce = 1;
+
+        bytes32 digest = _createVoteDigest(voter1, points, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PrivateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectEmit(true, false, false, true);
+        emit VoteCastWithParams(voter1, points, votingModule.getVotingPower(voter1), nonce, signature, additionalData);
+
+        votingModule.castVoteWithSignatureAndParams(voter1, points, nonce, signature, additionalData);
+
+        assertTrue(votingModule.hasVotedInCurrentCycle(voter1), "voter1 should have voted");
+        assertTrue(votingModule.isNonceUsed(voter1, nonce), "nonce should be used");
     }
 }
