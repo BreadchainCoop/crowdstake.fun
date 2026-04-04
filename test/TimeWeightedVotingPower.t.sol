@@ -482,8 +482,14 @@ contract TimeWeightedVotingPowerTest is Test {
     function testSetScalingPeriodRevertsNonOwner() public {
         address nonOwner = address(0xBEEF1234);
         vm.prank(nonOwner);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("Unauthorized()"));
         strategy.setScalingPeriod(100);
+    }
+
+    // Test 7b: setScalingPeriod reverts if value exceeds MAX_SCALING_PERIOD
+    function testSetScalingPeriodRevertsExceedsMax() public {
+        vm.expectRevert(abi.encodeWithSignature("ScalingPeriodTooLarge()"));
+        strategy.setScalingPeriod(type(uint64).max);
     }
 
     // Test 8: Flash loan attack is mitigated by quadratic scaling
