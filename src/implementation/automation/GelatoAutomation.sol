@@ -34,11 +34,7 @@ contract GelatoAutomation is AbstractAutomation {
     ///      Security: No msg.sender check is needed because executeDistribution() is
     ///      safe to call from any address; the DistributionManager enforces its own
     ///      internal invariants and prevents duplicate cycles.
-    /// @param execData Encoded call data from checker() (unused — see NatSpec above)
-    function execute(bytes calldata execData) external {
-        // execData is unused — the distribution has no per-call parameters.
-        // slither-disable-next-line unused-return
-        execData;
+    function execute(bytes calldata /* execData */) external {
         executeDistribution();
     }
 }
