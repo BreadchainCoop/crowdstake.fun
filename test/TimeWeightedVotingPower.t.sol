@@ -388,11 +388,8 @@ contract TimeWeightedVotingPowerTest is Test {
     // Test 2: Quadratic penalty reduces voting power for short intervals
     function testQuadraticPenaltyApplied() public {
         // Create a new strategy with scalingPeriod=100
-        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            100
-        );
+        TimeWeightedVotingPower scaledStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 100);
 
         vm.roll(10);
         token.mint(user1, 100 ether);
@@ -417,11 +414,8 @@ contract TimeWeightedVotingPowerTest is Test {
     // Test 3: No penalty when intervalLength exactly equals scalingPeriod
     function testNoPenaltyWhenIntervalExceedsScalingPeriod() public {
         // scalingPeriod=100, intervalLength=100 => factor = 100/100 = 1.0 => no reduction
-        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            100
-        );
+        TimeWeightedVotingPower scaledStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 100);
 
         vm.roll(10);
         token.mint(user1, 100 ether);
@@ -439,11 +433,8 @@ contract TimeWeightedVotingPowerTest is Test {
     // Test 4: No penalty when intervalLength strictly exceeds scalingPeriod
     function testScalingPeriodOnlyAffectsShortIntervals() public {
         // scalingPeriod=100, intervalLength=150 > scalingPeriod => no penalty
-        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            100
-        );
+        TimeWeightedVotingPower scaledStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 100);
 
         vm.roll(10);
         token.mint(user1, 100 ether);
@@ -495,11 +486,8 @@ contract TimeWeightedVotingPowerTest is Test {
     // Test 8: Flash loan attack is mitigated by quadratic scaling
     function testFlashLoanMitigatedByScaling() public {
         // scalingPeriod=100: attacker holding tokens for 1 block gets 100x less power
-        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
-            IVotesCheckpoints(address(token)),
-            ICycleModule(address(cycleModule)),
-            100
-        );
+        TimeWeightedVotingPower scaledStrategy =
+            new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 100);
 
         // Attacker mints 1000 ether at block 500
         vm.roll(500);
@@ -521,6 +509,10 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(unscaledPower, 1000 ether, "Without scaling, full balance is returned");
 
         // Confirm the 100x reduction
-        assertEq(unscaledPower / scaledPower, 100, "Scaling should give 100x reduction for 1-block hold with scalingPeriod=100");
+        assertEq(
+            unscaledPower / scaledPower,
+            100,
+            "Scaling should give 100x reduction for 1-block hold with scalingPeriod=100"
+        );
     }
 }

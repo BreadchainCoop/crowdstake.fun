@@ -75,11 +75,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @param _votingToken The ERC20Votes token with checkpoint support
     /// @param _cycleModule The cycle module for period tracking
     /// @param _scalingPeriod Initial scaling period in blocks (0 = disabled)
-    constructor(
-        IVotesCheckpoints _votingToken,
-        ICycleModule _cycleModule,
-        uint256 _scalingPeriod
-    ) {
+    constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule, uint256 _scalingPeriod) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
         if (_scalingPeriod > MAX_SCALING_PERIOD) revert ScalingPeriodTooLarge();
@@ -159,11 +155,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     ///      When scalingPeriod is non-zero, each interval shorter than scalingPeriod
     ///      receives a quadratic penalty (see _applyScalingPenalty), making flash-loan
     ///      attacks progressively more expensive.
-    function _calculateTimeWeightedPower(address account, uint256 start, uint256 end)
-        internal
-        view
-        returns (uint256)
-    {
+    function _calculateTimeWeightedPower(address account, uint256 start, uint256 end) internal view returns (uint256) {
         uint32 numCkpts = VOTING_TOKEN.numCheckpoints(account);
         if (numCkpts == 0) return 0;
 
