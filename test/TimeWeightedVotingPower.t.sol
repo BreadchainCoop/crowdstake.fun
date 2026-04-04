@@ -56,24 +56,24 @@ contract TimeWeightedVotingPowerTest is Test {
         vm.roll(1);
         cycleModule.initialize(CYCLE_LENGTH);
 
-        strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
+        strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)), 0);
     }
 
     // ============ Constructor Tests ============
 
     function testConstructorSetsState() public view {
-        assertEq(address(strategy.votingToken()), address(token));
-        assertEq(address(strategy.cycleModule()), address(cycleModule));
+        assertEq(address(strategy.VOTING_TOKEN()), address(token));
+        assertEq(address(strategy.CYCLE_MODULE()), address(cycleModule));
     }
 
     function testConstructorRevertsInvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
-        new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)));
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)), 0);
     }
 
     function testConstructorRevertsInvalidCycleModule() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidCycleModule.selector);
-        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)));
+        new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)), 0);
     }
 
     // ============ Lossless Calculation Tests ============
@@ -357,5 +357,164 @@ contract TimeWeightedVotingPowerTest is Test {
 
         // With exact checkpoint walking and only 1 checkpoint, gas should be very low
         assertLt(gasUsed, 30_000, "Gas should be very low with few checkpoints");
+    }
+
+    // ============ scalingPeriod Feature Tests (Issue #91) ============
+
+    // Test 1: scalingPeriod=0 disables the quadratic penalty entirely
+    function testScalingPeriodDisabledWhenZero() public {
+        // strategy was created with scalingPeriod=0 in setUp
+        assertEq(strategy.scalingPeriod(), 0);
+
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+
+        // Advance to block 500
+        vm.roll(500);
+        // Mint more tokens (this checkpoint is outside our query period)
+        token.mint(user1, 50 ether);
+
+        vm.roll(501);
+
+        // Query period [10, 14): user held 100 ether the whole interval
+        // With scalingPeriod=0, no penalty. intervalLength=4, area=400 ether, avg=100 ether
+        uint256 power = strategy.getVotingPowerForPeriod(user1, 10, 14);
+
+        // Baseline: 100 ether held for entire 4-block period, no penalty
+        uint256 baseline = 100 ether;
+        assertEq(power, baseline, "scalingPeriod=0 should apply no penalty");
+    }
+
+    // Test 2: Quadratic penalty reduces voting power for short intervals
+    function testQuadraticPenaltyApplied() public {
+        // Create a new strategy with scalingPeriod=100
+        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
+            IVotesCheckpoints(address(token)),
+            ICycleModule(address(cycleModule)),
+            100
+        );
+
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+
+        // Advance to block 50 (intervalLength = 40, which is < scalingPeriod=100)
+        vm.roll(50);
+
+        // Query period [10, 50): 40 blocks
+        // Checkpoint at block 10 predates/equals start => intervalLength = upperBound - start = 50-10 = 40
+        // area = 100 ether * 40 = 4000 ether
+        // scaled = (4000 ether * 40) / 100 = 1600 ether
+        // avg = 1600 ether / 40 = 40 ether
+        uint256 power = scaledStrategy.getVotingPowerForPeriod(user1, 10, 50);
+        assertEq(power, 40 ether, "Quadratic penalty should reduce power for short intervals");
+
+        // Without penalty the power would be 100 ether — confirm reduction
+        uint256 unpenalizedPower = strategy.getVotingPowerForPeriod(user1, 10, 50);
+        assertEq(unpenalizedPower, 100 ether, "Unpenalized strategy should return full balance");
+        assertLt(power, unpenalizedPower, "Penalty should reduce voting power");
+    }
+
+    // Test 3: No penalty when intervalLength exactly equals scalingPeriod
+    function testNoPenaltyWhenIntervalExceedsScalingPeriod() public {
+        // scalingPeriod=100, intervalLength=100 => factor = 100/100 = 1.0 => no reduction
+        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
+            IVotesCheckpoints(address(token)),
+            ICycleModule(address(cycleModule)),
+            100
+        );
+
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+
+        // Advance to block 110 (intervalLength = 100 == scalingPeriod)
+        vm.roll(110);
+
+        // area = 100 ether * 100 = 10000 ether
+        // intervalLength (100) >= scalingPeriod (100) => no penalty
+        // avg = 10000 ether / 100 = 100 ether
+        uint256 power = scaledStrategy.getVotingPowerForPeriod(user1, 10, 110);
+        assertEq(power, 100 ether, "No penalty when intervalLength == scalingPeriod");
+    }
+
+    // Test 4: No penalty when intervalLength strictly exceeds scalingPeriod
+    function testScalingPeriodOnlyAffectsShortIntervals() public {
+        // scalingPeriod=100, intervalLength=150 > scalingPeriod => no penalty
+        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
+            IVotesCheckpoints(address(token)),
+            ICycleModule(address(cycleModule)),
+            100
+        );
+
+        vm.roll(10);
+        token.mint(user1, 100 ether);
+
+        // Advance to block 160 (intervalLength = 150 > scalingPeriod=100)
+        vm.roll(160);
+
+        // area = 100 ether * 150 = 15000 ether
+        // intervalLength (150) >= scalingPeriod (100) => no penalty
+        // avg = 15000 ether / 150 = 100 ether
+        uint256 power = scaledStrategy.getVotingPowerForPeriod(user1, 10, 160);
+        assertEq(power, 100 ether, "No penalty when intervalLength > scalingPeriod");
+    }
+
+    // Test 5: Owner can update scalingPeriod
+    function testSetScalingPeriodByOwner() public {
+        // strategy created with scalingPeriod=0 in setUp, owner = address(this)
+        assertEq(strategy.scalingPeriod(), 0);
+
+        strategy.setScalingPeriod(100);
+
+        assertEq(strategy.scalingPeriod(), 100, "scalingPeriod should be updated to 100");
+    }
+
+    // Test 6: setScalingPeriod emits ScalingPeriodUpdated event
+    function testSetScalingPeriodEmitsEvent() public {
+        assertEq(strategy.scalingPeriod(), 0);
+
+        vm.expectEmit(true, true, true, true, address(strategy));
+        emit TimeWeightedVotingPower.ScalingPeriodUpdated(0, 100);
+
+        strategy.setScalingPeriod(100);
+    }
+
+    // Test 7: Non-owner cannot set scalingPeriod
+    function testSetScalingPeriodRevertsNonOwner() public {
+        address nonOwner = address(0xBEEF1234);
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        strategy.setScalingPeriod(100);
+    }
+
+    // Test 8: Flash loan attack is mitigated by quadratic scaling
+    function testFlashLoanMitigatedByScaling() public {
+        // scalingPeriod=100: attacker holding tokens for 1 block gets 100x less power
+        TimeWeightedVotingPower scaledStrategy = new TimeWeightedVotingPower(
+            IVotesCheckpoints(address(token)),
+            ICycleModule(address(cycleModule)),
+            100
+        );
+
+        // Attacker mints 1000 ether at block 500
+        vm.roll(500);
+        token.mint(user2, 1000 ether);
+
+        // Move 1 block so checkpoint is visible
+        vm.roll(501);
+
+        // Query the 1-block window [500, 501)
+        // intervalLength = 1 < scalingPeriod=100
+        // area = 1000 ether * 1 = 1000 ether
+        // scaled = (1000 ether * 1) / 100 = 10 ether
+        // avg = 10 ether / 1 = 10 ether
+        uint256 scaledPower = scaledStrategy.getVotingPowerForPeriod(user2, 500, 501);
+        assertEq(scaledPower, 10 ether, "Flash loan with scalingPeriod=100 should give 10 ether not 1000 ether");
+
+        // Without scaling, the same 1-block window returns the full balance
+        uint256 unscaledPower = strategy.getVotingPowerForPeriod(user2, 500, 501);
+        assertEq(unscaledPower, 1000 ether, "Without scaling, full balance is returned");
+
+        // Confirm the 100x reduction
+        assertEq(unscaledPower / scaledPower, 100, "Scaling should give 100x reduction for 1-block hold with scalingPeriod=100");
     }
 }
