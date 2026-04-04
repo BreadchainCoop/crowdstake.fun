@@ -19,6 +19,13 @@ contract BreadKitTest is TestWrapper {
     address public constant RANDOM_EOA = 0x000000000000000000000000000000000000dEaD;
 
     function setUp() public {
+        // BreadKitTest needs ETH_RPC_URL for mainnet token addresses.
+        // Skip if not configured (e.g. in CI without mainnet fork).
+        try vm.envString("ETH_RPC_URL") returns (string memory) {
+            _requireFork();
+        } catch {
+            vm.skip(true); // No ETH_RPC_URL — skip all tests in this contract
+        }
         factory = new CrowdStakeFactory(address(this));
 
         /// @dev this is how we deploy and whitelist a new token type
