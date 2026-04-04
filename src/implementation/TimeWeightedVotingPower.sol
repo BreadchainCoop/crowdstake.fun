@@ -9,12 +9,19 @@ import {Ownable} from "@solady/contracts/auth/Ownable.sol";
 
 /// @title TimeWeightedVotingPower
 /// @author BreadKit
-/// @notice Lossless time-weighted voting power calculation using the breadchain pattern
-/// @dev Walks the token's ERC20Votes checkpoint array to compute the exact
-///      area-under-the-curve of delegated votes over the current cycle, then
-///      divides by the period length to produce a time-weighted average.
-///      The lookback window is derived from the cycle module's cycle length.
-///      Every balance change is accounted for — no sampling or approximation.
+/// @notice Time-weighted voting power with optional per-interval quadratic scaling
+/// @dev By default computes a lossless time-weighted average over the cycle window.
+///      When a non-zero scalingPeriod is set, applies a quadratic penalty to each
+///      checkpoint interval where duration < scalingPeriod:
+///
+///      - intervalLength >= scalingPeriod: contribution = value * intervalLength  (no penalty)
+///      - intervalLength < scalingPeriod: contribution = value * intervalLength^2 / scalingPeriod
+///
+///      This makes flash-loan attacks progressively more expensive even when the
+///      total period is long — an attacker holding tokens for only 1 block with
+///      scalingPeriod=10 gets ~100x less voting power than the nominal amount.
+///
+///      Every balance change in the ERC20Votes checkpoint array is fully accounted for.
 contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     // ============ Errors ============
 
@@ -33,28 +40,51 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     // ============ Immutable Storage ============
 
     /// @notice The ERC20Votes token used for voting power calculation
-    IVotesCheckpoints public immutable votingToken;
+    IVotesCheckpoints public immutable VOTING_TOKEN;
 
     /// @notice The cycle module for period tracking and lookback derivation
-    ICycleModule public immutable cycleModule;
+    ICycleModule public immutable CYCLE_MODULE;
+
+    /// @notice Scaling period in blocks for the quadratic flash-loan penalty.
+    /// @dev When 0 (default), no penalty is applied (classic time-weighted average).
+    ///      When set to a non-zero value, intervals shorter than this period receive
+    ///      a quadratic penalty: contribution = value * duration^2 / scalingPeriod.
+    ///      Example: scalingPeriod=10, attacker holds 500,000 ETH for 1 block → ~50,000 ETH
+    ///      effective power instead of 500,000 ETH.
+    uint256 public scalingPeriod;
+
+    // ============ Events ============
+
+    /// @notice Emitted when the scaling period is updated
+    /// @param oldPeriod The previous scaling period value
+    /// @param newPeriod The new scaling period value
+    event ScalingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+
+    // ============ Constructor ============
 
     /// @notice Constructs the time-weighted voting power strategy
     /// @dev Reverts if either token or cycle module address is zero
     /// @param _votingToken The ERC20Votes token with checkpoint support
     /// @param _cycleModule The cycle module for period tracking
-    constructor(IVotesCheckpoints _votingToken, ICycleModule _cycleModule) {
+    /// @param _scalingPeriod Initial scaling period in blocks (0 = disabled)
+    constructor(
+        IVotesCheckpoints _votingToken,
+        ICycleModule _cycleModule,
+        uint256 _scalingPeriod
+    ) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
 
-        votingToken = _votingToken;
-        cycleModule = _cycleModule;
+        VOTING_TOKEN = _votingToken;
+        CYCLE_MODULE = _cycleModule;
+        scalingPeriod = _scalingPeriod;
 
         _initializeOwner(msg.sender);
     }
 
     /// @inheritdoc IVotingPowerStrategy
     function getCurrentVotingPower(address account) external view override returns (uint256) {
-        uint256 cycleStart = cycleModule.lastCycleStartBlock();
+        uint256 cycleStart = CYCLE_MODULE.lastCycleStartBlock();
 
         uint256 periodEnd = block.number;
         uint256 periodStart = cycleStart;
@@ -82,12 +112,48 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         return _calculateTimeWeightedPower(account, startBlock, endBlock);
     }
 
+    // ============ Admin Functions ============
+
+    /// @notice Sets the scaling period for flash-loan quadratic penalty
+    /// @dev Only callable by owner. Setting to 0 disables the penalty (classic TWAV).
+    /// @param _scalingPeriod New scaling period in blocks
+    function setScalingPeriod(uint256 _scalingPeriod) external onlyOwner {
+        uint256 old = scalingPeriod;
+        scalingPeriod = _scalingPeriod;
+        emit ScalingPeriodUpdated(old, _scalingPeriod);
+    }
+
+    // ============ Internal Functions ============
+
+    /// @dev Applies the quadratic scaling penalty to a checkpoint interval.
+    ///      When scalingPeriod is 0, returns area unchanged (no penalty).
+    ///      When intervalLength >= scalingPeriod, returns area unchanged (no penalty).
+    ///      When intervalLength < scalingPeriod, returns area * intervalLength / scalingPeriod,
+    ///      producing a quadratic penalty on short-lived balance spikes.
+    /// @param area The raw area contribution (value * intervalLength)
+    /// @param intervalLength The duration of this checkpoint interval in blocks
+    /// @return The scaled area contribution
+    function _applyScalingPenalty(uint256 area, uint256 intervalLength) internal view returns (uint256) {
+        if (scalingPeriod == 0 || intervalLength >= scalingPeriod) {
+            return area;
+        }
+        return (area * intervalLength) / scalingPeriod;
+    }
+
     /// @dev Walks the token's checkpoint array in reverse to compute the exact
     ///      integral of (delegated votes * blocks held) over [start, end), then
     ///      divides by the period length to produce the time-weighted average.
     ///      This is the breadchain pattern — every balance change is accounted for.
-    function _calculateTimeWeightedPower(address account, uint256 start, uint256 end) internal view returns (uint256) {
-        uint32 numCkpts = votingToken.numCheckpoints(account);
+    ///
+    ///      When scalingPeriod is non-zero, each interval shorter than scalingPeriod
+    ///      receives a quadratic penalty (see _applyScalingPenalty), making flash-loan
+    ///      attacks progressively more expensive.
+    function _calculateTimeWeightedPower(address account, uint256 start, uint256 end)
+        internal
+        view
+        returns (uint256)
+    {
+        uint32 numCkpts = VOTING_TOKEN.numCheckpoints(account);
         if (numCkpts == 0) return 0;
 
         uint256 periodLength = end - start;
@@ -95,21 +161,26 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
         uint256 upperBound = end;
 
         for (uint32 i = numCkpts; i > 0; i--) {
-            Checkpoints.Checkpoint208 memory ckpt = votingToken.checkpoints(account, i - 1);
+            Checkpoints.Checkpoint208 memory ckpt = VOTING_TOKEN.checkpoints(account, i - 1);
             uint256 key = uint256(ckpt._key);
             uint256 value = uint256(ckpt._value);
 
             // Checkpoint is at or after the period end — skip it
             if (key >= end) continue;
 
+            uint256 intervalLength;
             if (key <= start) {
                 // Checkpoint predates the period — its value covers [start, upperBound)
-                totalArea += value * (upperBound - start);
+                intervalLength = upperBound - start;
+                uint256 area = value * intervalLength;
+                totalArea += _applyScalingPenalty(area, intervalLength);
                 break;
             }
 
             // Checkpoint is within (start, end) — its value covers [key, upperBound)
-            totalArea += value * (upperBound - key);
+            intervalLength = upperBound - key;
+            uint256 contribution = value * intervalLength;
+            totalArea += _applyScalingPenalty(contribution, intervalLength);
             upperBound = key;
         }
 

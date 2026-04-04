@@ -207,7 +207,7 @@ contract Deploy is Script {
 
         // 4. Voting power strategy (uses constructor immutables, deployed directly)
         votingPowerStrategy =
-            address(new TimeWeightedVotingPower(IVotesCheckpoints(token), AbstractCycleModule(cycleModule)));
+            address(new TimeWeightedVotingPower(IVotesCheckpoints(token), AbstractCycleModule(cycleModule), 0));
 
         // 5. Deploy the three mutually-dependent modules: distManager, votingModule, strategy.
         //
