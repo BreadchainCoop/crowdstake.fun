@@ -229,7 +229,7 @@ contract AutomationBaseTest is Test {
 
     /// @notice GelatoAutomation.execute() has no auth — anyone can call it safely
     /// @dev The DistributionManager enforces its own invariants; no duplicate cycles possible
-    function testGelatoExecuteOnlyAutomation() public {
+    function testGelatoExecutePermissionless() public {
         // Advance blocks to make distribution ready
         vm.roll(block.number + 101);
 
@@ -241,6 +241,12 @@ contract AutomationBaseTest is Test {
         // Distribution still went through
         assertEq(distributionModule.distributeCallCount(), 1);
         assertEq(distributionManager.currentCycleNumber(), 2);
+    }
+
+    /// @notice execute() reverts with NotResolved when distribution is not ready
+    function testGelatoExecuteRevertsWhenNotReady() public {
+        vm.expectRevert(AbstractAutomation.NotResolved.selector);
+        gelatoAutomation.execute("");
     }
 
     /// @notice checker() returns canExec=false when isDistributionReady() is false
