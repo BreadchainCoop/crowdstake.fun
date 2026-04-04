@@ -37,6 +37,12 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice Thrown when end block is in the future
     error FuturePeriod();
 
+    /// @notice Thrown when scaling period exceeds the maximum allowed value
+    error ScalingPeriodTooLarge();
+
+    /// @notice Maximum allowed scaling period (~30 days in blocks at 12s/block)
+    uint256 public constant MAX_SCALING_PERIOD = 365 days / 12;
+
     // ============ Immutable Storage ============
 
     /// @notice The ERC20Votes token used for voting power calculation
@@ -49,8 +55,10 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @dev When 0 (default), no penalty is applied (classic time-weighted average).
     ///      When set to a non-zero value, intervals shorter than this period receive
     ///      a quadratic penalty: contribution = value * duration^2 / scalingPeriod.
-    ///      Example: scalingPeriod=10, attacker holds 500,000 ETH for 1 block → ~50,000 ETH
-    ///      effective power instead of 500,000 ETH.
+    ///      Example: scalingPeriod=100, attacker holds 1000 ETH for 1 block →
+    ///      10 ETH effective power (100x reduction).
+    ///      WARNING: The owner can change scalingPeriod mid-cycle. A timelock or
+    ///      governance delay is recommended for production deployments.
     uint256 public scalingPeriod;
 
     // ============ Events ============
@@ -74,6 +82,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     ) {
         if (address(_votingToken) == address(0)) revert InvalidToken();
         if (address(_cycleModule) == address(0)) revert InvalidCycleModule();
+        if (_scalingPeriod > MAX_SCALING_PERIOD) revert ScalingPeriodTooLarge();
 
         VOTING_TOKEN = _votingToken;
         CYCLE_MODULE = _cycleModule;
@@ -118,6 +127,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @dev Only callable by owner. Setting to 0 disables the penalty (classic TWAV).
     /// @param _scalingPeriod New scaling period in blocks
     function setScalingPeriod(uint256 _scalingPeriod) external onlyOwner {
+        if (_scalingPeriod > MAX_SCALING_PERIOD) revert ScalingPeriodTooLarge();
         uint256 old = scalingPeriod;
         scalingPeriod = _scalingPeriod;
         emit ScalingPeriodUpdated(old, _scalingPeriod);
@@ -127,9 +137,10 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
 
     /// @dev Applies the quadratic scaling penalty to a checkpoint interval.
     ///      When scalingPeriod is 0, returns area unchanged (no penalty).
-    ///      When intervalLength >= scalingPeriod, returns area unchanged (no penalty).
-    ///      When intervalLength < scalingPeriod, returns area * intervalLength / scalingPeriod,
-    ///      producing a quadratic penalty on short-lived balance spikes.
+    ///      When intervalLength >= scalingPeriod, returns area unchanged (fully vested).
+    ///      When intervalLength < scalingPeriod, returns area * intervalLength / scalingPeriod.
+    ///      Since area = value * intervalLength, the effective formula is:
+    ///        value * intervalLength^2 / scalingPeriod (quadratic in duration).
     /// @param area The raw area contribution (value * intervalLength)
     /// @param intervalLength The duration of this checkpoint interval in blocks
     /// @return The scaled area contribution
