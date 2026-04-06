@@ -76,7 +76,6 @@ contract FactoryModuleDeploymentTest is Test {
         ICycleModule cycle = ICycleModule(module);
         assertEq(cycle.getCurrentCycle(), 1);
         assertEq(CycleModule(module).cycleLength(), 1000);
-        assertTrue(CycleModule(module).initialized());
         // Note: the test contract calls factory.create(), which deploys the proxy and triggers
         // initialize via the proxy constructor; the explicit _initialAuthorized param controls
         // who gets authorized, avoiding msg.sender issues with the factory as intermediary.

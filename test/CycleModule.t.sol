@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract CycleModuleTest is Test {
@@ -26,11 +27,10 @@ contract CycleModuleTest is Test {
         assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
         assertEq(cycleModule.lastCycleStartBlock(), START_BLOCK);
         assertTrue(cycleModule.authorized(owner));
-        assertTrue(cycleModule.initialized());
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         cycleModule.initialize(200, owner);
     }
 
@@ -159,10 +159,9 @@ contract CycleModuleTest is Test {
         // User is now authorized as the initializer
         assertTrue(newModule.authorized(user));
         assertEq(newModule.cycleLength(), 100);
-        assertTrue(newModule.initialized());
 
         // Cannot reinitialize
-        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         newModule.initialize(200, user);
     }
 
@@ -175,7 +174,7 @@ contract CycleModuleTest is Test {
 
     function testImplementationCannotBeInitialized() public {
         CycleModule impl = new CycleModule();
-        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         impl.initialize(100, owner);
     }
 

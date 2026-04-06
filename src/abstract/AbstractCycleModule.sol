@@ -2,11 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {ICycleModule} from "../interfaces/ICycleModule.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /// @title AbstractCycleModule
 /// @notice Abstract contract providing core cycle functionality with fixed cycle implementation
 /// @dev All cycle utilities merged into a single abstract module
-abstract contract AbstractCycleModule is ICycleModule {
+abstract contract AbstractCycleModule is ICycleModule, Initializable {
     uint256 private constant PERCENTAGE_SCALE = 100;
 
     // ============ EIP-7201 Namespaced Storage ============
@@ -21,8 +22,6 @@ abstract contract AbstractCycleModule is ICycleModule {
         uint256 lastCycleStartBlock;
         /// @notice Addresses authorized to trigger cycle transitions
         mapping(address => bool) authorized;
-        /// @notice Tracks whether the module has been initialized
-        bool initialized;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
@@ -57,11 +56,6 @@ abstract contract AbstractCycleModule is ICycleModule {
         return _getAbstractCycleModuleStorage().authorized[account];
     }
 
-    /// @notice Tracks whether the module has been initialized
-    function initialized() public view returns (bool) {
-        return _getAbstractCycleModuleStorage().initialized;
-    }
-
     // ============ Errors ============
 
     /// @notice Error thrown when caller is not authorized
@@ -72,9 +66,6 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Error thrown when cycle transition is invalid
     error InvalidCycleTransition();
-
-    /// @notice Error thrown when module is already initialized
-    error AlreadyInitialized();
 
     /// @notice Error thrown when module is not initialized
     error NotInitialized();
@@ -116,7 +107,9 @@ abstract contract AbstractCycleModule is ICycleModule {
 
     /// @notice Modifier to ensure module is initialized
     modifier onlyInitialized() {
-        _onlyInitialized();
+        if (_getInitializedVersion() == 0) {
+            revert NotInitialized();
+        }
         _;
     }
 
@@ -127,23 +120,11 @@ abstract contract AbstractCycleModule is ICycleModule {
         }
     }
 
-    /// @dev Reverts if the module has not been initialized
-    function _onlyInitialized() internal view {
-        if (!_getAbstractCycleModuleStorage().initialized) {
-            revert NotInitialized();
-        }
-    }
-
     /// @notice Initializes the cycle module with fixed cycle parameters
     /// @dev Can only be called once. The provided address becomes the first authorized address.
     /// @param _cycleLength The length of each cycle in blocks
     /// @param _initialAuthorized The address to authorize as the initial controller
-    function initialize(uint256 _cycleLength, address _initialAuthorized) external {
-        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
-        if ($.initialized) {
-            revert AlreadyInitialized();
-        }
-
+    function initialize(uint256 _cycleLength, address _initialAuthorized) external initializer {
         if (_cycleLength == 0) {
             revert InvalidCycleLength();
         }
@@ -152,11 +133,11 @@ abstract contract AbstractCycleModule is ICycleModule {
             revert NotAuthorized();
         }
 
+        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
         $.authorized[_initialAuthorized] = true;
         $.cycleLength = _cycleLength;
         $.lastCycleStartBlock = block.number;
         $.currentCycle = 1;
-        $.initialized = true;
 
         emit AuthorizationUpdated(_initialAuthorized, true);
         emit ModuleInitialized(_cycleLength, block.number);

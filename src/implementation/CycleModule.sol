@@ -9,6 +9,6 @@ import {AbstractCycleModule} from "../abstract/AbstractCycleModule.sol";
 contract CycleModule is AbstractCycleModule {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        _getAbstractCycleModuleStorage().initialized = true;
+        _disableInitializers();
     }
 }
