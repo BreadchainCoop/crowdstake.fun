@@ -36,13 +36,8 @@ contract BreadKitTest is TestWrapper {
         // deploy token
         token = IToken(factory.createToken(address(beacon), payload, keccak256("random salt")));
 
-        // deploy yield claimer
-        address[] memory recipients = new address[](1);
-        address claimer =
-            factory.createDefaultYieldClaimer(address(token), recipients, 0, address(this), keccak256("random salt"));
-
-        // set yield claimer
-        token.setYieldClaimer(claimer);
+        // set yield claimer to this contract (no claimer logic needed for these tests)
+        token.setYieldClaimer(address(this));
 
         // burn 1 wei
         token.mint{value: 1}(0x0000000000000000000000000000000000000009);

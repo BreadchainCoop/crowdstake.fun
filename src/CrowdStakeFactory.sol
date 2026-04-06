@@ -4,10 +4,9 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@solady/contracts/auth/Ownable.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {DefaultYieldClaimer} from "./implementation/DefaultYieldClaimer.sol";
 
 /// @title CrowdStakeFactory
-/// @notice Factory contract for deploying deterministic beacon proxies and yield claimers.
+/// @notice Factory contract for deploying deterministic beacon proxies.
 /// @dev Uses CREATE2 for deterministic deployments with sender-scoped salts.
 ///      Only beacons on the allowlist can be used to create proxies.
 contract CrowdStakeFactory is Ownable {
@@ -44,16 +43,6 @@ contract CrowdStakeFactory is Ownable {
     /// @param beacon The beacon address used for the proxy.
     /// @param payload The initialization payload forwarded to the proxy.
     event CreateModule(address module, address beacon, bytes payload);
-
-    /// @notice Emitted when a default yield claimer is deployed.
-    /// @param yieldClaimer The address of the deployed yield claimer.
-    /// @param token The token address the claimer is associated with.
-    /// @param initialRecipients The initial set of yield recipients.
-    /// @param percentVoted Value passed through to DefaultYieldClaimer.percentVoted.
-    /// @param owner The owner of the yield claimer.
-    event CreateYieldDistributor(
-        address yieldClaimer, address token, address[] initialRecipients, uint256 percentVoted, address owner
-    );
 
     /// @dev Set of beacon addresses currently on the allowlist.
     EnumerableSet.AddressSet internal _beacons;
@@ -128,30 +117,6 @@ contract CrowdStakeFactory is Ownable {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
     }
 
-    /// @notice Deploys a new `DefaultYieldClaimer` using CREATE2.
-    /// @param token_ The token address the claimer will serve.
-    /// @param initialRecipients_ The initial set of yield recipients.
-    /// @param percentVoted_ Value passed through to DefaultYieldClaimer.percentVoted.
-    /// @param owner_ The owner of the deployed yield claimer.
-    /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
-    /// @return yieldClaimer The address of the newly deployed yield claimer.
-    function createDefaultYieldClaimer(
-        address token_,
-        address[] memory initialRecipients_,
-        uint256 percentVoted_,
-        address owner_,
-        bytes32 salt_
-    ) external returns (address yieldClaimer) {
-        bytes memory bytecode = _getYieldDistributorInitCode(token_, initialRecipients_, percentVoted_, owner_);
-        bytes32 salt = _deriveSalt(salt_);
-        assembly {
-            yieldClaimer := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
-        }
-        if (yieldClaimer == address(0)) revert Create2Failed();
-
-        emit CreateYieldDistributor(yieldClaimer, token_, initialRecipients_, percentVoted_, owner_);
-    }
-
     /// @notice Adds beacon addresses to the allowlist. Only callable by the owner.
     /// @param beacons_ The array of beacon addresses to add.
     /// @dev Reverts if any address has no deployed code or is already allowlisted.
@@ -202,25 +167,6 @@ contract CrowdStakeFactory is Ownable {
     /// @return isContained True if the beacon is allowlisted.
     function beaconsContains(address beacon_) external view returns (bool isContained) {
         return _beacons.contains(beacon_);
-    }
-
-    /// @notice Computes the deterministic address for a yield claimer deployment.
-    /// @param token_ The token address the claimer would serve.
-    /// @param initialRecipients_ The initial recipients that would be used.
-    /// @param percentVoted_ The percentage threshold that would be used.
-    /// @param owner_ The owner that would be set.
-    /// @param salt_ The user-provided salt that would be used.
-    /// @return yieldClaimer The predicted deployment address.
-    function computeClaimerAddress(
-        address token_,
-        address[] memory initialRecipients_,
-        uint256 percentVoted_,
-        address owner_,
-        bytes32 salt_
-    ) external view returns (address yieldClaimer) {
-        bytes memory bytecode = _getYieldDistributorInitCode(token_, initialRecipients_, percentVoted_, owner_);
-        bytes32 salt = _deriveSalt(salt_);
-        yieldClaimer = _getCreate2Address(salt, keccak256(bytecode));
     }
 
     // ============ Internal Helpers ============
@@ -288,23 +234,6 @@ contract CrowdStakeFactory is Ownable {
     /// @return The ABI-packed creation bytecode.
     function _getBeaconProxyInitCode(address beacon_, bytes calldata payload_) internal pure returns (bytes memory) {
         return abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon_, payload_));
-    }
-
-    /// @dev Returns the creation code for a `DefaultYieldClaimer` with the given parameters.
-    /// @param token_ The token address.
-    /// @param initialRecipients_ The initial set of yield recipients.
-    /// @param percentVoted_ Value passed through to DefaultYieldClaimer.percentVoted.
-    /// @param owner_ The owner of the yield claimer.
-    /// @return The ABI-packed creation bytecode.
-    function _getYieldDistributorInitCode(
-        address token_,
-        address[] memory initialRecipients_,
-        uint256 percentVoted_,
-        address owner_
-    ) internal pure returns (bytes memory) {
-        return abi.encodePacked(
-            type(DefaultYieldClaimer).creationCode, abi.encode(token_, initialRecipients_, percentVoted_, owner_)
-        );
     }
 
     /// @dev Computes a CREATE2 address from a salt and bytecode hash.
