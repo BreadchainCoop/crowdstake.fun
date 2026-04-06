@@ -51,7 +51,6 @@ contract CrowdStakeFactory is Ownable {
     /// @param initialRecipients The initial set of yield recipients.
     /// @param percentVoted Value passed through to DefaultYieldClaimer.percentVoted.
     /// @param owner The owner of the yield claimer.
-    /// @dev The event is named "YieldDistributor" for historical reasons; the deployed contract is `DefaultYieldClaimer`.
     event CreateYieldDistributor(
         address yieldClaimer, address token, address[] initialRecipients, uint256 percentVoted, address owner
     );
