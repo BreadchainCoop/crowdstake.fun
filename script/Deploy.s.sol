@@ -263,9 +263,24 @@ contract Deploy is Script {
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );
 
-        // 5d. Wire the real references into the distManager, then transfer ownership
+        // 5d. Wire the real references into the distManager, then transfer ownership.
+        //     The distManager was deployed with placeholder values (p.owner for votingModule,
+        //     address(0) for strategy). On mainnet these are separate transactions, so the
+        //     distManager exists in a partially-wired state until this step completes.
+        //     The zero-address strategy would revert on any call, limiting the risk window.
         BaseDistributionManager(distributionManager).setDistributionStrategy(distributionStrategy);
         AbstractDistributionManager(distributionManager).setVotingModule(votingModule);
+
+        // Sanity check: verify wiring is complete before transferring ownership
+        require(
+            address(BaseDistributionManager(distributionManager).distributionStrategy()) == distributionStrategy,
+            "Deploy: strategy not wired"
+        );
+        require(
+            address(AbstractDistributionManager(distributionManager).votingModule()) == votingModule,
+            "Deploy: votingModule not wired"
+        );
+
         if (p.owner != p.deployer) {
             AbstractDistributionManager(distributionManager).transferOwnership(p.owner);
         }

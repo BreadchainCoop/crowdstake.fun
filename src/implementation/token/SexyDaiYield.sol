@@ -14,9 +14,11 @@ contract SexyDaiYield is AbstractToken {
     IWXDAI public immutable WX_DAI;
     ISXDAI public immutable SEXY_DAI;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _wxDai, address _sexyDai) {
         WX_DAI = IWXDAI(_wxDai);
         SEXY_DAI = ISXDAI(_sexyDai);
+        _disableInitializers();
     }
 
     function initialize(string memory name_, string memory symbol_, address owner_) external initializer {

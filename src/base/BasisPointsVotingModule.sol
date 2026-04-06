@@ -68,11 +68,9 @@ contract BasisPointsVotingModule is AbstractVotingModule {
 
     // ============ Constructor ============
 
-    /// @notice Creates a new BasisPointsVotingModule instance
-    /// @dev Initializes the implementation contract. Must be initialized before use.
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        // _disableInitializers(); // Only for proxy deployments
+        _disableInitializers();
     }
 
     // ============ Initialization ============

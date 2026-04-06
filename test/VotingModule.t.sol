@@ -13,7 +13,9 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
 import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Mock token implementation for testing
 contract MockToken is ERC20, ERC20Votes, ERC20Permit {
@@ -98,26 +100,33 @@ contract VotingModuleTest is Test {
 
         // Deploy utility contracts
 
-        // Deploy and initialize cycle module
-        cycleModule = new CycleModule();
-        cycleModule.initialize(1000, address(this)); // 1000 blocks per cycle
+        // Deploy and initialize cycle module via proxy
+        {
+            CycleModule cycleImpl = new CycleModule();
+            bytes memory cycleInit =
+                abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, address(this));
+            cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
+        }
 
         // Deploy mock distribution module
         distributionModule = new MockDistributionModule();
 
-        // Deploy and initialize voting module
-        votingModule = new BasisPointsVotingModule();
+        // Deploy and initialize voting module via proxy
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
-
-        votingModule.initialize(
-            MAX_POINTS,
-            strategies,
-            address(distributionModule),
-            address(recipientRegistry),
-            address(cycleModule),
-            address(this)
-        );
+        {
+            BasisPointsVotingModule votingImpl = new BasisPointsVotingModule();
+            bytes memory votingInit = abi.encodeWithSelector(
+                BasisPointsVotingModule.initialize.selector,
+                MAX_POINTS,
+                strategies,
+                address(distributionModule),
+                address(recipientRegistry),
+                address(cycleModule),
+                address(this)
+            );
+            votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingInit)));
+        }
     }
 
     // Helper function to create vote signature

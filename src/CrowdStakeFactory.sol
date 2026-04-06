@@ -85,12 +85,34 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @notice Computes the deterministic address for a beacon proxy deployment without deploying it.
+    /// @dev When called off-chain via eth_call, msg.sender defaults to address(0) unless the
+    ///      `from` field is set explicitly, which will produce incorrect results since the salt
+    ///      is sender-scoped. Use the overload that accepts a `sender_` parameter instead.
     /// @param beacon_ The beacon address that would be used.
     /// @param payload_ The initialization payload that would be used.
     /// @param salt_ The user-provided salt that would be used.
     /// @return The predicted deployment address.
     function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_) external view returns (address) {
         return _computeBeaconProxyAddress(beacon_, payload_, salt_);
+    }
+
+    /// @notice Computes the deterministic address for a beacon proxy with an explicit sender.
+    /// @dev Use this overload for off-chain address predictions (e.g., via eth_call) to avoid
+    ///      the msg.sender footgun — the default overload uses caller() for the salt, which
+    ///      defaults to address(0) in static calls unless `from` is set.
+    /// @param beacon_ The beacon address that would be used.
+    /// @param payload_ The initialization payload that would be used.
+    /// @param salt_ The user-provided salt that would be used.
+    /// @param sender_ The address that will call `create` (used to derive the sender-scoped salt).
+    /// @return The predicted deployment address.
+    function computeAddress(address beacon_, bytes calldata payload_, bytes32 salt_, address sender_)
+        external
+        view
+        returns (address)
+    {
+        bytes memory bytecode = _getBeaconProxyInitCode(beacon_, payload_);
+        bytes32 salt = _deriveSaltFor(sender_, salt_);
+        return _getCreate2Address(salt, keccak256(bytecode));
     }
 
     /// @notice Computes the deterministic address for a token proxy (legacy entrypoint).
@@ -250,6 +272,14 @@ contract CrowdStakeFactory is Ownable {
             mstore(add(ptr, 0x20), salt_)
             salt := keccak256(ptr, 0x40)
         }
+    }
+
+    /// @dev Derives a sender-scoped salt for a given sender address (for off-chain predictions).
+    /// @param sender_ The address to use instead of msg.sender.
+    /// @param salt_ The user-provided salt.
+    /// @return The derived sender-scoped salt.
+    function _deriveSaltFor(address sender_, bytes32 salt_) internal pure returns (bytes32) {
+        return keccak256(abi.encode(sender_, salt_));
     }
 
     /// @dev Returns the creation code for a `BeaconProxy` with the given beacon and payload.

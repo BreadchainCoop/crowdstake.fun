@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract CycleModuleTest is Test {
     CycleModule public cycleModule;
@@ -15,8 +16,9 @@ contract CycleModuleTest is Test {
 
     function setUp() public {
         vm.roll(START_BLOCK);
-        cycleModule = new CycleModule();
-        cycleModule.initialize(CYCLE_LENGTH, owner);
+        CycleModule impl = new CycleModule();
+        bytes memory initData = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
+        cycleModule = CycleModule(address(new ERC1967Proxy(address(impl), initData)));
     }
 
     function testInitialState() public view {
@@ -33,7 +35,9 @@ contract CycleModuleTest is Test {
     }
 
     function testNotInitializedFunctions() public {
-        CycleModule uninitializedModule = new CycleModule();
+        // Deploy a proxy without initialization data to get an uninitialized module
+        CycleModule impl = new CycleModule();
+        CycleModule uninitializedModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
 
         vm.expectRevert(AbstractCycleModule.NotInitialized.selector);
         uninitializedModule.getCurrentCycle();
@@ -146,7 +150,8 @@ contract CycleModuleTest is Test {
     }
 
     function testAnyoneCanInitializeOnce() public {
-        CycleModule newModule = new CycleModule();
+        CycleModule impl = new CycleModule();
+        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
 
         vm.prank(user);
         newModule.initialize(100, user);
@@ -162,9 +167,16 @@ contract CycleModuleTest is Test {
     }
 
     function testCannotInitializeWithZeroAddress() public {
-        CycleModule newModule = new CycleModule();
+        CycleModule impl = new CycleModule();
+        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
         vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
         newModule.initialize(100, address(0));
+    }
+
+    function testImplementationCannotBeInitialized() public {
+        CycleModule impl = new CycleModule();
+        vm.expectRevert(AbstractCycleModule.AlreadyInitialized.selector);
+        impl.initialize(100, owner);
     }
 
     function testMultipleCycles() public {

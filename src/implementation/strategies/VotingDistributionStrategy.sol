@@ -12,6 +12,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract VotingDistributionStrategy is AbstractDistributionStrategy {
     using SafeERC20 for IERC20;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // ============ EIP-7201 Namespaced Storage ============
 
     /// @custom:storage-location erc7201:crowdstake.storage.VotingDistributionStrategy

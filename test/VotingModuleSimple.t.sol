@@ -9,7 +9,9 @@ import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
 import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Simple mock token for testing (non-upgradeable)
 contract MockToken is IVotes {
@@ -138,26 +140,33 @@ contract VotingModuleSimpleTest is Test {
         recipients[2] = address(0x3333);
         recipientRegistry = new MockRecipientRegistry(recipients);
 
-        // Deploy and initialize voting module
-        votingModule = new BasisPointsVotingModule();
-        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
-        strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
-
         // Deploy mock distribution module
         distributionModule = new MockDistributionModule();
 
-        // Deploy and initialize cycle module
-        cycleModule = new CycleModule();
-        cycleModule.initialize(1000, address(this)); // 1000 blocks per cycle
+        // Deploy and initialize cycle module via proxy
+        {
+            CycleModule cycleImpl = new CycleModule();
+            bytes memory cycleInit =
+                abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, address(this));
+            cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
+        }
 
-        votingModule.initialize(
-            MAX_POINTS,
-            strategies,
-            address(distributionModule),
-            address(recipientRegistry),
-            address(cycleModule),
-            address(this)
-        );
+        // Deploy and initialize voting module via proxy
+        IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
+        strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
+        {
+            BasisPointsVotingModule votingImpl = new BasisPointsVotingModule();
+            bytes memory votingInit = abi.encodeWithSelector(
+                BasisPointsVotingModule.initialize.selector,
+                MAX_POINTS,
+                strategies,
+                address(distributionModule),
+                address(recipientRegistry),
+                address(cycleModule),
+                address(this)
+            );
+            votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingInit)));
+        }
     }
 
     function testInitialization() public view {

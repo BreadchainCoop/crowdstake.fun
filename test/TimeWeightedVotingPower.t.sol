@@ -10,6 +10,8 @@ import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Vo
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
+import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /// @dev ERC20Votes token that supports getPastVotes with proper checkpointing
 contract MockVotesToken is ERC20, ERC20Votes, ERC20Permit {
@@ -50,11 +52,15 @@ contract TimeWeightedVotingPowerTest is Test {
         owner = address(this);
 
         token = new MockVotesToken();
-        cycleModule = new CycleModule();
 
         // Start at block 1 so getPastVotes works (can't query block 0)
         vm.roll(1);
-        cycleModule.initialize(CYCLE_LENGTH, address(this));
+
+        // Deploy and initialize cycle module via proxy
+        CycleModule cycleImpl = new CycleModule();
+        bytes memory cycleInit =
+            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, address(this));
+        cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
 
         strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
     }
