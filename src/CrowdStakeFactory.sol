@@ -16,7 +16,7 @@ contract CrowdStakeFactory is Ownable {
     /// @notice Thrown when attempting to add a beacon that is already on the allowlist.
     error AlreadyAllowlistedBeacon();
 
-    /// @notice Thrown when the provided address has no code deployed (not a valid beacon).
+    /// @notice Thrown when the provided address has no code deployed (e.g., an EOA).
     error NotBeacon();
 
     /// @notice Thrown when attempting to use or remove a beacon that is not on the allowlist.
@@ -49,8 +49,9 @@ contract CrowdStakeFactory is Ownable {
     /// @param yieldClaimer The address of the deployed yield claimer.
     /// @param token The token address the claimer is associated with.
     /// @param initialRecipients The initial set of yield recipients.
-    /// @param percentVoted The percentage threshold for voted distributions.
+    /// @param percentVoted Value passed through to DefaultYieldClaimer.percentVoted.
     /// @param owner The owner of the yield claimer.
+    /// @dev The event is named "YieldDistributor" for historical reasons; the deployed contract is `DefaultYieldClaimer`.
     event CreateYieldDistributor(
         address yieldClaimer, address token, address[] initialRecipients, uint256 percentVoted, address owner
     );
@@ -109,7 +110,7 @@ contract CrowdStakeFactory is Ownable {
     /// @notice Deploys a new `DefaultYieldClaimer` using CREATE2.
     /// @param token_ The token address the claimer will serve.
     /// @param initialRecipients_ The initial set of yield recipients.
-    /// @param percentVoted_ The percentage threshold for voted distributions.
+    /// @param percentVoted_ Value passed through to DefaultYieldClaimer.percentVoted.
     /// @param owner_ The owner of the deployed yield claimer.
     /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
     /// @return yieldClaimer The address of the newly deployed yield claimer.
