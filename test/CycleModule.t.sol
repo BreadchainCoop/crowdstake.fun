@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
@@ -26,7 +27,7 @@ contract CycleModuleTest is Test {
         assertEq(cycleModule.getCurrentCycle(), 1);
         assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
         assertEq(cycleModule.lastCycleStartBlock(), START_BLOCK);
-        assertTrue(cycleModule.authorized(owner));
+        assertEq(cycleModule.owner(), owner);
     }
 
     function testCannotReinitialize() public {
@@ -86,22 +87,19 @@ contract CycleModuleTest is Test {
         cycleModule.startNewCycle();
     }
 
-    function testUnauthorizedCannotStartCycle() public {
+    function testNonOwnerCannotStartCycle() public {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
 
         vm.prank(user);
-        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
         cycleModule.startNewCycle();
     }
 
-    function testAuthorization() public {
-        assertFalse(cycleModule.authorized(user));
+    function testOwnership() public {
+        assertEq(cycleModule.owner(), owner);
 
-        cycleModule.setAuthorization(user, true);
-        assertTrue(cycleModule.authorized(user));
-
-        cycleModule.setAuthorization(user, false);
-        assertFalse(cycleModule.authorized(user));
+        cycleModule.transferOwnership(user);
+        assertEq(cycleModule.owner(), user);
     }
 
     function testGetBlocksUntilNextCycle() public view {
@@ -143,9 +141,9 @@ contract CycleModuleTest is Test {
         cycleModule.updateCycleLength(0);
     }
 
-    function testUnauthorizedCannotUpdateCycleLength() public {
+    function testNonOwnerCannotUpdateCycleLength() public {
         vm.prank(user);
-        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
         cycleModule.updateCycleLength(200);
     }
 
@@ -156,8 +154,8 @@ contract CycleModuleTest is Test {
         vm.prank(user);
         newModule.initialize(100, user);
 
-        // User is now authorized as the initializer
-        assertTrue(newModule.authorized(user));
+        // User is now the owner
+        assertEq(newModule.owner(), user);
         assertEq(newModule.cycleLength(), 100);
 
         // Cannot reinitialize
@@ -168,7 +166,7 @@ contract CycleModuleTest is Test {
     function testCannotInitializeWithZeroAddress() public {
         CycleModule impl = new CycleModule();
         CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
-        vm.expectRevert(AbstractCycleModule.NotAuthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0)));
         newModule.initialize(100, address(0));
     }
 

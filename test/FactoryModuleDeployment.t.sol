@@ -76,10 +76,7 @@ contract FactoryModuleDeploymentTest is Test {
         ICycleModule cycle = ICycleModule(module);
         assertEq(cycle.getCurrentCycle(), 1);
         assertEq(CycleModule(module).cycleLength(), 1000);
-        // Note: the test contract calls factory.create(), which deploys the proxy and triggers
-        // initialize via the proxy constructor; the explicit _initialAuthorized param controls
-        // who gets authorized, avoiding msg.sender issues with the factory as intermediary.
-        assertTrue(CycleModule(module).authorized(owner));
+        assertEq(CycleModule(module).owner(), owner);
     }
 
     // ============ AdminRecipientRegistry via Factory ============
@@ -329,7 +326,7 @@ contract FactoryModuleDeploymentTest is Test {
         AdminRecipientRegistry registry = AdminRecipientRegistry(registryAddr);
 
         assertEq(cycle.getCurrentCycle(), 1);
-        assertTrue(cycle.authorized(owner));
+        assertEq(cycle.owner(), owner);
         assertEq(registry.getRecipientCount(), 0);
         assertEq(registry.owner(), owner);
 

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {ICycleModule} from "../interfaces/ICycleModule.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /// @title AbstractCycleModule
 /// @notice Abstract contract providing core cycle functionality with fixed cycle implementation
 /// @dev All cycle utilities merged into a single abstract module
-abstract contract AbstractCycleModule is ICycleModule, Initializable {
+abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     uint256 private constant PERCENTAGE_SCALE = 100;
 
     // ============ EIP-7201 Namespaced Storage ============
@@ -20,8 +20,6 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
         uint256 currentCycle;
         /// @notice The block number when the current cycle started
         uint256 lastCycleStartBlock;
-        /// @notice Addresses authorized to trigger cycle transitions
-        mapping(address => bool) authorized;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
@@ -51,15 +49,7 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
         return _getAbstractCycleModuleStorage().lastCycleStartBlock;
     }
 
-    /// @notice Addresses authorized to trigger cycle transitions
-    function authorized(address account) public view returns (bool) {
-        return _getAbstractCycleModuleStorage().authorized[account];
-    }
-
     // ============ Errors ============
-
-    /// @notice Error thrown when caller is not authorized
-    error NotAuthorized();
 
     /// @notice Error thrown when cycle length is invalid
     error InvalidCycleLength();
@@ -82,11 +72,6 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
     /// @param cycleNumber The number of the validated cycle
     event CycleTransitionValidated(uint256 indexed cycleNumber);
 
-    /// @notice Emitted when an address authorization status changes
-    /// @param account The address whose authorization was updated
-    /// @param isAuthorized The new authorization status
-    event AuthorizationUpdated(address indexed account, bool isAuthorized);
-
     /// @notice Emitted when the cycle length is updated
     /// @param oldLength The previous cycle length
     /// @param newLength The new cycle length
@@ -99,12 +84,6 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
 
     // ============ Modifiers ============
 
-    /// @notice Modifier to restrict access to authorized addresses
-    modifier onlyAuthorized() {
-        _onlyAuthorized();
-        _;
-    }
-
     /// @notice Modifier to ensure module is initialized
     modifier onlyInitialized() {
         if (_getInitializedVersion() == 0) {
@@ -113,42 +92,23 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
         _;
     }
 
-    /// @dev Reverts if the caller is not an authorized address
-    function _onlyAuthorized() internal view {
-        if (!_getAbstractCycleModuleStorage().authorized[msg.sender]) {
-            revert NotAuthorized();
-        }
-    }
-
     /// @notice Initializes the cycle module with fixed cycle parameters
-    /// @dev Can only be called once. The provided address becomes the first authorized address.
+    /// @dev Can only be called once. Sets the caller as the owner.
     /// @param _cycleLength The length of each cycle in blocks
-    /// @param _initialAuthorized The address to authorize as the initial controller
-    function initialize(uint256 _cycleLength, address _initialAuthorized) external initializer {
+    /// @param _owner The address that will own this contract
+    function initialize(uint256 _cycleLength, address _owner) external initializer {
         if (_cycleLength == 0) {
             revert InvalidCycleLength();
         }
 
-        if (_initialAuthorized == address(0)) {
-            revert NotAuthorized();
-        }
+        __Ownable_init(_owner);
 
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
-        $.authorized[_initialAuthorized] = true;
         $.cycleLength = _cycleLength;
         $.lastCycleStartBlock = block.number;
         $.currentCycle = 1;
 
-        emit AuthorizationUpdated(_initialAuthorized, true);
         emit ModuleInitialized(_cycleLength, block.number);
-    }
-
-    /// @notice Adds or removes an authorized address
-    /// @param account The address to update
-    /// @param isAuthorized The authorization status to set
-    function setAuthorization(address account, bool isAuthorized) external onlyAuthorized {
-        _getAbstractCycleModuleStorage().authorized[account] = isAuthorized;
-        emit AuthorizationUpdated(account, isAuthorized);
     }
 
     /// @notice Gets the current cycle number
@@ -165,8 +125,8 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
     }
 
     /// @notice Starts a new cycle
-    /// @dev Only callable by authorized contracts when cycle is complete
-    function startNewCycle() external virtual onlyInitialized onlyAuthorized {
+    /// @dev Only callable by the owner when cycle is complete
+    function startNewCycle() external virtual onlyInitialized onlyOwner {
         if (!isCycleComplete()) {
             revert InvalidCycleTransition();
         }
@@ -204,7 +164,7 @@ abstract contract AbstractCycleModule is ICycleModule, Initializable {
 
     /// @notice Updates the cycle length for future cycles
     /// @param newCycleLength The new cycle length in blocks
-    function updateCycleLength(uint256 newCycleLength) external virtual onlyInitialized onlyAuthorized {
+    function updateCycleLength(uint256 newCycleLength) external virtual onlyInitialized onlyOwner {
         if (newCycleLength == 0) {
             revert InvalidCycleLength();
         }
