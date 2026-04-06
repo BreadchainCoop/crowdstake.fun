@@ -205,6 +205,10 @@ contract CrowdStakeFactory is Ownable {
 
     /// @dev Deploys a beacon proxy using CREATE2 with a sender-scoped salt.
     ///      Reverts if the beacon is not allowlisted or if deployment fails.
+    /// @param beacon_ The allowlisted beacon to use for the proxy.
+    /// @param payload_ The ABI-encoded initialization calldata forwarded to the proxy constructor.
+    /// @param salt_ A user-provided salt combined with `msg.sender` for deterministic deployment.
+    /// @return proxy The address of the newly deployed proxy.
     function _createBeaconProxy(address beacon_, bytes calldata payload_, bytes32 salt_)
         internal
         returns (address proxy)
@@ -222,6 +226,10 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @dev Computes the predicted address for a beacon proxy deployment.
+    /// @param beacon_ The beacon address that would be used.
+    /// @param payload_ The initialization payload that would be used.
+    /// @param salt_ The user-provided salt that would be used.
+    /// @return The predicted deployment address.
     function _computeBeaconProxyAddress(address beacon_, bytes calldata payload_, bytes32 salt_)
         internal
         view
@@ -233,6 +241,8 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @dev Derives a sender-scoped salt by hashing `msg.sender` with the user-provided salt.
+    /// @param salt_ The user-provided salt.
+    /// @return salt The derived sender-scoped salt.
     function _deriveSalt(bytes32 salt_) internal view returns (bytes32 salt) {
         assembly {
             let ptr := mload(0x40)
@@ -243,11 +253,19 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @dev Returns the creation code for a `BeaconProxy` with the given beacon and payload.
+    /// @param beacon_ The beacon address to encode.
+    /// @param payload_ The initialization payload to encode.
+    /// @return The ABI-packed creation bytecode.
     function _getBeaconProxyInitCode(address beacon_, bytes calldata payload_) internal pure returns (bytes memory) {
         return abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon_, payload_));
     }
 
     /// @dev Returns the creation code for a `DefaultYieldClaimer` with the given parameters.
+    /// @param token_ The token address.
+    /// @param initialRecipients_ The initial set of yield recipients.
+    /// @param percentVoted_ Value passed through to DefaultYieldClaimer.percentVoted.
+    /// @param owner_ The owner of the yield claimer.
+    /// @return The ABI-packed creation bytecode.
     function _getYieldDistributorInitCode(
         address token_,
         address[] memory initialRecipients_,
@@ -260,6 +278,9 @@ contract CrowdStakeFactory is Ownable {
     }
 
     /// @dev Computes a CREATE2 address from a salt and bytecode hash.
+    /// @param salt_ The CREATE2 salt.
+    /// @param bytecodeHash_ The keccak256 hash of the creation bytecode.
+    /// @return The predicted deployment address.
     function _getCreate2Address(bytes32 salt_, bytes32 bytecodeHash_) internal view returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt_, bytecodeHash_)))));
     }
