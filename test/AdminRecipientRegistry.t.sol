@@ -189,6 +189,109 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_2);
     }
 
+    function test_ReQueueAfterRemoval() public {
+        vm.startPrank(ADMIN);
+
+        // Add → process → remove → process → re-add
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        registry.processQueue();
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+
+        // Re-add should succeed (queue is empty, no stale state)
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
+    function test_ReQueueAfterClear() public {
+        vm.startPrank(ADMIN);
+
+        registry.queueRecipientAddition(RECIPIENT_1);
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
+
+        registry.clearAdditionQueue();
+        assertFalse(registry.isQueuedForAddition(RECIPIENT_1));
+
+        // Re-queue should succeed after clear
+        registry.queueRecipientAddition(RECIPIENT_1);
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
+    function test_RevertOnDuplicateQueue() public {
+        vm.startPrank(ADMIN);
+        registry.queueRecipientAddition(RECIPIENT_1);
+
+        // Same address again should revert (not sorted / duplicate)
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
+        registry.queueRecipientAddition(RECIPIENT_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertOnOutOfOrderQueue() public {
+        vm.startPrank(ADMIN);
+        registry.queueRecipientAddition(RECIPIENT_2);
+
+        // RECIPIENT_1 < RECIPIENT_2, so this should revert
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
+        registry.queueRecipientAddition(RECIPIENT_1);
+        vm.stopPrank();
+    }
+
+    function test_CrossQueueIndependence() public {
+        vm.startPrank(ADMIN);
+
+        // Add recipient first so it can be queued for removal
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_2);
+        registry.processQueue();
+
+        // Queue RECIPIENT_1 for removal and a new address for addition independently
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_3);
+
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_3));
+
+        registry.processQueue();
+
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+        assertTrue(registry.isRecipient(RECIPIENT_2));
+        assertTrue(registry.isRecipient(RECIPIENT_3));
+
+        vm.stopPrank();
+    }
+
+    function test_ClearRemovalQueueAndReQueue() public {
+        vm.startPrank(ADMIN);
+
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+
+        registry.clearRemovalQueue();
+        assertFalse(registry.isQueuedForRemoval(RECIPIENT_1));
+
+        // Re-queue for removal should succeed after clear
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+        registry.processQueue();
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
     function test_LargeScaleOperations() public {
         vm.startPrank(ADMIN);
 

@@ -24,12 +24,6 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         /// @notice Mapping to quickly check if an address is an active recipient
         /// @dev Maps recipient address to true if active, false otherwise
         mapping(address => bool) isRecipientMapping;
-        /// @notice Mapping to quickly check if an address is queued for addition
-        /// @dev Maps recipient address to true if queued for addition, false otherwise
-        mapping(address => bool) isQueuedForAdditionMapping;
-        /// @notice Mapping to quickly check if an address is queued for removal
-        /// @dev Maps recipient address to true if queued for removal, false otherwise
-        mapping(address => bool) isQueuedForRemovalMapping;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
@@ -95,9 +89,12 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
         if (recipient == address(0)) revert InvalidRecipient();
         if ($.isRecipientMapping[recipient]) revert RecipientAlreadyExists();
-        if ($.isQueuedForAdditionMapping[recipient]) revert RecipientAlreadyQueued();
 
-        $.isQueuedForAdditionMapping[recipient] = true;
+        uint256 len = $.queuedRecipientsForAddition.length;
+        if (len > 0 && uint160(recipient) <= uint160($.queuedRecipientsForAddition[len - 1])) {
+            revert QueueNotSorted();
+        }
+
         $.queuedRecipientsForAddition.push(recipient);
         emit RecipientQueued(recipient, true);
     }
@@ -112,9 +109,12 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
         if (recipient == address(0)) revert InvalidRecipient();
         if (!$.isRecipientMapping[recipient]) revert RecipientNotFound();
-        if ($.isQueuedForRemovalMapping[recipient]) revert RecipientAlreadyQueued();
 
-        $.isQueuedForRemovalMapping[recipient] = true;
+        uint256 len = $.queuedRecipientsForRemoval.length;
+        if (len > 0 && uint160(recipient) <= uint160($.queuedRecipientsForRemoval[len - 1])) {
+            revert QueueNotSorted();
+        }
+
         $.queuedRecipientsForRemoval.push(recipient);
         emit RecipientQueued(recipient, false);
     }
@@ -141,7 +141,6 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
             address recipient = addedList[i];
             $.recipients.push(recipient);
             $.isRecipientMapping[recipient] = true;
-            $.isQueuedForAdditionMapping[recipient] = false;
             emit RecipientAdded(recipient);
         }
 
@@ -159,7 +158,6 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
                     if (recipient == removedList[j]) {
                         shouldRemove = true;
                         $.isRecipientMapping[recipient] = false;
-                        $.isQueuedForRemovalMapping[recipient] = false;
                         emit RecipientRemoved(recipient);
                         break;
                     }
@@ -183,22 +181,14 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
     /// @dev Only owner can clear the queue. Use this to cancel all pending additions
     /// @dev This will remove all addresses from the addition queue without adding them
     function clearAdditionQueue() external onlyOwner {
-        AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
-        for (uint256 i = 0; i < $.queuedRecipientsForAddition.length; i++) {
-            $.isQueuedForAdditionMapping[$.queuedRecipientsForAddition[i]] = false;
-        }
-        delete $.queuedRecipientsForAddition;
+        delete _getAbstractRecipientRegistryStorage().queuedRecipientsForAddition;
     }
 
     /// @notice Clear the removal queue without processing
     /// @dev Only owner can clear the queue. Use this to cancel all pending removals
     /// @dev This will remove all addresses from the removal queue without removing them
     function clearRemovalQueue() external onlyOwner {
-        AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
-        for (uint256 i = 0; i < $.queuedRecipientsForRemoval.length; i++) {
-            $.isQueuedForRemovalMapping[$.queuedRecipientsForRemoval[i]] = false;
-        }
-        delete $.queuedRecipientsForRemoval;
+        delete _getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval;
     }
 
     /// @notice Get all active recipients
@@ -233,14 +223,36 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
     /// @param recipient Address to check in the addition queue
     /// @return isQueued True if the address is queued for addition, false otherwise
     function isQueuedForAddition(address recipient) external view returns (bool isQueued) {
-        return _getAbstractRecipientRegistryStorage().isQueuedForAdditionMapping[recipient];
+        return _binarySearch(_getAbstractRecipientRegistryStorage().queuedRecipientsForAddition, recipient);
     }
 
     /// @notice Check if an address is queued for removal
     /// @param recipient Address to check in the removal queue
     /// @return isQueued True if the address is queued for removal, false otherwise
     function isQueuedForRemoval(address recipient) external view returns (bool isQueued) {
-        return _getAbstractRecipientRegistryStorage().isQueuedForRemovalMapping[recipient];
+        return _binarySearch(_getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval, recipient);
+    }
+
+    /// @dev Binary search on a sorted address array
+    function _binarySearch(address[] storage arr, address target) internal view returns (bool) {
+        uint256 len = arr.length;
+        if (len == 0) return false;
+
+        uint256 low = 0;
+        uint256 high = len;
+        uint256 targetUint = uint160(target);
+
+        while (low < high) {
+            uint256 mid = low + (high - low) / 2;
+            uint256 midVal = uint160(arr[mid]);
+            if (midVal == targetUint) return true;
+            if (midVal < targetUint) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return false;
     }
 
     /// @notice Check if an address is currently an active recipient

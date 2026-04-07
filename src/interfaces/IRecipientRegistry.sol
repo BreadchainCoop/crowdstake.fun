@@ -40,6 +40,10 @@ interface IRecipientRegistry {
     /// @notice Thrown when attempting to queue a recipient that is already queued
     error RecipientAlreadyQueued();
 
+    /// @notice Thrown when a recipient address is not greater than the last queued address
+    /// @dev Queues must be submitted in ascending address order to enable O(1) duplicate detection
+    error QueueNotSorted();
+
     /// @notice Queue a recipient for addition to the registry
     /// @dev Access control varies by implementation (admin-only vs recipient voting)
     /// @dev The recipient will be added when the queue is processed
