@@ -9,7 +9,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title VotingDistributionStrategy
 /// @notice Distributes yield based on voting results
-/// @dev Implements proportional distribution based on vote counts using recipient registry
+/// @dev Implements proportional distribution based on vote counts using recipient registry.
+///      The voting module is read dynamically from the distribution manager so that updates
+///      to the manager's voting module are automatically reflected here.
 contract VotingDistributionStrategy is AbstractDistributionStrategy {
     using SafeERC20 for IERC20;
 
@@ -18,33 +20,12 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         _disableInitializers();
     }
 
-    // ============ EIP-7201 Namespaced Storage ============
-
-    /// @custom:storage-location erc7201:crowdstake.storage.VotingDistributionStrategy
-    struct VotingDistributionStrategyStorage {
-        /// @notice Module that provides the current vote distribution weights
-        IVotingModule votingModule;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.VotingDistributionStrategy")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant VOTING_DISTRIBUTION_STRATEGY_STORAGE =
-        0x63ddb3382b8f5a7e8d70aa48cbf62b6ffc6f1c965e8b80cdb62d6e2177817e00;
-
-    function _getVotingDistributionStrategyStorage()
-        private
-        pure
-        returns (VotingDistributionStrategyStorage storage $)
-    {
-        assembly {
-            $.slot := VOTING_DISTRIBUTION_STRATEGY_STORAGE
-        }
-    }
-
     // ============ Public Getters ============
 
-    /// @notice Module that provides the current vote distribution weights
+    /// @notice Returns the voting module from the distribution manager
+    /// @dev Read dynamically so changes to the manager's voting module are always reflected
     function votingModule() public view returns (IVotingModule) {
-        return _getVotingDistributionStrategyStorage().votingModule;
+        return IDistributionManager(distributionManager()).votingModule();
     }
 
     // ============ Errors ============
@@ -58,7 +39,8 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
 
     /// @notice Initializes the voting distribution strategy
     /// @dev Sets up the strategy with yield token and distribution manager.
-    ///      Derives recipientRegistry and votingModule from the distribution manager.
+    ///      Derives recipientRegistry from the distribution manager.
+    ///      The voting module is read dynamically from the distribution manager at point of use.
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _distributionManager Address of the distribution manager
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
@@ -68,9 +50,6 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         address _owner
     ) external initializer {
         __AbstractDistributionStrategy_init(_yieldToken, _distributionManager, _owner);
-        IVotingModule _votingModule = IDistributionManager(_distributionManager).votingModule();
-        if (address(_votingModule) == address(0)) revert ZeroAddress();
-        _getVotingDistributionStrategyStorage().votingModule = _votingModule;
     }
 
     /// @notice Distributes yield proportionally based on voting weights
@@ -83,8 +62,7 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         if (recipients.length == 0) revert NoRecipients();
         if (amount < recipients.length) revert InsufficientYieldForRecipients();
 
-        uint256[] memory currentVotes =
-            _getVotingDistributionStrategyStorage().votingModule.getCurrentVotingDistribution();
+        uint256[] memory currentVotes = votingModule().getCurrentVotingDistribution();
         if (currentVotes.length != recipients.length) revert InvalidVotesLength();
 
         uint256 totalVotes = 0;
@@ -106,12 +84,5 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();
         $.distributionId++;
         emit DistributionExecuted($.distributionId);
-    }
-
-    /// @notice Updates the voting module
-    /// @param _votingModule Address of the voting module
-    function setVotingModule(address _votingModule) external onlyOwner {
-        if (_votingModule == address(0)) revert ZeroAddress();
-        _getVotingDistributionStrategyStorage().votingModule = IVotingModule(_votingModule);
     }
 }
