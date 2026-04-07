@@ -32,7 +32,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         mapping(address => bool) isQueuedForRemovalMapping;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
+    /// keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ABSTRACT_RECIPIENT_REGISTRY_STORAGE =
         0x347caeef91698b68f09c13de18e96db5bda028445fd11b86dc029946f360f200;
 
@@ -41,6 +41,9 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
             $.slot := ABSTRACT_RECIPIENT_REGISTRY_STORAGE
         }
     }
+
+    /// @notice Maximum queue size
+    uint256 private constant MAX_QUEUE_SIZE = 100;
 
     // ============ Public Getters ============
 
@@ -96,6 +99,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         if (recipient == address(0)) revert InvalidRecipient();
         if ($.isRecipientMapping[recipient]) revert RecipientAlreadyExists();
         if ($.isQueuedForAdditionMapping[recipient]) revert RecipientAlreadyQueued();
+        if ($.queuedRecipientsForAddition.length + 1 > MAX_QUEUE_SIZE) revert MaxQueueSizeReached();
 
         $.isQueuedForAdditionMapping[recipient] = true;
         $.queuedRecipientsForAddition.push(recipient);
@@ -113,6 +117,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         if (recipient == address(0)) revert InvalidRecipient();
         if (!$.isRecipientMapping[recipient]) revert RecipientNotFound();
         if ($.isQueuedForRemovalMapping[recipient]) revert RecipientAlreadyQueued();
+        if ($.queuedRecipientsForRemoval.length + 1 > MAX_QUEUE_SIZE) revert MaxQueueSizeReached();
 
         $.isQueuedForRemovalMapping[recipient] = true;
         $.queuedRecipientsForRemoval.push(recipient);
