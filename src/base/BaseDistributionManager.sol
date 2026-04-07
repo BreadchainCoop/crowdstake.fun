@@ -88,6 +88,7 @@ contract BaseDistributionManager is AbstractDistributionManager {
     /// @notice Checks if distribution is ready based on cycle completion, votes, and yield
     /// @return ready True if cycle is complete, there are votes, recipients, and sufficient yield
     function isDistributionReady() public view override returns (bool ready) {
+        if (cycleManager().distributionManager() != address(this)) return false;
         if (!cycleManager().isCycleComplete()) return false;
 
         uint256 totalVotes = getTotalCurrentVotingPower();

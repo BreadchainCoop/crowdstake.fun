@@ -70,6 +70,9 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     /// @notice Error thrown when caller is not the distribution manager
     error OnlyDistributionManager();
 
+    /// @notice Error thrown when the distribution manager has not been configured
+    error DistributionManagerNotSet();
+
     /// @notice Error thrown when a zero address is provided
     error ZeroAddress();
 
@@ -144,7 +147,11 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     /// @notice Starts a new cycle
     /// @dev Only callable by the distribution manager when cycle is complete
     function startNewCycle() external virtual onlyInitialized {
-        if (msg.sender != _getAbstractCycleModuleStorage().distributionManager) {
+        address dm = _getAbstractCycleModuleStorage().distributionManager;
+        if (dm == address(0)) {
+            revert DistributionManagerNotSet();
+        }
+        if (msg.sender != dm) {
             revert OnlyDistributionManager();
         }
         if (!isCycleComplete()) {

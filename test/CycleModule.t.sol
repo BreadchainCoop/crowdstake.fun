@@ -220,4 +220,15 @@ contract CycleModuleTest is Test {
         vm.expectRevert(AbstractCycleModule.ZeroAddress.selector);
         cycleModule.setDistributionManager(address(0));
     }
+
+    function testStartNewCycleRevertsWhenDistributionManagerNotSet() public {
+        // Deploy a fresh cycle module without setting distribution manager
+        CycleModule impl = new CycleModule();
+        bytes memory initData = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
+        CycleModule freshModule = CycleModule(address(new ERC1967Proxy(address(impl), initData)));
+
+        vm.roll(START_BLOCK + CYCLE_LENGTH);
+        vm.expectRevert(AbstractCycleModule.DistributionManagerNotSet.selector);
+        freshModule.startNewCycle();
+    }
 }
