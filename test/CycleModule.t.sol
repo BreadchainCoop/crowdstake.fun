@@ -12,6 +12,7 @@ contract CycleModuleTest is Test {
     CycleModule public cycleModule;
     address public owner = address(this);
     address public user = address(0x1);
+    address public distManager = address(0x2);
 
     uint256 constant CYCLE_LENGTH = 100; // 100 blocks per cycle
     uint256 constant START_BLOCK = 1000;
@@ -21,6 +22,7 @@ contract CycleModuleTest is Test {
         CycleModule impl = new CycleModule();
         bytes memory initData = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
         cycleModule = CycleModule(address(new ERC1967Proxy(address(impl), initData)));
+        cycleModule.setDistributionManager(distManager);
     }
 
     function testInitialState() public view {
@@ -72,6 +74,7 @@ contract CycleModuleTest is Test {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
 
         uint256 currentBlock = block.number;
+        vm.prank(distManager);
         cycleModule.startNewCycle();
 
         assertEq(cycleModule.getCurrentCycle(), 2);
@@ -83,15 +86,23 @@ contract CycleModuleTest is Test {
         // Try to start new cycle before current one is complete
         vm.roll(START_BLOCK + CYCLE_LENGTH - 1);
 
+        vm.prank(distManager);
         vm.expectRevert(AbstractCycleModule.InvalidCycleTransition.selector);
         cycleModule.startNewCycle();
     }
 
-    function testNonOwnerCannotStartCycle() public {
+    function testNonDistributionManagerCannotStartCycle() public {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
 
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
+        vm.expectRevert(AbstractCycleModule.OnlyDistributionManager.selector);
+        cycleModule.startNewCycle();
+    }
+
+    function testOwnerCannotStartCycle() public {
+        vm.roll(START_BLOCK + CYCLE_LENGTH);
+
+        vm.expectRevert(AbstractCycleModule.OnlyDistributionManager.selector);
         cycleModule.startNewCycle();
     }
 
@@ -177,6 +188,8 @@ contract CycleModuleTest is Test {
     }
 
     function testMultipleCycles() public {
+        vm.startPrank(distManager);
+
         // Complete first cycle
         vm.roll(START_BLOCK + CYCLE_LENGTH);
         cycleModule.startNewCycle();
@@ -187,5 +200,24 @@ contract CycleModuleTest is Test {
         cycleModule.startNewCycle();
         assertEq(cycleModule.getCurrentCycle(), 3);
         assertEq(cycleModule.lastCycleStartBlock(), START_BLOCK + CYCLE_LENGTH + CYCLE_LENGTH);
+
+        vm.stopPrank();
+    }
+
+    function testSetDistributionManager() public {
+        address newManager = address(0x99);
+        cycleModule.setDistributionManager(newManager);
+        assertEq(cycleModule.distributionManager(), newManager);
+    }
+
+    function testNonOwnerCannotSetDistributionManager() public {
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
+        cycleModule.setDistributionManager(address(0x99));
+    }
+
+    function testCannotSetZeroDistributionManager() public {
+        vm.expectRevert(AbstractCycleModule.ZeroAddress.selector);
+        cycleModule.setDistributionManager(address(0));
     }
 }

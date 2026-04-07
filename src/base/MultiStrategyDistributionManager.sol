@@ -135,6 +135,9 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
 
             emit YieldDistributed(address(strategy), amountPerStrategy);
         }
+
+        // Advance cycle atomically with distribution
+        cycleManager().startNewCycle();
     }
 
     /// @notice Gets all configured strategies

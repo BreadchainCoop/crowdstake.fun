@@ -120,5 +120,8 @@ contract BaseDistributionManager is AbstractDistributionManager {
         strategy.distribute(yieldAmount);
 
         emit YieldDistributed(address(strategy), yieldAmount);
+
+        // Advance cycle atomically with distribution
+        cycleManager().startNewCycle();
     }
 }

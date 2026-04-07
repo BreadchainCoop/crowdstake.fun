@@ -36,4 +36,12 @@ interface ICycleModule {
     /// @notice Gets the length of each cycle in blocks
     /// @return The cycle length in blocks
     function cycleLength() external view returns (uint256);
+
+    /// @notice Gets the address authorized to call startNewCycle()
+    /// @return The distribution manager address
+    function distributionManager() external view returns (address);
+
+    /// @notice Sets the distribution manager address
+    /// @param _distributionManager The address of the distribution manager
+    function setDistributionManager(address _distributionManager) external;
 }

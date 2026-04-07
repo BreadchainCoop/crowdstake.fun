@@ -45,6 +45,7 @@ contract TimeWeightedVotingPowerTest is Test {
     address public user1 = address(0xBEEF);
     address public user2 = address(0xCAFE);
     address public owner;
+    address public distManager = address(0xD15D);
 
     uint256 constant CYCLE_LENGTH = 1000; // 1000 blocks per cycle
 
@@ -61,6 +62,8 @@ contract TimeWeightedVotingPowerTest is Test {
         bytes memory cycleInit =
             abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, address(this));
         cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
+
+        cycleModule.setDistributionManager(distManager);
 
         strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
     }
@@ -290,6 +293,7 @@ contract TimeWeightedVotingPowerTest is Test {
 
         // Complete cycle 1 and start cycle 2
         vm.roll(1001);
+        vm.prank(distManager);
         cycleModule.startNewCycle();
 
         // 9 blocks into cycle 2

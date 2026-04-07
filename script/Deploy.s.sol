@@ -184,10 +184,10 @@ contract Deploy is Script {
     function _deploySystemInstance(SystemParams memory p) internal {
         bytes32 baseSalt = keccak256(abi.encodePacked(p.salt));
 
-        // 1. CycleModule
+        // 1. CycleModule — owned by deployer temporarily so we can wire distributionManager in step 5e
         cycleModule = factory.create(
             cycleModuleBeacon,
-            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, p.cycleLength, p.owner),
+            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, p.cycleLength, p.deployer),
             keccak256(abi.encodePacked(baseSalt, "cycle"))
         );
 
@@ -271,6 +271,9 @@ contract Deploy is Script {
         BaseDistributionManager(distributionManager).setDistributionStrategy(distributionStrategy);
         AbstractDistributionManager(distributionManager).setVotingModule(votingModule);
 
+        // 5e. Wire the distribution manager into the cycle module so it can advance cycles
+        AbstractCycleModule(cycleModule).setDistributionManager(distributionManager);
+
         // Sanity check: verify wiring is complete before transferring ownership
         require(
             address(BaseDistributionManager(distributionManager).distributionStrategy()) == distributionStrategy,
@@ -280,9 +283,14 @@ contract Deploy is Script {
             address(AbstractDistributionManager(distributionManager).votingModule()) == votingModule,
             "Deploy: votingModule not wired"
         );
+        require(
+            AbstractCycleModule(cycleModule).distributionManager() == distributionManager,
+            "Deploy: distributionManager not wired on cycleModule"
+        );
 
         if (p.owner != p.deployer) {
             AbstractDistributionManager(distributionManager).transferOwnership(p.owner);
+            AbstractCycleModule(cycleModule).transferOwnership(p.owner);
         }
     }
 

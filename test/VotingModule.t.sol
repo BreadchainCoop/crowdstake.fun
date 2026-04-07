@@ -423,7 +423,10 @@ contract VotingModuleTest is Test {
         // Advance blocks to complete the cycle (1000 blocks per cycle)
         vm.roll(block.number + 1000);
 
-        // Start new cycle
+        // Start new cycle (must be called by distribution manager)
+        address dm = address(0xDEAD);
+        cycleModule.setDistributionManager(dm);
+        vm.prank(dm);
         cycleModule.startNewCycle();
         assertEq(cycleModule.getCurrentCycle(), 2);
 

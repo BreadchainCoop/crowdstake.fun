@@ -20,6 +20,8 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
         uint256 currentCycle;
         /// @notice The block number when the current cycle started
         uint256 lastCycleStartBlock;
+        /// @notice The address authorized to call startNewCycle()
+        address distributionManager;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
@@ -49,6 +51,11 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
         return _getAbstractCycleModuleStorage().lastCycleStartBlock;
     }
 
+    /// @notice The address authorized to call startNewCycle()
+    function distributionManager() public view returns (address) {
+        return _getAbstractCycleModuleStorage().distributionManager;
+    }
+
     // ============ Errors ============
 
     /// @notice Error thrown when cycle length is invalid
@@ -59,6 +66,12 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
 
     /// @notice Error thrown when module is not initialized
     error NotInitialized();
+
+    /// @notice Error thrown when caller is not the distribution manager
+    error OnlyDistributionManager();
+
+    /// @notice Error thrown when a zero address is provided
+    error ZeroAddress();
 
     // ============ Events ============
 
@@ -81,6 +94,10 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     /// @param cycleLength The cycle length in blocks
     /// @param startBlock The starting block number
     event ModuleInitialized(uint256 cycleLength, uint256 startBlock);
+
+    /// @notice Emitted when the distribution manager is set
+    /// @param distributionManager The new distribution manager address
+    event DistributionManagerSet(address indexed distributionManager);
 
     // ============ Modifiers ============
 
@@ -125,8 +142,11 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     }
 
     /// @notice Starts a new cycle
-    /// @dev Only callable by the owner when cycle is complete
-    function startNewCycle() external virtual onlyInitialized onlyOwner {
+    /// @dev Only callable by the distribution manager when cycle is complete
+    function startNewCycle() external virtual onlyInitialized {
+        if (msg.sender != _getAbstractCycleModuleStorage().distributionManager) {
+            revert OnlyDistributionManager();
+        }
         if (!isCycleComplete()) {
             revert InvalidCycleTransition();
         }
@@ -174,5 +194,16 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
         $.cycleLength = newCycleLength;
 
         emit CycleLengthUpdated(oldLength, newCycleLength);
+    }
+
+    /// @notice Sets the distribution manager address authorized to call startNewCycle()
+    /// @param _distributionManager The address of the distribution manager
+    function setDistributionManager(address _distributionManager) external onlyInitialized onlyOwner {
+        if (_distributionManager == address(0)) {
+            revert ZeroAddress();
+        }
+
+        _getAbstractCycleModuleStorage().distributionManager = _distributionManager;
+        emit DistributionManagerSet(_distributionManager);
     }
 }
