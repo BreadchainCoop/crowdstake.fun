@@ -3,6 +3,9 @@ pragma solidity ^0.8.20;
 
 import {IDistributionManager} from "../../src/interfaces/IDistributionManager.sol";
 import {IDistributionModule} from "../../src/interfaces/IDistributionModule.sol";
+import {IRecipientRegistry} from "../../src/interfaces/IRecipientRegistry.sol";
+import {ICycleModule} from "../../src/interfaces/ICycleModule.sol";
+import {IVotingModule} from "../../src/interfaces/IVotingModule.sol";
 
 /// @title MockDistributionManager
 /// @notice Mock implementation of IDistributionManager for testing
@@ -19,6 +22,10 @@ contract MockDistributionManager is IDistributionManager {
 
     bool public isEnabled = true;
 
+    IRecipientRegistry private _recipientRegistry;
+    ICycleModule private _cycleManager;
+    IVotingModule private _votingModule;
+
     event DistributionExecuted(uint256 blockNumber, uint256 yield, uint256 votes);
 
     constructor(address _distributionModule, uint256 _cycleLength) {
@@ -28,6 +35,30 @@ contract MockDistributionManager is IDistributionManager {
         lastDistributionBlock = block.number;
         currentCycleNumber = 1;
         minYieldRequired = 1000; // Example minimum yield
+    }
+
+    function recipientRegistry() external view override returns (IRecipientRegistry) {
+        return _recipientRegistry;
+    }
+
+    function cycleManager() external view override returns (ICycleModule) {
+        return _cycleManager;
+    }
+
+    function votingModule() external view override returns (IVotingModule) {
+        return _votingModule;
+    }
+
+    function setRecipientRegistry(address registry_) external {
+        _recipientRegistry = IRecipientRegistry(registry_);
+    }
+
+    function setCycleManager(address cycleManager_) external {
+        _cycleManager = ICycleModule(cycleManager_);
+    }
+
+    function setVotingModule(address votingModule_) external {
+        _votingModule = IVotingModule(votingModule_);
     }
 
     /// @notice Checks if distribution is ready

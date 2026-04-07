@@ -128,17 +128,14 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
     /// @notice Initializes the abstract voting module
     /// @dev Sets up EIP-712 domain, ownership, and core parameters.
     ///      Must be called by inheriting contract's initializer.
+    ///      Derives recipientRegistry and cycleModule from the distribution module.
     /// @param _strategies Array of voting power strategy contracts
     /// @param _distributionModule Address of the distribution module
-    /// @param _recipientRegistry Address of the recipient registry
-    /// @param _cycleModule Address of the cycle module
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     // solhint-disable-next-line func-name-mixedcase
     function __AbstractVotingModule_init(
         IVotingPowerStrategy[] calldata _strategies,
         address _distributionModule,
-        address _recipientRegistry,
-        address _cycleModule,
         address _owner
     ) internal onlyInitializing {
         if (_strategies.length == 0) revert NoStrategiesProvided();
@@ -147,13 +144,18 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
         __Ownable_init(_owner);
 
         if (_distributionModule == address(0)) revert ZeroAddress();
-        if (_recipientRegistry == address(0)) revert ZeroAddress();
-        if (_cycleModule == address(0)) revert ZeroAddress();
+
+        IDistributionModule distModule = IDistributionModule(_distributionModule);
+        IRecipientRegistry _recipientRegistry = distModule.recipientRegistry();
+        ICycleModule _cycleModule = distModule.cycleManager();
+
+        if (address(_recipientRegistry) == address(0)) revert ZeroAddress();
+        if (address(_cycleModule) == address(0)) revert ZeroAddress();
 
         AbstractVotingModuleStorage storage $ = _getAbstractVotingModuleStorage();
-        $.distributionModule = IDistributionModule(_distributionModule);
-        $.recipientRegistry = IRecipientRegistry(_recipientRegistry);
-        $.cycleModule = ICycleModule(_cycleModule);
+        $.distributionModule = distModule;
+        $.recipientRegistry = _recipientRegistry;
+        $.cycleModule = _cycleModule;
 
         for (uint256 i = 0; i < _strategies.length; i++) {
             if (address(_strategies[i]) == address(0)) revert InvalidStrategy();
@@ -162,8 +164,8 @@ abstract contract AbstractVotingModule is IVotingModule, Initializable, EIP712Up
 
         emit VotingModuleInitialized(_strategies);
         emit DistributionModuleSet(_distributionModule);
-        emit RecipientRegistrySet(_recipientRegistry);
-        emit CycleModuleSet(_cycleModule);
+        emit RecipientRegistrySet(address(_recipientRegistry));
+        emit CycleModuleSet(address(_cycleModule));
     }
 
     // ============ External Functions ============

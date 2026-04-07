@@ -140,9 +140,6 @@ contract VotingModuleSimpleTest is Test {
         recipients[2] = address(0x3333);
         recipientRegistry = new MockRecipientRegistry(recipients);
 
-        // Deploy mock distribution module
-        distributionModule = new MockDistributionModule();
-
         // Deploy and initialize cycle module via proxy
         {
             CycleModule cycleImpl = new CycleModule();
@@ -150,6 +147,9 @@ contract VotingModuleSimpleTest is Test {
                 abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, address(this));
             cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
         }
+
+        // Deploy mock distribution module (derives recipientRegistry and cycleModule)
+        distributionModule = new MockDistributionModule(address(recipientRegistry), address(cycleModule));
 
         // Deploy and initialize voting module via proxy
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
@@ -161,8 +161,6 @@ contract VotingModuleSimpleTest is Test {
                 MAX_POINTS,
                 strategies,
                 address(distributionModule),
-                address(recipientRegistry),
-                address(cycleModule),
                 address(this)
             );
             votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingInit)));

@@ -129,9 +129,17 @@ contract FactoryModuleDeploymentTest is Test {
         address mockYieldToken = address(0xABC);
         address mockDistManager = address(0xDEF);
         vm.etch(mockYieldToken, hex"00"); // ensure it has code for the strategy
+        vm.etch(mockDistManager, hex"00");
+
+        // Mock the distribution manager to return the registry
+        vm.mockCall(
+            mockDistManager,
+            abi.encodeWithSignature("recipientRegistry()"),
+            abi.encode(registry)
+        );
 
         bytes memory payload = abi.encodeWithSelector(
-            EqualDistributionStrategy.initialize.selector, mockYieldToken, registry, mockDistManager, owner
+            EqualDistributionStrategy.initialize.selector, mockYieldToken, mockDistManager, owner
         );
         address module = factory.create(equalStrategyBeacon, payload, keccak256("equal-strat-salt"));
 
@@ -151,12 +159,23 @@ contract FactoryModuleDeploymentTest is Test {
         address mockVotingModule = address(0xBEEF);
         vm.etch(mockYieldToken, hex"00");
         vm.etch(mockVotingModule, hex"00");
+        vm.etch(mockDistManager, hex"00");
+
+        // Mock the distribution manager to return registry and voting module
+        vm.mockCall(
+            mockDistManager,
+            abi.encodeWithSignature("recipientRegistry()"),
+            abi.encode(registry)
+        );
+        vm.mockCall(
+            mockDistManager,
+            abi.encodeWithSignature("votingModule()"),
+            abi.encode(mockVotingModule)
+        );
 
         bytes memory payload = abi.encodeWithSelector(
             VotingDistributionStrategy.initialize.selector,
             mockYieldToken,
-            registry,
-            mockVotingModule,
             mockDistManager,
             owner
         );
@@ -178,7 +197,7 @@ contract FactoryModuleDeploymentTest is Test {
         bytes memory registryPayload = abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, owner);
         address registryAddr = factory.create(adminRegistryBeacon, registryPayload, keccak256("vm-registry-salt"));
 
-        MockDistributionModule distModule = new MockDistributionModule();
+        MockDistributionModule distModule = new MockDistributionModule(registryAddr, cycleAddr);
 
         // Use a mock voting power strategy
         address mockStrategy = address(0xFACE);
@@ -193,8 +212,6 @@ contract FactoryModuleDeploymentTest is Test {
             100, // maxPoints
             strategies,
             address(distModule),
-            registryAddr,
-            cycleAddr,
             owner
         );
         address module = factory.create(votingModuleBeacon, payload, keccak256("voting-module-salt"));

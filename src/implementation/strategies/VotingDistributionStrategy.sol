@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {AbstractDistributionStrategy} from "../../abstract/AbstractDistributionStrategy.sol";
+import {IDistributionManager} from "../../interfaces/IDistributionManager.sol";
 import {IVotingModule} from "../../interfaces/IVotingModule.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -56,22 +57,20 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     // ============ Initialization ============
 
     /// @notice Initializes the voting distribution strategy
-    /// @dev Sets up the strategy with yield token, recipient registry, voting module, and distribution manager
+    /// @dev Sets up the strategy with yield token and distribution manager.
+    ///      Derives recipientRegistry and votingModule from the distribution manager.
     /// @param _yieldToken Address of the yield token to distribute
-    /// @param _recipientRegistry Address of the recipient registry
-    /// @param _votingModule Address of the voting module
     /// @param _distributionManager Address of the distribution manager
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         address _yieldToken,
-        address _recipientRegistry,
-        address _votingModule,
         address _distributionManager,
         address _owner
     ) external initializer {
-        __AbstractDistributionStrategy_init(_yieldToken, _recipientRegistry, _distributionManager, _owner);
-        if (_votingModule == address(0)) revert ZeroAddress();
-        _getVotingDistributionStrategyStorage().votingModule = IVotingModule(_votingModule);
+        __AbstractDistributionStrategy_init(_yieldToken, _distributionManager, _owner);
+        IVotingModule _votingModule = IDistributionManager(_distributionManager).votingModule();
+        if (address(_votingModule) == address(0)) revert ZeroAddress();
+        _getVotingDistributionStrategyStorage().votingModule = _votingModule;
     }
 
     /// @notice Distributes yield proportionally based on voting weights

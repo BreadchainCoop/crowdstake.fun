@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {IRecipientRegistry} from "./IRecipientRegistry.sol";
+import {ICycleModule} from "./ICycleModule.sol";
+import {IVotingModule} from "./IVotingModule.sol";
+
 /// @title IDistributionManager
 /// @notice Interface for managing distribution readiness and execution
 /// @dev Handles distribution state and execution logic with error and event definitions
@@ -35,4 +39,13 @@ interface IDistributionManager {
     /// @notice Claims yield from the base token and distributes it
     /// @dev Implementation varies by concrete manager type
     function claimAndDistribute() external;
+
+    /// @notice Returns the recipient registry used by this distribution manager
+    function recipientRegistry() external view returns (IRecipientRegistry);
+
+    /// @notice Returns the cycle manager used by this distribution manager
+    function cycleManager() external view returns (ICycleModule);
+
+    /// @notice Returns the voting module used by this distribution manager
+    function votingModule() external view returns (IVotingModule);
 }

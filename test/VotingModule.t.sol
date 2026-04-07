@@ -108,8 +108,8 @@ contract VotingModuleTest is Test {
             cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
         }
 
-        // Deploy mock distribution module
-        distributionModule = new MockDistributionModule();
+        // Deploy mock distribution module (derives recipientRegistry and cycleModule)
+        distributionModule = new MockDistributionModule(address(recipientRegistry), address(cycleModule));
 
         // Deploy and initialize voting module via proxy
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
@@ -121,8 +121,6 @@ contract VotingModuleTest is Test {
                 MAX_POINTS,
                 strategies,
                 address(distributionModule),
-                address(recipientRegistry),
-                address(cycleModule),
                 address(this)
             );
             votingModule = BasisPointsVotingModule(address(new ERC1967Proxy(address(votingImpl), votingInit)));

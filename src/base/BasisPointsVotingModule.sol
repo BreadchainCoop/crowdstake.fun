@@ -78,22 +78,19 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @notice Initializes the basis points voting module
     /// @dev Sets up the voting module with strategies and external dependencies.
     ///      Can only be called once due to initializer modifier.
+    ///      Derives recipientRegistry and cycleModule from the distribution module.
     /// @param _maxPoints Maximum points that can be allocated per recipient (e.g., 100 for percentage-based)
     /// @param _strategies Array of voting power strategy contracts to use for power calculation
-    /// @param _distributionModule Address of the distribution module for reward allocation
-    /// @param _recipientRegistry Address of the recipient registry for valid recipients
-    /// @param _cycleModule Address of the cycle module for cycle management
+    /// @param _distributionModule Address of the distribution module (recipientRegistry and cycleModule are derived from it)
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         uint256 _maxPoints,
         IVotingPowerStrategy[] calldata _strategies,
         address _distributionModule,
-        address _recipientRegistry,
-        address _cycleModule,
         address _owner
     ) external initializer {
         _getBasisPointsVotingModuleStorage().maxPoints = _maxPoints;
-        __AbstractVotingModule_init(_strategies, _distributionModule, _recipientRegistry, _cycleModule, _owner);
+        __AbstractVotingModule_init(_strategies, _distributionModule, _owner);
     }
 
     // ============ External Functions ============

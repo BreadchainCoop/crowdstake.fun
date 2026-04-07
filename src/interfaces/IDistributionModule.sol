@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {IRecipientRegistry} from "./IRecipientRegistry.sol";
+import {ICycleModule} from "./ICycleModule.sol";
+
 /// @title IDistributionModule
 /// @notice Interface for the distribution module that manages yield distribution
 /// @dev This module is responsible for orchestrating the entire distribution process across all modules
@@ -114,4 +117,10 @@ interface IDistributionModule {
     /// @dev Can only be called by authorized admin
     /// @param _divisor The divisor for fixed split calculation (must be greater than 0)
     function setYieldFixedSplitDivisor(uint256 _divisor) external;
+
+    /// @notice Returns the recipient registry used by this distribution module
+    function recipientRegistry() external view returns (IRecipientRegistry);
+
+    /// @notice Returns the cycle manager used by this distribution module
+    function cycleManager() external view returns (ICycleModule);
 }

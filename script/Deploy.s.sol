@@ -237,15 +237,17 @@ contract Deploy is Script {
         );
 
         // 5b. Deploy EqualDistributionStrategy with real distManager
+        //     (recipientRegistry is derived from distManager)
         distributionStrategy = factory.create(
             equalStrategyBeacon,
             abi.encodeWithSelector(
-                EqualDistributionStrategy.initialize.selector, p.yieldToken, registry, distributionManager, p.owner
+                EqualDistributionStrategy.initialize.selector, p.yieldToken, distributionManager, p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "strategy"))
         );
 
         // 5c. Deploy BasisPointsVotingModule with real distManager
+        //     (recipientRegistry and cycleModule are derived from distManager)
         IVotingPowerStrategy[] memory vpStrategies = new IVotingPowerStrategy[](1);
         vpStrategies[0] = IVotingPowerStrategy(votingPowerStrategy);
 
@@ -256,8 +258,6 @@ contract Deploy is Script {
                 p.maxVotingPoints,
                 vpStrategies,
                 distributionManager,
-                registry,
-                cycleModule,
                 p.owner
             ),
             keccak256(abi.encodePacked(baseSalt, "voting"))

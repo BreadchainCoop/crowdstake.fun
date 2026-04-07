@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {IDistributionStrategy} from "../interfaces/IDistributionStrategy.sol";
+import {IDistributionManager} from "../interfaces/IDistributionManager.sol";
 import {IRecipientRegistry} from "../interfaces/IRecipientRegistry.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -87,32 +88,32 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
     // ============ Initialization ============
 
     /// @dev Initializes the base distribution strategy
+    /// @dev Derives recipientRegistry from the distribution manager
     /// @param _yieldToken Address of the yield token to distribute
-    /// @param _recipientRegistry Address of the recipient registry
     /// @param _distributionManager Address of the distribution manager authorized to call distribute
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function __AbstractDistributionStrategy_init(
         address _yieldToken,
-        address _recipientRegistry,
         address _distributionManager,
         address _owner
     ) internal onlyInitializing {
         __Ownable_init(_owner);
-        __AbstractDistributionStrategy_init_unchained(_yieldToken, _recipientRegistry, _distributionManager);
+        __AbstractDistributionStrategy_init_unchained(_yieldToken, _distributionManager);
     }
 
     function __AbstractDistributionStrategy_init_unchained(
         address _yieldToken,
-        address _recipientRegistry,
         address _distributionManager
     ) internal onlyInitializing {
         if (_yieldToken == address(0)) revert ZeroAddress();
-        if (_recipientRegistry == address(0)) revert ZeroAddress();
         if (_distributionManager == address(0)) revert ZeroAddress();
+
+        IRecipientRegistry _recipientRegistry = IDistributionManager(_distributionManager).recipientRegistry();
+        if (address(_recipientRegistry) == address(0)) revert ZeroAddress();
 
         AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();
         $.yieldToken = IERC20(_yieldToken);
-        $.recipientRegistry = IRecipientRegistry(_recipientRegistry);
+        $.recipientRegistry = _recipientRegistry;
         $.distributionManager = _distributionManager;
     }
 

@@ -7,10 +7,20 @@ import {AbstractAutomation} from "../../src/abstract/AbstractAutomation.sol";
 // import "../../src/implementation/automation/GelatoAutomation.sol";
 import {MockDistributionManager} from "../mocks/MockDistributionManager.sol";
 import {IDistributionModule} from "../../src/interfaces/IDistributionModule.sol";
+import {IRecipientRegistry} from "../../src/interfaces/IRecipientRegistry.sol";
+import {ICycleModule} from "../../src/interfaces/ICycleModule.sol";
 
 contract MockDistributionModule is IDistributionModule {
     uint256 public distributeCallCount;
     bool public isPaused;
+
+    function recipientRegistry() external pure override returns (IRecipientRegistry) {
+        return IRecipientRegistry(address(0));
+    }
+
+    function cycleManager() external pure override returns (ICycleModule) {
+        return ICycleModule(address(0));
+    }
 
     function distributeYield() external {
         distributeCallCount++;

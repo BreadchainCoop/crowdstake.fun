@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 import {IDistributionManager} from "../../src/interfaces/IDistributionManager.sol";
+import {IRecipientRegistry} from "../../src/interfaces/IRecipientRegistry.sol";
+import {ICycleModule} from "../../src/interfaces/ICycleModule.sol";
+import {IVotingModule} from "../../src/interfaces/IVotingModule.sol";
 
 /// @title MockDistributionManagerSimple
 /// @notice Mock implementation that returns true for distribution readiness every 200 blocks
@@ -14,6 +17,18 @@ contract MockDistributionManagerSimple is IDistributionManager {
 
     constructor() {
         lastDistributionBlock = block.number;
+    }
+
+    function recipientRegistry() external pure override returns (IRecipientRegistry) {
+        return IRecipientRegistry(address(0));
+    }
+
+    function cycleManager() external pure override returns (ICycleModule) {
+        return ICycleModule(address(0));
+    }
+
+    function votingModule() external pure override returns (IVotingModule) {
+        return IVotingModule(address(0));
     }
 
     /// @notice Checks if distribution is ready (every 200 blocks)
