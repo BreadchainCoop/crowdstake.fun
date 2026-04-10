@@ -44,6 +44,9 @@ interface IRecipientRegistry {
     /// @dev Queues must be submitted in ascending address order to enable O(1) duplicate detection
     error QueueNotSorted();
 
+    /// @notice Thrown when attempting to queue a recipient when the queue reached the maximum size
+    error MaxQueueSizeReached();
+
     /// @notice Queue a recipient for addition to the registry
     /// @dev Access control varies by implementation (admin-only vs recipient voting)
     /// @dev The recipient will be added when the queue is processed

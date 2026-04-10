@@ -26,7 +26,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         mapping(address => bool) isRecipientMapping;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
+    /// keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ABSTRACT_RECIPIENT_REGISTRY_STORAGE =
         0x347caeef91698b68f09c13de18e96db5bda028445fd11b86dc029946f360f200;
 
@@ -35,6 +35,9 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
             $.slot := ABSTRACT_RECIPIENT_REGISTRY_STORAGE
         }
     }
+
+    /// @notice Maximum queue size
+    uint256 private constant MAX_QUEUE_SIZE = 100;
 
     // ============ Public Getters ============
 
@@ -89,6 +92,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
         if (recipient == address(0)) revert InvalidRecipient();
         if ($.isRecipientMapping[recipient]) revert RecipientAlreadyExists();
+        if ($.queuedRecipientsForAddition.length + 1 > MAX_QUEUE_SIZE) revert MaxQueueSizeReached();
 
         uint256 len = $.queuedRecipientsForAddition.length;
         if (len > 0 && uint160(recipient) <= uint160($.queuedRecipientsForAddition[len - 1])) {
@@ -109,6 +113,7 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         AbstractRecipientRegistryStorage storage $ = _getAbstractRecipientRegistryStorage();
         if (recipient == address(0)) revert InvalidRecipient();
         if (!$.isRecipientMapping[recipient]) revert RecipientNotFound();
+        if ($.queuedRecipientsForRemoval.length + 1 > MAX_QUEUE_SIZE) revert MaxQueueSizeReached();
 
         uint256 len = $.queuedRecipientsForRemoval.length;
         if (len > 0 && uint160(recipient) <= uint160($.queuedRecipientsForRemoval[len - 1])) {
