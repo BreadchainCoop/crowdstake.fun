@@ -5,11 +5,12 @@ import {AbstractDistributionManager} from "../abstract/AbstractDistributionManag
 import {IDistributionStrategy} from "../interfaces/IDistributionStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /// @title MultiStrategyDistributionManager
 /// @notice Concrete implementation of AbstractDistributionManager that distributes to multiple strategies equally
 /// @dev Distributes yield equally across all configured strategies
-contract MultiStrategyDistributionManager is AbstractDistributionManager {
+contract MultiStrategyDistributionManager is AbstractDistributionManager, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -68,6 +69,7 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     ) external initializer {
         // Initialize parent AbstractDistributionManager
         __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _owner);
+        __ReentrancyGuard_init();
 
         // Store strategies
         require(_strategies.length > 0, "No strategies provided");
@@ -105,10 +107,9 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
     }
 
     /// @notice Claims yield and distributes equally to all strategies
-    function claimAndDistribute() external override {
+    function claimAndDistribute() external override nonReentrant {
         if (!isDistributionReady()) revert DistributionNotReady();
         MultiStrategyDistributionManagerStorage storage $ = _getMultiStrategyDistributionManagerStorage();
-        require($.strategies.length > 0, "No strategies configured");
 
         // Get the amount of yield available
         uint256 yieldAmount = yieldModule().yieldAccrued();
@@ -118,14 +119,15 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
         yieldModule().claimYield(yieldAmount, address(this));
         emit YieldClaimed(yieldAmount);
 
-        // Calculate amount per strategy (equal distribution)
+        // Calculate amount per strategy (equal distribution); last strategy absorbs dust
         uint256 amountPerStrategy = yieldAmount / $.strategies.length;
+        uint256 remainder = yieldAmount - (amountPerStrategy * ($.strategies.length - 1));
 
         // Cache storage getter before loop
         IERC20 baseToken_ = baseToken();
 
-        // Distribute to each strategy
-        for (uint256 i = 0; i < $.strategies.length; i++) {
+        // Distribute to each strategy; last one gets the remainder
+        for (uint256 i = 0; i < $.strategies.length - 1; i++) {
             IDistributionStrategy strategy = $.strategies[i];
 
             // Transfer tokens to strategy
@@ -136,6 +138,11 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager {
 
             emit YieldDistributed(address(strategy), amountPerStrategy);
         }
+        // Last strategy absorbs rounding dust
+        IDistributionStrategy lastStrategy = $.strategies[$.strategies.length - 1];
+        baseToken_.safeTransfer(address(lastStrategy), remainder);
+        lastStrategy.distribute(remainder);
+        emit YieldDistributed(address(lastStrategy), remainder);
 
         // Advance cycle atomically with distribution
         cycleManager().startNewCycle();
