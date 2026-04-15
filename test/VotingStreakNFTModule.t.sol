@@ -2,12 +2,14 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {VotingStreakNFTModule} from "../src/implementation/VotingStreakNFTModule.sol";
 import {IVotingPowerStrategy} from "../src/interfaces/IVotingPowerStrategy.sol";
 import {ICrowdstakeNFT} from "../src/interfaces/ICrowdstakeNFT.sol";
 import {MockCrowdstakeNFT} from "./mocks/MockCrowdstakeNFT.sol";
 import {MockRecipientRegistry} from "./mocks/MockRecipientRegistry.sol";
 import {MockCycleModule} from "./mocks/MockCycleModule.sol";
+import {MockDistributionModule} from "./mocks/MockDistributionModule.sol";
 
 // ============ Test Harness ============
 
@@ -45,6 +47,7 @@ contract VotingStreakNFTModuleTest is Test {
     MockCrowdstakeNFT public mockNft;
     MockRecipientRegistry public recipientRegistry;
     MockCycleModule public cycleModule;
+    MockDistributionModule public distModule;
     MockVotingPowerStrategy public votingPowerStrategy;
 
     address public user = address(0xBEEF);
@@ -68,32 +71,30 @@ contract VotingStreakNFTModuleTest is Test {
         recipients[1] = user2;
         recipientRegistry = new MockRecipientRegistry(recipients);
 
+        // Create mock distribution module that returns registry and cycle module
+        distModule = new MockDistributionModule(address(recipientRegistry), address(cycleModule));
+
         // Create voting power strategy
         votingPowerStrategy = new MockVotingPowerStrategy();
 
         // Create mock NFT
         mockNft = new MockCrowdstakeNFT();
 
-        // Create harness (this is our VotingStreakNFTModule)
-        harness = new VotingStreakBasisPointsModuleHarness();
-
         // Set up voting power strategies array
         IVotingPowerStrategy[] memory strategies = new IVotingPowerStrategy[](1);
         strategies[0] = votingPowerStrategy;
 
-        // Initialize the harness with all required dependencies
-        // initialize(maxPoints, strategies, distributionModule, recipientRegistry, cycleModule, nftContract)
-        harness.initialize(
-            MAX_POINTS, // _maxPoints = 100
-            strategies, // _strategies
-            address(this), // _distributionModule (dummy)
-            address(recipientRegistry), // _recipientRegistry
-            address(cycleModule), // _cycleModule
-            address(mockNft) // _nftContract
+        // Deploy implementation and proxy
+        VotingStreakBasisPointsModuleHarness impl = new VotingStreakBasisPointsModuleHarness();
+        bytes memory initData = abi.encodeWithSelector(
+            VotingStreakNFTModule.initialize.selector,
+            MAX_POINTS,
+            strategies,
+            address(distModule),
+            admin,
+            address(mockNft)
         );
-
-        // Transfer ownership to admin for testing (optional, but good practice)
-        harness.transferOwnership(admin);
+        harness = VotingStreakBasisPointsModuleHarness(address(new ERC1967Proxy(address(impl), initData)));
     }
 
     // ============ Test Cases ============

@@ -85,22 +85,20 @@ contract VotingStreakNFTModule is BasisPointsVotingModule {
     ///      Can only be called once due to initializer modifier.
     /// @param _maxPoints Maximum basis points that can be allocated per recipient (e.g., 100 for percentage-based)
     /// @param _strategies Array of voting power strategy contracts for power calculation
-    /// @param _distributionModule Address of the distribution module for reward allocation
-    /// @param _recipientRegistry Address of the recipient registry for valid recipients
-    /// @param _cycleModule Address of the cycle module for cycle management
+    /// @param _distributionModule Address of the distribution module (recipientRegistry and cycleModule are derived from it)
+    /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     /// @param _nftContract Crowdstake NFT contract address for streak rewards
     function initialize(
         uint256 _maxPoints,
         IVotingPowerStrategy[] calldata _strategies,
         address _distributionModule,
-        address _recipientRegistry,
-        address _cycleModule,
+        address _owner,
         address _nftContract
     ) external initializer {
         if (_nftContract == address(0)) revert ZeroAddress();
 
         // Initialize parent classes through internal init functions
-        __AbstractVotingModule_init(_strategies, _distributionModule, _recipientRegistry, _cycleModule);
+        __AbstractVotingModule_init(_strategies, _distributionModule, _owner);
 
         // Set up BasisPointsVotingModule storage
         BasisPointsVotingModuleStorage storage basisPoints = _getBasisPointsVotingModuleStorage();
