@@ -70,10 +70,10 @@ contract RecipientRegistryTest is TestWrapper {
     }
 
     function test_GivenTheRecipientIsAlreadyQueued() external {
-        // it should revert with RecipientAlreadyQueued
+        // it should revert with QueueNotSorted (duplicate = not sorted)
         registry.queueRecipientAddition(RECIPIENT_1);
 
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
         registry.queueRecipientAddition(RECIPIENT_1);
     }
 
@@ -104,13 +104,13 @@ contract RecipientRegistryTest is TestWrapper {
     }
 
     function test_GivenTheRecipientIsAlreadyQueuedForRemoval() external {
-        // it should revert with RecipientAlreadyQueued
+        // it should revert with QueueNotSorted (duplicate = not sorted)
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.processQueue();
 
         registry.queueRecipientRemoval(RECIPIENT_1);
 
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 

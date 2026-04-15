@@ -202,6 +202,113 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_2);
     }
 
+    function test_WhenRe_queuingAfterRemoval() external {
+        // it should allow re-adding a previously removed recipient
+        vm.startPrank(ADMIN);
+
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        registry.processQueue();
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+
+        // Re-add should succeed (queue is empty, no stale state)
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
+    function test_WhenRe_queuingAfterClear() external {
+        // it should allow re-adding after clearing addition queue
+        vm.startPrank(ADMIN);
+
+        registry.queueRecipientAddition(RECIPIENT_1);
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
+
+        registry.clearAdditionQueue();
+        assertFalse(registry.isQueuedForAddition(RECIPIENT_1));
+
+        // Re-queue should succeed after clear
+        registry.queueRecipientAddition(RECIPIENT_1);
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
+        registry.processQueue();
+        assertTrue(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_QueuingDuplicateInSameBatch() external {
+        // it should revert with QueueNotSorted
+        vm.startPrank(ADMIN);
+        registry.queueRecipientAddition(RECIPIENT_1);
+
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
+        registry.queueRecipientAddition(RECIPIENT_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_QueuingOutOfOrder() external {
+        // it should revert with QueueNotSorted
+        vm.startPrank(ADMIN);
+        registry.queueRecipientAddition(RECIPIENT_2);
+
+        // RECIPIENT_1 < RECIPIENT_2, so this should revert
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
+        registry.queueRecipientAddition(RECIPIENT_1);
+        vm.stopPrank();
+    }
+
+    function test_WhenCheckingCrossQueueIndependence() external {
+        // it should keep addition and removal queues independent
+        vm.startPrank(ADMIN);
+
+        // Add recipients first so they can be queued for removal
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_2);
+        registry.processQueue();
+
+        // Queue RECIPIENT_1 for removal and a new address for addition independently
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_3);
+
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+        assertTrue(registry.isQueuedForAddition(RECIPIENT_3));
+
+        registry.processQueue();
+
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+        assertTrue(registry.isRecipient(RECIPIENT_2));
+        assertTrue(registry.isRecipient(RECIPIENT_3));
+
+        vm.stopPrank();
+    }
+
+    function test_WhenClearingRemovalQueueAndRe_queuing() external {
+        // it should allow re-queuing for removal after clearing
+        vm.startPrank(ADMIN);
+
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+
+        registry.clearRemovalQueue();
+        assertFalse(registry.isQueuedForRemoval(RECIPIENT_1));
+
+        // Re-queue for removal should succeed after clear
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+        registry.processQueue();
+        assertFalse(registry.isRecipient(RECIPIENT_1));
+
+        vm.stopPrank();
+    }
+
     function test_WhenPerformingLargeScaleOperations() external {
         // it should handle 100 additions and 50 removals
         vm.startPrank(ADMIN);

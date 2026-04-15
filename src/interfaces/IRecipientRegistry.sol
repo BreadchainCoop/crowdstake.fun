@@ -40,6 +40,10 @@ interface IRecipientRegistry {
     /// @notice Thrown when attempting to queue a recipient that is already queued
     error RecipientAlreadyQueued();
 
+    /// @notice Thrown when a recipient address is not greater than the last queued address
+    /// @dev Queues must be submitted in ascending address order to enable O(1) enqueue + O(log n) lookup
+    error QueueNotSorted();
+
     /// @notice Thrown when attempting to queue a recipient when the queue has reached the maximum size
     error MaxQueueSizeReached();
 
