@@ -8,11 +8,18 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /// @title AbstractDistributionStrategy
 /// @notice Abstract base for distribution strategies that split yield among registry recipients
-/// @dev Concrete strategies implement `distribute` to define how yield is allocated
-abstract contract AbstractDistributionStrategy is Initializable, IDistributionStrategy, OwnableUpgradeable {
+/// @dev Concrete strategies implement `distribute` to define how yield is allocated.
+///      Inherits ReentrancyGuardUpgradeable to protect all distribute() implementations.
+abstract contract AbstractDistributionStrategy is
+    Initializable,
+    IDistributionStrategy,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
 
     /// @notice Thrown when a zero address is supplied where a valid address is required
@@ -97,6 +104,7 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
         onlyInitializing
     {
         __Ownable_init(_owner);
+        __ReentrancyGuard_init();
         __AbstractDistributionStrategy_init_unchained(_yieldToken, _distributionManager);
     }
 

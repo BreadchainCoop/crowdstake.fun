@@ -27,9 +27,10 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
     }
 
     /// @notice Distributes yield equally among all recipients
-    /// @dev Dust from integer division is left in the contract
+    /// @dev Distributes the full amount with no dust left in the contract. The last
+    ///      recipient absorbs any rounding remainder (up to N-1 wei where N is recipient count).
     /// @param amount The total amount of yield to distribute
-    function distribute(uint256 amount) external override onlyDistributionManager {
+    function distribute(uint256 amount) external override onlyDistributionManager nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
         address[] memory recipients = recipientRegistry().getRecipients();
@@ -39,9 +40,16 @@ contract EqualDistributionStrategy is AbstractDistributionStrategy {
         uint256 amountPerRecipient = amount / recipients.length;
 
         IERC20 yieldToken_ = yieldToken();
-        for (uint256 i = 0; i < recipients.length; i++) {
+        uint256 remainder = amount;
+        for (uint256 i = 0; i < recipients.length - 1; i++) {
             yieldToken_.safeTransfer(recipients[i], amountPerRecipient);
             emit Distributed(recipients[i], amountPerRecipient);
+            remainder -= amountPerRecipient;
+        }
+        // Last recipient absorbs any rounding dust
+        if (remainder > 0) {
+            yieldToken_.safeTransfer(recipients[recipients.length - 1], remainder);
+            emit Distributed(recipients[recipients.length - 1], remainder);
         }
 
         AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();

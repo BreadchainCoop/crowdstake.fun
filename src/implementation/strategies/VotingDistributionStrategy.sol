@@ -49,9 +49,10 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     }
 
     /// @notice Distributes yield proportionally based on voting weights
-    /// @dev Recipients with zero votes receive nothing; dust from rounding is left in the contract
+    /// @dev Distributes the full amount with no dust left in the contract. The last
+    ///      recipient absorbs any rounding remainder (up to N-1 wei where N is recipient count).
     /// @param amount The total amount of yield to distribute
-    function distribute(uint256 amount) external override onlyDistributionManager {
+    function distribute(uint256 amount) external override onlyDistributionManager nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
         address[] memory recipients = recipientRegistry().getRecipients();
@@ -69,12 +70,19 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
         if (totalVotes == 0) revert NoVotes();
 
         IERC20 yieldToken_ = yieldToken();
-        for (uint256 i = 0; i < recipients.length; i++) {
+        uint256 remainder = amount;
+        for (uint256 i = 0; i < recipients.length - 1; i++) {
             uint256 recipientShare = (amount * currentVotes[i]) / totalVotes;
+            remainder -= recipientShare;
             if (recipientShare > 0) {
                 yieldToken_.safeTransfer(recipients[i], recipientShare);
                 emit Distributed(recipients[i], recipientShare);
             }
+        }
+        // Last recipient absorbs any rounding dust
+        if (remainder > 0) {
+            yieldToken_.safeTransfer(recipients[recipients.length - 1], remainder);
+            emit Distributed(recipients[recipients.length - 1], remainder);
         }
 
         AbstractDistributionStrategyStorage storage $ = _getAbstractDistributionStrategyStorage();
