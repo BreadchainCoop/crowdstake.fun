@@ -61,7 +61,9 @@ contract DistributionCycleIntegrationTest is Test {
         cycleModule.setDistributionManager(address(baseManager));
     }
 
-    function testClaimAndDistributeAdvancesCycle() public {
+    // ============ when calling claimAndDistribute ============
+
+    function test_WhenCallingClaimAndDistribute_ShouldAdvanceTheCycleAtomically() public {
         // Move to end of cycle
         vm.roll(START_BLOCK + CYCLE_LENGTH);
         assertEq(cycleModule.getCurrentCycle(), 1);
@@ -117,7 +119,9 @@ contract DistributionCycleIntegrationTest is Test {
         assertFalse(cycleModule.isCycleComplete());
     }
 
-    function testIsDistributionReadyReturnsFalseWhenNotWired() public {
+    // ============ when manager is not wired as distribution manager ============
+
+    function test_WhenManagerIsNotWiredAsDistributionManager_ShouldReturnFalseForIsDistributionReady() public {
         // Deploy a fresh manager NOT wired as distribution manager on the cycle module
         BaseDistributionManager managerImpl = new BaseDistributionManager();
 

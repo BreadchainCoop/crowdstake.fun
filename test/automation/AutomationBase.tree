@@ -1,0 +1,21 @@
+AutomationBaseTest
+├── when checking Chainlink upkeep
+│   ├── it should return false when too soon
+│   └── it should return true when ready
+├── when performing Chainlink upkeep
+│   └── it should execute distribution and emit event
+├── when resolving distribution conditions
+│   ├── it should fail when not enough blocks passed
+│   ├── it should fail when no votes
+│   ├── it should fail when insufficient yield
+│   ├── it should fail when system disabled
+│   └── it should pass when all conditions met
+├── when execution is not resolved
+│   └── it should revert with NotResolved
+├── when integrating with cycle manager
+│   └── it should advance cycle after execution
+├── when querying cycle info
+│   └── it should return correct cycle boundaries
+└── when checking minimum yield
+    ├── it should fail below minimum
+    └── it should pass at minimum

@@ -18,12 +18,16 @@ contract RecipientRegistryTest is TestWrapper {
         registry.initialize(address(this));
     }
 
-    function test_Initialize() public view {
+    function test_WhenInitializing() external view {
+        // it should set owner and zero recipients
         assertEq(registry.owner(), address(this));
         assertEq(registry.getRecipientCount(), 0);
     }
 
-    function test_QueueRecipientAddition() public {
+    // ── when queuing a recipient for addition ──
+
+    function test_GivenTheRecipientIsValid() external {
+        // it should add to queue and emit RecipientQueued
         vm.expectEmit(true, true, false, true);
         emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, true);
 
@@ -35,7 +39,8 @@ contract RecipientRegistryTest is TestWrapper {
         assertTrue(registry.isQueuedForAddition(RECIPIENT_1));
     }
 
-    function test_QueueMultipleAdditions() public {
+    function test_GivenTheRecipientIsValid_ShouldSupportMultipleAdditions() external {
+        // it should support multiple additions
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
         registry.queueRecipientAddition(RECIPIENT_3);
@@ -47,7 +52,70 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(queued[2], RECIPIENT_3);
     }
 
-    function test_ProcessQueueAdditions() public {
+    function test_RevertGiven_TheRecipientIsAddressZero() external {
+        // it should revert
+        vm.expectRevert();
+        registry.queueRecipientAddition(address(0));
+    }
+
+    function test_RevertGiven_TheRecipientIsAlreadyActive() external {
+        // it should revert
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+
+        vm.expectRevert();
+        registry.queueRecipientAddition(RECIPIENT_1);
+    }
+
+    function test_GivenTheRecipientIsAlreadyQueued() external {
+        // it should revert with RecipientAlreadyQueued
+        registry.queueRecipientAddition(RECIPIENT_1);
+
+        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        registry.queueRecipientAddition(RECIPIENT_1);
+    }
+
+    // ── when queuing a recipient for removal ──
+
+    function test_GivenTheRecipientIsActive() external {
+        // it should add to removal queue and emit RecipientQueued
+        // First add a recipient
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+
+        // Queue removal
+        vm.expectEmit(true, true, false, true);
+        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, false);
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+
+        address[] memory queued = registry.getQueuedRemovals();
+        assertEq(queued.length, 1);
+        assertEq(queued[0], RECIPIENT_1);
+        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
+    }
+
+    function test_RevertGiven_TheRecipientIsNotActive() external {
+        // it should revert
+        vm.expectRevert();
+        registry.queueRecipientRemoval(RECIPIENT_1);
+    }
+
+    function test_GivenTheRecipientIsAlreadyQueuedForRemoval() external {
+        // it should revert with RecipientAlreadyQueued
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.processQueue();
+
+        registry.queueRecipientRemoval(RECIPIENT_1);
+
+        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        registry.queueRecipientRemoval(RECIPIENT_1);
+    }
+
+    // ── when processing the queue ──
+
+    function test_GivenTheQueueHasAdditions() external {
+        // it should add recipients and emit events
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
 
@@ -76,24 +144,8 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getQueuedAdditions().length, 0);
     }
 
-    function test_QueueRecipientRemoval() public {
-        // First add a recipient
-        registry.queueRecipientAddition(RECIPIENT_1);
-        registry.processQueue();
-
-        // Queue removal
-        vm.expectEmit(true, true, false, true);
-        emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, false);
-
-        registry.queueRecipientRemoval(RECIPIENT_1);
-
-        address[] memory queued = registry.getQueuedRemovals();
-        assertEq(queued.length, 1);
-        assertEq(queued[0], RECIPIENT_1);
-        assertTrue(registry.isQueuedForRemoval(RECIPIENT_1));
-    }
-
-    function test_ProcessQueueRemovals() public {
+    function test_GivenTheQueueHasRemovals() external {
+        // it should remove recipients and emit events
         // Add recipients
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
@@ -130,7 +182,8 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getQueuedRemovals().length, 0);
     }
 
-    function test_ProcessQueueMixed() public {
+    function test_GivenTheQueueHasMixedOperations() external {
+        // it should process additions and removals together
         // Add initial recipients
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
@@ -164,7 +217,16 @@ contract RecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(RECIPIENT_4));
     }
 
-    function test_ClearAdditionQueue() public {
+    function test_GivenTheQueueIsEmpty() external {
+        // it should not revert
+        registry.processQueue();
+        assertEq(registry.getRecipientCount(), 0);
+    }
+
+    // ── when clearing queues ──
+
+    function test_WhenClearingTheAdditionQueue() external {
+        // it should remove all queued additions
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
 
@@ -175,7 +237,28 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getQueuedAdditions().length, 0);
     }
 
-    function test_ReQueueRecipientAfterRemoval() public {
+    function test_WhenClearingTheRemovalQueue() external {
+        // it should remove all queued removals
+        // Add recipients first
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_2);
+        registry.processQueue();
+
+        // Queue removals
+        registry.queueRecipientRemoval(RECIPIENT_1);
+        registry.queueRecipientRemoval(RECIPIENT_2);
+
+        assertEq(registry.getQueuedRemovals().length, 2);
+
+        registry.clearRemovalQueue();
+
+        assertEq(registry.getQueuedRemovals().length, 0);
+    }
+
+    // ── when re-queuing ──
+
+    function test_WhenRe_queuingAfterRemoval() external {
+        // it should allow re-adding a previously removed recipient
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.processQueue();
 
@@ -197,7 +280,8 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getRecipientCount(), 1);
     }
 
-    function test_ReQueueRecipientAfterClearingAdditionQueue() public {
+    function test_WhenRe_queuingAfterClearing() external {
+        // it should allow re-adding after clearing addition queue
         registry.queueRecipientAddition(RECIPIENT_1);
 
         registry.clearAdditionQueue();
@@ -215,72 +299,10 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getRecipientCount(), 1);
     }
 
-    function test_ClearRemovalQueue() public {
-        // Add recipients first
-        registry.queueRecipientAddition(RECIPIENT_1);
-        registry.queueRecipientAddition(RECIPIENT_2);
-        registry.processQueue();
+    // ── when checking queue independence ──
 
-        // Queue removals
-        registry.queueRecipientRemoval(RECIPIENT_1);
-        registry.queueRecipientRemoval(RECIPIENT_2);
-
-        assertEq(registry.getQueuedRemovals().length, 2);
-
-        registry.clearRemovalQueue();
-
-        assertEq(registry.getQueuedRemovals().length, 0);
-    }
-
-    function test_GetRecipients() public {
-        registry.queueRecipientAddition(RECIPIENT_1);
-        registry.queueRecipientAddition(RECIPIENT_2);
-        registry.queueRecipientAddition(RECIPIENT_3);
-        registry.processQueue();
-
-        address[] memory recipients = registry.getRecipients();
-        assertEq(recipients.length, 3);
-        assertEq(recipients[0], RECIPIENT_1);
-        assertEq(recipients[1], RECIPIENT_2);
-        assertEq(recipients[2], RECIPIENT_3);
-    }
-
-    function test_RevertOnInvalidRecipient() public {
-        vm.expectRevert();
-        registry.queueRecipientAddition(address(0));
-    }
-
-    function test_RevertOnDuplicateRecipient() public {
-        registry.queueRecipientAddition(RECIPIENT_1);
-        registry.processQueue();
-
-        vm.expectRevert();
-        registry.queueRecipientAddition(RECIPIENT_1);
-    }
-
-    function test_RevertOnDuplicateQueuedAddition() public {
-        registry.queueRecipientAddition(RECIPIENT_1);
-
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
-        registry.queueRecipientAddition(RECIPIENT_1);
-    }
-
-    function test_RevertOnRemovalOfNonExistent() public {
-        vm.expectRevert();
-        registry.queueRecipientRemoval(RECIPIENT_1);
-    }
-
-    function test_RevertOnDuplicateQueuedRemoval() public {
-        registry.queueRecipientAddition(RECIPIENT_1);
-        registry.processQueue();
-
-        registry.queueRecipientRemoval(RECIPIENT_1);
-
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
-        registry.queueRecipientRemoval(RECIPIENT_1);
-    }
-
-    function test_AdditionAndRemovalQueuesAreIndependent() public {
+    function test_WhenCheckingQueueIndependence() external {
+        // it should keep addition and removal queues independent
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.processQueue();
 
@@ -299,7 +321,26 @@ contract RecipientRegistryTest is TestWrapper {
         assertEq(registry.getRecipientCount(), 1);
     }
 
-    function test_OnlyOwnerCanQueue() public {
+    // ── when getting recipients ──
+
+    function test_WhenGettingRecipients() external {
+        // it should return all active recipients
+        registry.queueRecipientAddition(RECIPIENT_1);
+        registry.queueRecipientAddition(RECIPIENT_2);
+        registry.queueRecipientAddition(RECIPIENT_3);
+        registry.processQueue();
+
+        address[] memory recipients = registry.getRecipients();
+        assertEq(recipients.length, 3);
+        assertEq(recipients[0], RECIPIENT_1);
+        assertEq(recipients[1], RECIPIENT_2);
+        assertEq(recipients[2], RECIPIENT_3);
+    }
+
+    // ── when checking access control ──
+
+    function test_WhenCheckingAccessControl_ShouldOnlyAllowOwnerToQueue() external {
+        // it should only allow owner to queue
         vm.prank(address(0xdead));
         vm.expectRevert();
         registry.queueRecipientAddition(RECIPIENT_1);
@@ -309,7 +350,8 @@ contract RecipientRegistryTest is TestWrapper {
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 
-    function test_OnlyOwnerCanClearQueues() public {
+    function test_WhenCheckingAccessControl_ShouldOnlyAllowOwnerToClearQueues() external {
+        // it should only allow owner to clear queues
         registry.queueRecipientAddition(RECIPIENT_1);
 
         vm.prank(address(0xdead));
@@ -321,7 +363,8 @@ contract RecipientRegistryTest is TestWrapper {
         registry.clearRemovalQueue();
     }
 
-    function test_AnyoneCanProcessQueue() public {
+    function test_WhenCheckingAccessControl_ShouldAllowAnyoneToProcessQueue() external {
+        // it should allow anyone to process queue
         registry.queueRecipientAddition(RECIPIENT_1);
 
         vm.prank(address(0xdead));
@@ -330,13 +373,10 @@ contract RecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(RECIPIENT_1));
     }
 
-    function test_EmptyQueueProcess() public {
-        // Should not revert on empty queue
-        registry.processQueue();
-        assertEq(registry.getRecipientCount(), 0);
-    }
+    // ── when performing large scale operations ──
 
-    function test_LargeScaleOperations() public {
+    function test_WhenPerformingLargeScaleOperations() external {
+        // it should handle 100 additions and 50 removals
         // Add many recipients
         uint256 count = 100;
         for (uint256 i = 1; i <= count; i++) {

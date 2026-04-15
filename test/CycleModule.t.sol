@@ -25,19 +25,36 @@ contract CycleModuleTest is Test {
         cycleModule.setDistributionManager(distManager);
     }
 
-    function testInitialState() public view {
+    // ============ when initializing ============
+
+    function test_WhenInitializing_ItShouldSetInitialStateCorrectly() public view {
         assertEq(cycleModule.getCurrentCycle(), 1);
         assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
         assertEq(cycleModule.lastCycleStartBlock(), START_BLOCK);
         assertEq(cycleModule.owner(), owner);
     }
 
-    function testCannotReinitialize() public {
+    function test_RevertWhen_Initializing_Reinitialize() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         cycleModule.initialize(200, owner);
     }
 
-    function testNotInitializedFunctions() public {
+    function test_RevertWhen_Initializing_ZeroAddressOwner() public {
+        CycleModule impl = new CycleModule();
+        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0)));
+        newModule.initialize(100, address(0));
+    }
+
+    function test_RevertWhen_Initializing_ImplementationInitialization() public {
+        CycleModule impl = new CycleModule();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        impl.initialize(100, owner);
+    }
+
+    // ============ when not initialized ============
+
+    function test_RevertWhen_NotInitialized_AllStateQueries() public {
         // Deploy a proxy without initialization data to get an uninitialized module
         CycleModule impl = new CycleModule();
         CycleModule uninitializedModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
@@ -61,15 +78,23 @@ contract CycleModuleTest is Test {
         uninitializedModule.updateCycleLength(200);
     }
 
-    function testCycleCompletion() public {
-        assertFalse(cycleModule.isCycleComplete());
+    // ============ when checking cycle completion before end ============
 
+    function test_WhenCheckingCycleCompletionBeforeEnd_ItShouldReturnFalse() public view {
+        assertFalse(cycleModule.isCycleComplete());
+    }
+
+    // ============ when checking cycle completion at end ============
+
+    function test_WhenCheckingCycleCompletionAtEnd_ItShouldReturnTrue() public {
         // Move to end of cycle
         vm.roll(START_BLOCK + CYCLE_LENGTH);
         assertTrue(cycleModule.isCycleComplete());
     }
 
-    function testStartNewCycle() public {
+    // ============ when starting a new cycle as distribution manager ============
+
+    function test_WhenStartingNewCycleAsDistributionManager_ItShouldAdvanceToNextCycle() public {
         // Move to end of cycle
         vm.roll(START_BLOCK + CYCLE_LENGTH);
 
@@ -82,7 +107,9 @@ contract CycleModuleTest is Test {
         assertFalse(cycleModule.isCycleComplete());
     }
 
-    function testCannotStartNewCycleEarly() public {
+    // ============ when starting a new cycle before completion ============
+
+    function test_RevertWhen_StartingNewCycleBeforeCompletion_InvalidCycleTransition() public {
         // Try to start new cycle before current one is complete
         vm.roll(START_BLOCK + CYCLE_LENGTH - 1);
 
@@ -91,7 +118,9 @@ contract CycleModuleTest is Test {
         cycleModule.startNewCycle();
     }
 
-    function testNonDistributionManagerCannotStartCycle() public {
+    // ============ when starting a new cycle as non distribution manager ============
+
+    function test_RevertWhen_StartingNewCycleAsNonDistributionManager_OnlyDistributionManager() public {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
 
         vm.prank(user);
@@ -99,95 +128,100 @@ contract CycleModuleTest is Test {
         cycleModule.startNewCycle();
     }
 
-    function testOwnerCannotStartCycle() public {
+    // ============ when starting a new cycle without distribution manager set ============
+
+    function test_RevertWhen_StartingNewCycleWithoutDistributionManagerSet_DistributionManagerNotSet() public {
+        // Deploy a fresh cycle module without setting distribution manager
+        CycleModule impl = new CycleModule();
+        bytes memory initData = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
+        CycleModule freshModule = CycleModule(address(new ERC1967Proxy(address(impl), initData)));
+
         vm.roll(START_BLOCK + CYCLE_LENGTH);
-
-        vm.expectRevert(AbstractCycleModule.OnlyDistributionManager.selector);
-        cycleModule.startNewCycle();
+        vm.expectRevert(AbstractCycleModule.DistributionManagerNotSet.selector);
+        freshModule.startNewCycle();
     }
 
-    function testOwnership() public {
-        assertEq(cycleModule.owner(), owner);
+    // ============ when querying blocks until next cycle ============
 
-        cycleModule.transferOwnership(user);
-        assertEq(cycleModule.owner(), user);
-    }
-
-    function testGetBlocksUntilNextCycle() public view {
+    function test_WhenQueryingBlocksUntilNextCycle_ItShouldReturnFullCycleLengthAtStart() public view {
         assertEq(cycleModule.getBlocksUntilNextCycle(), CYCLE_LENGTH);
     }
 
-    function testGetBlocksUntilNextCyclePartway() public {
+    function test_WhenQueryingBlocksUntilNextCycle_ItShouldReturnRemainingBlocksPartway() public {
         vm.roll(START_BLOCK + 25);
         assertEq(cycleModule.getBlocksUntilNextCycle(), 75);
     }
 
-    function testGetBlocksUntilNextCycleComplete() public {
+    function test_WhenQueryingBlocksUntilNextCycle_ItShouldReturnZeroWhenComplete() public {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
         assertEq(cycleModule.getBlocksUntilNextCycle(), 0);
     }
 
-    function testGetCycleProgress() public view {
+    // ============ when querying cycle progress ============
+
+    function test_WhenQueryingCycleProgress_ItShouldReturnZeroAtStart() public view {
         assertEq(cycleModule.getCycleProgress(), 0);
     }
 
-    function testGetCycleProgressPartway() public {
+    function test_WhenQueryingCycleProgress_ItShouldReturn50Halfway() public {
         vm.roll(START_BLOCK + 50);
         assertEq(cycleModule.getCycleProgress(), 50);
     }
 
-    function testGetCycleProgressComplete() public {
+    function test_WhenQueryingCycleProgress_ItShouldReturn100WhenComplete() public {
         vm.roll(START_BLOCK + CYCLE_LENGTH);
         assertEq(cycleModule.getCycleProgress(), 100);
     }
 
-    function testUpdateCycleLength() public {
+    // ============ when updating cycle length as owner ============
+
+    function test_WhenUpdatingCycleLengthAsOwner_ItShouldUpdateTheCycleLength() public {
         uint256 newLength = 200;
         cycleModule.updateCycleLength(newLength);
         assertEq(cycleModule.cycleLength(), newLength);
     }
 
-    function testCannotUpdateCycleLengthToZero() public {
+    // ============ when updating cycle length to zero ============
+
+    function test_RevertWhen_UpdatingCycleLengthToZero_InvalidCycleLength() public {
         vm.expectRevert(AbstractCycleModule.InvalidCycleLength.selector);
         cycleModule.updateCycleLength(0);
     }
 
-    function testNonOwnerCannotUpdateCycleLength() public {
+    // ============ when updating cycle length as non owner ============
+
+    function test_RevertWhen_UpdatingCycleLengthAsNonOwner() public {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
         cycleModule.updateCycleLength(200);
     }
 
-    function testAnyoneCanInitializeOnce() public {
-        CycleModule impl = new CycleModule();
-        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
+    // ============ when setting distribution manager as owner ============
 
+    function test_WhenSettingDistributionManagerAsOwner_ItShouldUpdateDistributionManager() public {
+        address newManager = address(0x99);
+        cycleModule.setDistributionManager(newManager);
+        assertEq(cycleModule.distributionManager(), newManager);
+    }
+
+    // ============ when setting zero distribution manager ============
+
+    function test_RevertWhen_SettingZeroDistributionManager_ZeroAddress() public {
+        vm.expectRevert(AbstractCycleModule.ZeroAddress.selector);
+        cycleModule.setDistributionManager(address(0));
+    }
+
+    // ============ when setting distribution manager as non owner ============
+
+    function test_RevertWhen_SettingDistributionManagerAsNonOwner() public {
         vm.prank(user);
-        newModule.initialize(100, user);
-
-        // User is now the owner
-        assertEq(newModule.owner(), user);
-        assertEq(newModule.cycleLength(), 100);
-
-        // Cannot reinitialize
-        vm.expectRevert(Initializable.InvalidInitialization.selector);
-        newModule.initialize(200, user);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
+        cycleModule.setDistributionManager(address(0x99));
     }
 
-    function testCannotInitializeWithZeroAddress() public {
-        CycleModule impl = new CycleModule();
-        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0)));
-        newModule.initialize(100, address(0));
-    }
+    // ============ when running multiple cycles ============
 
-    function testImplementationCannotBeInitialized() public {
-        CycleModule impl = new CycleModule();
-        vm.expectRevert(Initializable.InvalidInitialization.selector);
-        impl.initialize(100, owner);
-    }
-
-    function testMultipleCycles() public {
+    function test_WhenRunningMultipleCycles_ItShouldCorrectlyTrackCycleNumberAndStartBlock() public {
         vm.startPrank(distManager);
 
         // Complete first cycle
@@ -204,31 +238,30 @@ contract CycleModuleTest is Test {
         vm.stopPrank();
     }
 
-    function testSetDistributionManager() public {
-        address newManager = address(0x99);
-        cycleModule.setDistributionManager(newManager);
-        assertEq(cycleModule.distributionManager(), newManager);
+    // ============ when managing ownership ============
+
+    function test_WhenManagingOwnership_ItShouldTransferOwnershipCorrectly() public {
+        assertEq(cycleModule.owner(), owner);
+
+        cycleModule.transferOwnership(user);
+        assertEq(cycleModule.owner(), user);
     }
 
-    function testNonOwnerCannotSetDistributionManager() public {
-        vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user));
-        cycleModule.setDistributionManager(address(0x99));
-    }
+    // ============ when anyone initializes ============
 
-    function testCannotSetZeroDistributionManager() public {
-        vm.expectRevert(AbstractCycleModule.ZeroAddress.selector);
-        cycleModule.setDistributionManager(address(0));
-    }
-
-    function testStartNewCycleRevertsWhenDistributionManagerNotSet() public {
-        // Deploy a fresh cycle module without setting distribution manager
+    function test_WhenAnyoneInitializes_ItShouldAllowFirstCallerToBecomeOwner() public {
         CycleModule impl = new CycleModule();
-        bytes memory initData = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
-        CycleModule freshModule = CycleModule(address(new ERC1967Proxy(address(impl), initData)));
+        CycleModule newModule = CycleModule(address(new ERC1967Proxy(address(impl), "")));
 
-        vm.roll(START_BLOCK + CYCLE_LENGTH);
-        vm.expectRevert(AbstractCycleModule.DistributionManagerNotSet.selector);
-        freshModule.startNewCycle();
+        vm.prank(user);
+        newModule.initialize(100, user);
+
+        // User is now the owner
+        assertEq(newModule.owner(), user);
+        assertEq(newModule.cycleLength(), 100);
+
+        // Cannot reinitialize
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        newModule.initialize(200, user);
     }
 }

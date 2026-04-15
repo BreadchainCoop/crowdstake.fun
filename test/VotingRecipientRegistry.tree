@@ -1,0 +1,48 @@
+VotingRecipientRegistryTest
+├── when initializing
+│   └── it should set admin recipients and expiry
+├── when proposing an addition
+│   ├── it should create proposal with auto-vote from proposer
+│   └── it should snapshot required votes at creation
+├── when voting on a proposal
+│   └── it should increment vote count
+├── when unanimous vote is reached
+│   └── it should auto-execute and queue recipient
+├── when manually executing a proposal
+│   └── it should queue recipient after enough votes
+├── when proposing a removal
+│   ├── it should create removal proposal
+│   └── it should require fewer votes than addition
+├── when removal reaches threshold
+│   └── it should auto-execute and queue for removal
+├── when a proposal expires
+│   ├── it should reject votes on expired proposals
+│   └── it should reject execution of expired proposals
+├── when a non-recipient proposes
+│   └── it should revert with NotARecipient
+├── when a non-recipient votes
+│   └── it should revert with NotEligibleVoter
+├── when double voting
+│   └── it should revert with AlreadyVoted
+├── when voting on invalid proposal
+│   └── it should revert with ProposalNotFound
+├── when voting on executed proposal
+│   └── it should revert with ProposalAlreadyExecuted
+├── when proposing existing recipient
+│   └── it should revert with RecipientAlreadyExists
+├── when removing non-existent recipient
+│   └── it should revert with RecipientNotFound
+├── when executing without enough votes
+│   └── it should revert with NotEnoughVotes
+├── when new recipient votes after being added
+│   └── it should allow new recipient to participate
+├── when initializing with empty recipients
+│   └── it should revert with NoRecipients
+├── when configuring proposal expiry
+│   ├── it should return configured expiry
+│   ├── it should allow admin to update expiry
+│   ├── it should revert on zero expiry in initialize
+│   ├── it should revert on zero expiry in update
+│   └── it should only allow admin to set expiry
+└── when required votes are snapshotted
+    └── it should not change after recipient set changes

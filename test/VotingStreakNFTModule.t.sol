@@ -97,11 +97,9 @@ contract VotingStreakNFTModuleTest is Test {
         harness = VotingStreakBasisPointsModuleHarness(address(new ERC1967Proxy(address(impl), initData)));
     }
 
-    // ============ Test Cases ============
+    // ============ when voting consecutively ============
 
-    /// @notice Test: Consecutive votes in cycles 1, 2, 3 increment streak to 3
-    /// @dev AAA Pattern: Arrange -> Act -> Assert
-    function test_ConsecutiveVotesIncrementStreak() public {
+    function test_WhenVotingConsecutively_ShouldIncrementStreak() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -134,9 +132,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(lastVoteCycle3, 3, "lastVoteCycle should be 3");
     }
 
-    /// @notice Test: Streak break resets streak from 1 to 1
-    /// @dev Voting in cycle 1, skipping cycle 2, voting in cycle 3 should reset streak
-    function test_StreakBreakResetsStreak() public {
+    // ============ when missing a cycle ============
+
+    function test_WhenMissingACycle_ShouldResetStreakToZero() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -160,9 +158,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(lastVoteCycle, 3, "lastVoteCycle should be 3");
     }
 
-    /// @notice Test: 10 consecutive votes mints an NFT
-    /// @dev After reaching 10 consecutive votes, mockNft balance should be 1
-    function test_TenVotesMintsNFT() public {
+    // ============ when reaching ten consecutive votes ============
+
+    function test_WhenReachingTenConsecutiveVotes_ShouldMintAnNFT() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -190,15 +188,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(lastVoteCycle, 10, "lastVoteCycle should be 10");
     }
 
+    // ============ when recasting a vote in same cycle ============
 
-
-
-
-
-
-    /// @notice Test: Recasting vote in same cycle does not increment streak
-    /// @dev User votes twice in cycle 1; streak should remain 1
-    function test_ReCastVoteDoesNotIncrementStreak() public {
+    function test_WhenRecastingAVoteInSameCycle_ShouldNotIncrementStreak() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -225,9 +217,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(lastVoteCycleAfterRecast, 1, "lastVoteCycle should still be 1");
     }
 
-    /// @notice Test: Only owner can set NFT contract
-    /// @dev Non-owner should revert when calling setNFTContract
-    function test_RevertIf_NotOwnerSetsNft() public {
+    // ============ when non-owner sets NFT contract ============
+
+    function test_RevertWhen_NonOwnerSetsNFTContract() public {
         // Arrange
         address newNftAddress = address(0x9999);
 
@@ -245,11 +237,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(address(retrievedNft), newNftAddress, "NFT contract should be updated by owner");
     }
 
-    // ============ Additional Edge Case Tests ============
+    // ============ when rebuilding a broken streak ============
 
-    /// @notice Test: User can vote again after streak is properly reset through pattern
-    /// @dev Verifies that streak tracking works correctly across multiple reset cycles
-    function test_StreakResetAndRebuild() public {
+    function test_WhenRebuildingABrokenStreak_ShouldTrackNewStreakFromZero() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -281,9 +271,9 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(streak3, 5, "Streak should build to 5 again");
     }
 
-    /// @notice Test: Multiple users can track streaks independently
-    /// @dev Verifies that streak state is properly isolated per user
-    function test_MultipleUsersIndependentStreaks() public {
+    // ============ when multiple users vote ============
+
+    function test_WhenMultipleUsersVote_ShouldTrackIndependentStreaks() public {
         // Arrange
         uint256[] memory points = new uint256[](2);
         points[0] = 50;
@@ -317,5 +307,4 @@ contract VotingStreakNFTModuleTest is Test {
         assertEq(finalStreak1, 2, "user1 should maintain streak of 2");
         assertEq(finalStreak2, 1, "user2 should have streak of 1");
     }
-
 }

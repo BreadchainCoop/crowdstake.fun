@@ -1,0 +1,25 @@
+AdminRecipientRegistryTest
+├── when initializing
+│   └── it should set admin and zero recipients
+├── when queuing a single addition
+│   └── it should queue recipient and process correctly
+├── when queuing multiple additions
+│   └── it should queue and process all recipients
+├── when queuing a removal
+│   └── it should remove recipient after processing
+├── when queuing multiple removals
+│   └── it should remove selected recipients
+├── when queuing an invalid recipient
+│   └── it should revert
+├── when queuing a duplicate recipient
+│   └── it should revert
+├── when removing a non-existent recipient
+│   └── it should revert
+├── when a non-admin queues addition
+│   └── it should revert
+├── when a non-admin queues removal
+│   └── it should revert
+├── when transferring admin
+│   └── it should allow new admin and revoke old
+└── when performing large scale operations
+    └── it should handle 100 additions and 50 removals

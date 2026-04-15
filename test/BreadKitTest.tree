@@ -1,0 +1,9 @@
+BreadKitTest
+├── when minting tokens
+│   └── it should update supply balance and yield backing
+└── when finalizing new yield claimer
+    ├── given timelock has not elapsed
+    │   └── it should revert with TimelockNotElapsed
+    ├── given timelock has elapsed
+    │   └── it should update yield claimer
+    └── it should clear pending state after finalization

@@ -1,0 +1,15 @@
+MockDistributionManagerTest
+├── when checking initial state
+│   └── it should have correct defaults
+├── when checking distribution readiness
+│   ├── it should return false before 200 blocks
+│   └── it should return true at 200 blocks
+├── when querying blocks until distribution
+│   ├── it should return 200 at start
+│   ├── it should return 100 at halfway
+│   └── it should return 0 when ready
+├── when executing claimAndDistribute
+│   ├── it should revert when not ready
+│   └── it should execute and reset timer
+└── when running multiple distributions
+    └── it should track cycle progression
