@@ -4,6 +4,16 @@ AutomationBaseTest
 │   └── it should return true when ready
 ├── when performing Chainlink upkeep
 │   └── it should execute distribution and emit event
+├── when checking Gelato checker
+│   ├── it should return false when too soon
+│   └── it should return true when ready
+├── when executing Gelato
+│   ├── it should distribute and emit event
+│   └── it should allow any caller
+├── when Gelato checker not ready
+│   └── it should return false for each condition
+├── when Gelato executing without conditions met
+│   └── it should revert with NotResolved
 ├── when resolving distribution conditions
 │   ├── it should fail when not enough blocks passed
 │   ├── it should fail when no votes

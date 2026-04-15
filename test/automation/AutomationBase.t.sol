@@ -3,8 +3,8 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {ChainlinkAutomation} from "../../src/implementation/automation/ChainlinkAutomation.sol";
+import {GelatoAutomation} from "../../src/implementation/automation/GelatoAutomation.sol";
 import {AbstractAutomation} from "../../src/abstract/AbstractAutomation.sol";
-// import "../../src/implementation/automation/GelatoAutomation.sol";
 import {MockDistributionManager} from "../mocks/MockDistributionManager.sol";
 import {IDistributionModule} from "../../src/interfaces/IDistributionModule.sol";
 import {IRecipientRegistry} from "../../src/interfaces/IRecipientRegistry.sol";
@@ -69,12 +69,12 @@ contract MockDistributionModule is IDistributionModule {
 
 contract AutomationBaseTest is Test {
     ChainlinkAutomation public chainlinkAutomation;
-    // GelatoAutomation public gelatoAutomation;
+    GelatoAutomation public gelatoAutomation;
     MockDistributionManager public distributionManager;
     MockDistributionModule public distributionModule;
 
     address public chainlinkKeeper = address(0x1);
-    // address public gelatoExecutor = address(0x2);
+    address public gelatoExecutor = address(0x2);
 
     event AutomationExecuted(address indexed executor, uint256 blockNumber);
     event DistributionExecuted(uint256 blockNumber, uint256 yield, uint256 votes);
@@ -88,7 +88,7 @@ contract AutomationBaseTest is Test {
 
         // Deploy automation implementations
         chainlinkAutomation = new ChainlinkAutomation(address(distributionManager));
-        // gelatoAutomation = new GelatoAutomation(address(distributionManager));
+        gelatoAutomation = new GelatoAutomation(address(distributionManager));
 
         // Setup initial state
         distributionManager.setCurrentVotes(100);
@@ -132,6 +132,93 @@ contract AutomationBaseTest is Test {
         // Verify distribution was called
         assertEq(distributionModule.distributeCallCount(), 1);
         assertEq(distributionManager.currentCycleNumber(), 2);
+    }
+
+    // ============ when checking Gelato checker ============
+
+    function test_WhenCheckingGelatoChecker_ShouldReturnFalseWhenTooSoon() public {
+        // Initially should not be ready (too soon)
+        (bool canExec,) = gelatoAutomation.checker();
+        assertFalse(canExec);
+    }
+
+    function test_WhenCheckingGelatoChecker_ShouldReturnTrueWhenReady() public {
+        // Advance blocks
+        vm.roll(block.number + 101);
+
+        // Now should be ready
+        (bool canExec, bytes memory execPayload) = gelatoAutomation.checker();
+        assertTrue(canExec);
+        assertGt(execPayload.length, 0);
+    }
+
+    // ============ when executing Gelato ============
+
+    function test_WhenExecutingGelato_ShouldDistributeAndEmitEvent() public {
+        // Advance blocks to make distribution ready
+        vm.roll(block.number + 101);
+
+        // Verify checker returns true
+        (bool canExec,) = gelatoAutomation.checker();
+        assertTrue(canExec);
+
+        // Execute via Gelato executor
+        vm.expectEmit(true, false, false, true);
+        emit AutomationExecuted(gelatoExecutor, block.number);
+
+        vm.prank(gelatoExecutor);
+        gelatoAutomation.execute("");
+
+        // Verify distribution was called
+        assertEq(distributionModule.distributeCallCount(), 1);
+        assertEq(distributionManager.currentCycleNumber(), 2);
+    }
+
+    function test_WhenExecutingGelato_ShouldAllowAnyCaller() public {
+        // Advance blocks to make distribution ready
+        vm.roll(block.number + 101);
+
+        // Any address should be able to call execute
+        address randomCaller = address(0xBEEF);
+        vm.prank(randomCaller);
+        gelatoAutomation.execute("");
+
+        // Verify distribution was called
+        assertEq(distributionModule.distributeCallCount(), 1);
+    }
+
+    // ============ when Gelato checker not ready ============
+
+    function test_WhenGelatoCheckerNotReady_ShouldReturnFalseForEachCondition() public {
+        // Condition 1: not enough blocks passed
+        (bool canExec,) = gelatoAutomation.checker();
+        assertFalse(canExec);
+
+        // Condition 2: no votes
+        vm.roll(block.number + 101);
+        distributionManager.setCurrentVotes(0);
+        (canExec,) = gelatoAutomation.checker();
+        assertFalse(canExec);
+
+        // Condition 3: low yield
+        distributionManager.setCurrentVotes(100);
+        distributionManager.setAvailableYield(500);
+        (canExec,) = gelatoAutomation.checker();
+        assertFalse(canExec);
+
+        // Condition 4: system disabled
+        distributionManager.setAvailableYield(2000);
+        distributionManager.setEnabled(false);
+        (canExec,) = gelatoAutomation.checker();
+        assertFalse(canExec);
+    }
+
+    // ============ when Gelato executing without conditions met ============
+
+    function test_RevertWhen_GelatoExecutingWithoutConditionsMet() public {
+        // Try to execute when conditions not met
+        vm.expectRevert(AbstractAutomation.NotResolved.selector);
+        gelatoAutomation.execute("");
     }
 
     // ============ when resolving distribution conditions ============
