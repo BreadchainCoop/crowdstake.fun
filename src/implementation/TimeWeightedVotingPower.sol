@@ -19,7 +19,7 @@ import {Ownable} from "@solady/contracts/auth/Ownable.sol";
 ///
 ///      This makes flash-loan attacks progressively more expensive even when the
 ///      total period is long — an attacker holding tokens for only 1 block with
-///      scalingPeriod=10 gets ~100x less voting power than the nominal amount.
+///      scalingPeriod=10 gets ~10x less voting power than the nominal amount.
 ///
 ///      Every balance change in the ERC20Votes checkpoint array is fully accounted for.
 contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
@@ -40,7 +40,7 @@ contract TimeWeightedVotingPower is IVotingPowerStrategy, Ownable {
     /// @notice Thrown when scaling period exceeds the maximum allowed value
     error ScalingPeriodTooLarge();
 
-    /// @notice Maximum allowed scaling period (~30 days in blocks at 12s/block)
+    /// @notice Maximum allowed scaling period (~365 days in blocks at 12s/block)
     uint256 public constant MAX_SCALING_PERIOD = 365 days / 12;
 
     // ============ Immutable Storage ============
