@@ -29,6 +29,6 @@ contract FixedFeePayment is IAutomationPayment {
 
     /// @inheritdoc IAutomationPayment
     function isYieldSufficient(uint256 totalYield) external view override returns (bool sufficient) {
-        return totalYield >= FEE_AMOUNT + MINIMUM_YIELD;
+        return totalYield >= FEE_AMOUNT && totalYield - FEE_AMOUNT >= MINIMUM_YIELD;
     }
 }

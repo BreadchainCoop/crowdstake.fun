@@ -24,8 +24,11 @@ contract PercentagePayment is IAutomationPayment {
     }
 
     /// @inheritdoc IAutomationPayment
+    /// @dev Uses division-first approach for large values to avoid overflow:
+    ///      fee = (totalYield / DENOMINATOR) * BASIS_POINTS + (totalYield % DENOMINATOR) * BASIS_POINTS / DENOMINATOR
     function calculateFee(uint256 totalYield) external view override returns (uint256 fee) {
-        return (totalYield * BASIS_POINTS) / BASIS_POINTS_DENOMINATOR;
+        return (totalYield / BASIS_POINTS_DENOMINATOR) * BASIS_POINTS
+            + (totalYield % BASIS_POINTS_DENOMINATOR) * BASIS_POINTS / BASIS_POINTS_DENOMINATOR;
     }
 
     /// @inheritdoc IAutomationPayment
@@ -39,7 +42,8 @@ contract PercentagePayment is IAutomationPayment {
 
     /// @inheritdoc IAutomationPayment
     function isYieldSufficient(uint256 totalYield) external view override returns (bool sufficient) {
-        uint256 fee = (totalYield * BASIS_POINTS) / BASIS_POINTS_DENOMINATOR;
+        uint256 fee = (totalYield / BASIS_POINTS_DENOMINATOR) * BASIS_POINTS
+            + (totalYield % BASIS_POINTS_DENOMINATOR) * BASIS_POINTS / BASIS_POINTS_DENOMINATOR;
         if (fee > totalYield) return false;
         uint256 remaining = totalYield - fee;
         return remaining >= MINIMUM_YIELD;

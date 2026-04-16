@@ -37,6 +37,14 @@ abstract contract AbstractPaidAutomation is AbstractAutomation {
         return PAYMENT_PROVIDER.isYieldSufficient(availableYield);
     }
 
+    /// @notice Executes the distribution after verifying paid-automation readiness
+    /// @dev Gates on this contract's isDistributionReady() (which includes yield sufficiency)
+    ///      before delegating to the parent, preventing bypass of fee checks
+    function executeDistribution() public virtual override {
+        if (!isDistributionReady()) revert NotResolved();
+        super.executeDistribution();
+    }
+
     /// @notice Deducts the automation fee from the total yield
     /// @param totalYield The total yield before fee deduction
     /// @return remainingYield The yield remaining after the fee
