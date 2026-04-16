@@ -154,21 +154,21 @@ contract AdminRecipientRegistryTest is TestWrapper {
         vm.stopPrank();
     }
 
-    function test_RevertWhen_RemovingANon_existentRecipient() external {
+    function test_RevertWhen_RemovingANonExistentRecipient() external {
         // it should revert
         vm.prank(ADMIN);
         vm.expectRevert();
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 
-    function test_RevertWhen_ANon_adminQueuesAddition() external {
+    function test_RevertWhen_ANonAdminQueuesAddition() external {
         // it should revert
         vm.prank(address(0xdead));
         vm.expectRevert();
         registry.queueRecipientAddition(RECIPIENT_1);
     }
 
-    function test_RevertWhen_ANon_adminQueuesRemoval() external {
+    function test_RevertWhen_ANonAdminQueuesRemoval() external {
         // it should revert
         vm.prank(ADMIN);
         registry.queueRecipientAddition(RECIPIENT_1);

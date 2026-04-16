@@ -216,14 +216,14 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.executeProposal(proposalId);
     }
 
-    function test_WhenANon_recipientProposes() external {
+    function test_WhenANonRecipientProposes() external {
         // it should revert with NotARecipient
         vm.prank(NON_RECIPIENT);
         vm.expectRevert(VotingRecipientRegistry.NotARecipient.selector);
         registry.proposeAddition(NEW_RECIPIENT);
     }
 
-    function test_WhenANon_recipientVotes() external {
+    function test_WhenANonRecipientVotes() external {
         // it should revert with NotEligibleVoter
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
@@ -275,7 +275,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.proposeAddition(RECIPIENT_2);
     }
 
-    function test_WhenRemovingNon_existentRecipient() external {
+    function test_WhenRemovingNonExistentRecipient() external {
         // it should revert with RecipientNotFound
         vm.prank(RECIPIENT_1);
         vm.expectRevert(IRecipientRegistry.RecipientNotFound.selector);
