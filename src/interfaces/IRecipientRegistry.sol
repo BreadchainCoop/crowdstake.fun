@@ -40,7 +40,7 @@ interface IRecipientRegistry {
     /// @notice Thrown when attempting to queue a recipient that is already queued
     error RecipientAlreadyQueued();
 
-    /// @notice Thrown when attempting to queue a recipient when the queue reached the maximum size
+    /// @notice Thrown when attempting to queue a recipient when the queue has reached the maximum size
     error MaxQueueSizeReached();
 
     /// @notice Queue a recipient for addition to the registry

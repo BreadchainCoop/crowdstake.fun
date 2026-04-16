@@ -356,4 +356,35 @@ contract RecipientRegistryTest is TestWrapper {
         registry.processQueue();
         assertEq(registry.getRecipientCount(), 50);
     }
+
+    // ── MAX_QUEUE_SIZE boundary tests ──
+
+    function test_MaxQueueSizeAdditionBoundary() public {
+        // Queue exactly MAX_QUEUE_SIZE (100) additions — should succeed
+        for (uint256 i = 1; i <= 100; i++) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            registry.queueRecipientAddition(address(uint160(i)));
+        }
+        assertEq(registry.getQueuedAdditions().length, 100);
+
+        // Queue one more — should revert with MaxQueueSizeReached
+        vm.expectRevert(IRecipientRegistry.MaxQueueSizeReached.selector);
+        registry.queueRecipientAddition(address(uint160(101)));
+    }
+
+    function test_MaxQueueSizeRemovalBoundary() public {
+        // First add 100 recipients
+        for (uint256 i = 1; i <= 100; i++) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            registry.queueRecipientAddition(address(uint160(i)));
+        }
+        registry.processQueue();
+
+        // Queue exactly MAX_QUEUE_SIZE (100) removals — should succeed
+        for (uint256 i = 1; i <= 100; i++) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            registry.queueRecipientRemoval(address(uint160(i)));
+        }
+        assertEq(registry.getQueuedRemovals().length, 100);
+    }
 }
