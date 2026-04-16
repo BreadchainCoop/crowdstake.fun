@@ -46,7 +46,7 @@ interface IVotingModule {
     /// @notice Thrown when a zero address is provided
     error ZeroAddress();
 
-    /// @notice Thrown when a voter tries to vote twice in the same cycle via voteWithData
+    /// @notice Thrown when a voter tries to vote twice in the same cycle via voteWithData or voteWithDataBatch
     error AlreadyVotedInCurrentCycle();
 
     // ============ Events ============
