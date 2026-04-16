@@ -18,7 +18,7 @@ contract GelatoAutomation is AbstractAutomation {
     /// @return execPayload The calldata to execute
     function checker() external view returns (bool canExec, bytes memory execPayload) {
         canExec = isDistributionReady();
-        execPayload = canExec ? getAutomationData() : new bytes(0);
+        execPayload = canExec ? abi.encodeCall(this.execute, ("")) : new bytes(0);
     }
 
     /// @notice Gelato-compatible execution function
