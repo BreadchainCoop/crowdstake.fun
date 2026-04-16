@@ -90,8 +90,8 @@ contract TWVPFuzz is Test {
         assertLe(power, maxBalance);
     }
 
-    /// @notice Fuzz that power is monotonically increasing with holding duration at constant balance
-    function testFuzz_PowerMonotonicWithDuration(
+    /// @notice Fuzz that constant balance gives consistent time-weighted average
+    function testFuzz_ConstantBalancePowerConsistentAcrossDurations(
         uint208 balance,
         uint256 startBlock,
         uint256 shortDuration,

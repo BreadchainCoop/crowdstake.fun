@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-/// @title MockERC20
+/// @title MockYieldToken
 /// @notice Minimal ERC20 for distribution fuzz tests
 contract MockYieldToken is ERC20 {
     constructor() ERC20("Yield", "YLD") {}
