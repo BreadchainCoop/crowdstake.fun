@@ -251,33 +251,6 @@ contract MockStrategyDistributionManager is IDistributionManager {
 
 // ============ Mock Strategy for MultiStrategyDistributionManager tests ============
 
-/// @dev Malicious strategy that attempts to re-enter claimAndDistribute during distribute()
-contract ReentrantStrategy is IDistributionStrategy {
-    MultiStrategyDistributionManager public manager;
-    IERC20 public token;
-    bool public shouldReenter;
-
-    constructor(address _manager, address _token) {
-        manager = MultiStrategyDistributionManager(_manager);
-        token = IERC20(_token);
-    }
-
-    function setShouldReenter(bool _shouldReenter) external {
-        shouldReenter = _shouldReenter;
-    }
-
-    function distribute(uint256) external override {
-        if (shouldReenter) {
-            shouldReenter = false;
-            manager.claimAndDistribute();
-        }
-    }
-
-    function withdrawToken(address to, uint256 amount) external {
-        token.transfer(to, amount);
-    }
-}
-
 /// @dev A lightweight strategy mock that accepts distribute() from anyone.
 /// Used to test MultiStrategyDistributionManager without needing circular init.
 contract MockDistributableStrategy is IDistributionStrategy {
