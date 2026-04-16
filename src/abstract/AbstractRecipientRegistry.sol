@@ -83,7 +83,8 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
     // ============ Internal Functions ============
 
     /// @notice Internal function to queue a recipient for addition
-    /// @param recipient Address to add to the queue
+    /// @param recipient Address to add to the queue; must be strictly greater than the last
+    ///        queued address (ascending order) to maintain the sorted-array invariant
     /// @dev This is an internal function that should be called by derived contracts
     /// @dev Validates the recipient address and checks for duplicates before queuing
     /// @dev Emits RecipientQueued event with isAddition=true
