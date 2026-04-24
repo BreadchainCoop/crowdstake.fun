@@ -3,7 +3,8 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
-# If `forge test` gets slow, lower this and/or add a dedicated CI profile with fewer runs
+# If `forge test` gets slow, lower this and/or add a dedicated CI profile with fewer runs.
+# Workflow sets FOUNDRY_PROFILE=ci by convention; [profile.ci] is intentionally absent so it merges to a no-op.
 fuzz = { runs = 1024 }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
