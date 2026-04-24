@@ -49,3 +49,18 @@ jobs:
         env:
           ETH_RPC_URL: ${{ secrets.ETH_RPC_URL || vars.ETH_RPC_URL || 'https://rpc.gnosis.gateway.fm' }}
         id: test
+
+  fuzz:
+    name: Fuzz tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run fuzz tests
+        run: |
+          forge test --match-path 'test/fuzz/**' -vvv
