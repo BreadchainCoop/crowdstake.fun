@@ -92,19 +92,18 @@ abstract contract AbstractDistributionStrategy is Initializable, IDistributionSt
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _distributionManager Address of the distribution manager authorized to call distribute
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
-    function __AbstractDistributionStrategy_init(
-        address _yieldToken,
-        address _distributionManager,
-        address _owner
-    ) internal onlyInitializing {
+    function __AbstractDistributionStrategy_init(address _yieldToken, address _distributionManager, address _owner)
+        internal
+        onlyInitializing
+    {
         __Ownable_init(_owner);
         __AbstractDistributionStrategy_init_unchained(_yieldToken, _distributionManager);
     }
 
-    function __AbstractDistributionStrategy_init_unchained(
-        address _yieldToken,
-        address _distributionManager
-    ) internal onlyInitializing {
+    function __AbstractDistributionStrategy_init_unchained(address _yieldToken, address _distributionManager)
+        internal
+        onlyInitializing
+    {
         if (_yieldToken == address(0)) revert ZeroAddress();
         if (_distributionManager == address(0)) revert ZeroAddress();
 

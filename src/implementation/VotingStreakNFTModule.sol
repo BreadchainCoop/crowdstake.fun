@@ -33,11 +33,7 @@ contract VotingStreakNFTModule is BasisPointsVotingModule {
     bytes32 private constant VOTING_STREAK_NFT_MODULE_STORAGE =
         0xa65dee7b045e43a11600ba41b419f3aad18025b3c1b3b7c19daa6c12d6462c00;
 
-    function _getVotingStreakNFTModuleStorage()
-        internal
-        pure
-        returns (VotingStreakNFTModuleStorage storage $)
-    {
+    function _getVotingStreakNFTModuleStorage() internal pure returns (VotingStreakNFTModuleStorage storage $) {
         assembly {
             $.slot := VOTING_STREAK_NFT_MODULE_STORAGE
         }
@@ -68,11 +64,7 @@ contract VotingStreakNFTModule is BasisPointsVotingModule {
     /// @param user The user address to query
     /// @return streak Current consecutive voting streak
     /// @return lastVoteCycle Last cycle in which the user successfully voted
-    function userActivity(address user)
-        external
-        view
-        returns (uint256 streak, uint256 lastVoteCycle)
-    {
+    function userActivity(address user) external view returns (uint256 streak, uint256 lastVoteCycle) {
         VotingStreakNFTModuleStorage storage $ = _getVotingStreakNFTModuleStorage();
         UserActivity storage activity = $.userActivity[user];
         return (activity.streak, activity.lastVoteCycle);
@@ -135,10 +127,7 @@ contract VotingStreakNFTModule is BasisPointsVotingModule {
     /// @param voter Address of the voter
     /// @param points Array of basis points for allocation across recipients
     /// @param votingPower Total voting power of the voter
-    function _processVote(address voter, uint256[] calldata points, uint256 votingPower)
-        internal
-        override
-    {
+    function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal override {
         // Step 1: Execute standard voting math via parent
         super._processVote(voter, points, votingPower);
 
@@ -186,6 +175,5 @@ contract VotingStreakNFTModule is BasisPointsVotingModule {
             $.nftContract.mint(user);
         }
     }
-
 }
 
