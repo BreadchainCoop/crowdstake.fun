@@ -3,4 +3,7 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+# If `forge test` gets slow, lower this and/or add a dedicated CI profile with fewer runs
+fuzz = { runs = 1024 }
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
