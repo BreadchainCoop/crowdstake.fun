@@ -48,8 +48,9 @@ contract CovaProjectRegistry is AbstractRecipientRegistry, ICovaProjectRegistry 
     ) external onlyOwner {
         if (project_ == address(0)) revert InvalidRecipient();
         if (minViableBudget == 0 || fullBudget == 0 || minViableBudget > fullBudget) revert InvalidBudget();
-        _s().projects[project_] =
-            Project({fullBudget: fullBudget, minViableBudget: minViableBudget, title: title, summary: summary, exists: true});
+        _s().projects[project_] = Project({
+            fullBudget: fullBudget, minViableBudget: minViableBudget, title: title, summary: summary, exists: true
+        });
         _queueForAddition(project_);
         emit ProjectRegistered(project_, fullBudget, minViableBudget, title);
     }

@@ -44,11 +44,7 @@ contract VotingDistributionStrategy is AbstractDistributionStrategy {
     /// @param _yieldToken Address of the yield token to distribute
     /// @param _distributionManager Address of the distribution manager
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
-    function initialize(
-        address _yieldToken,
-        address _distributionManager,
-        address _owner
-    ) external initializer {
+    function initialize(address _yieldToken, address _distributionManager, address _owner) external initializer {
         __AbstractDistributionStrategy_init(_yieldToken, _distributionManager, _owner);
     }
 
