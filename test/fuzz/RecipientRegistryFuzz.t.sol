@@ -29,7 +29,11 @@ contract RecipientRegistryFuzz is Test {
     }
 
     /// @notice Fuzz that zero address always reverts
-    function testFuzz_QueueAdditionRejectsZeroAddress(uint256 /* salt */) public {
+    function testFuzz_QueueAdditionRejectsZeroAddress(
+        uint256 /* salt */
+    )
+        public
+    {
         vm.prank(admin);
         vm.expectRevert();
         registry.queueRecipientAddition(address(0));

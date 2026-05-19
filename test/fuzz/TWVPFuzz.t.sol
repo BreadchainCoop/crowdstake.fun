@@ -121,12 +121,9 @@ contract TWVPFuzz is Test {
     }
 
     /// @notice Fuzz that late deposit gives less power than holding from start
-    function testFuzz_LateDepositLessPower(
-        uint208 balance,
-        uint256 startBlock,
-        uint256 depositOffset,
-        uint256 duration
-    ) public {
+    function testFuzz_LateDepositLessPower(uint208 balance, uint256 startBlock, uint256 depositOffset, uint256 duration)
+        public
+    {
         balance = uint208(bound(balance, 1, 1e24));
         startBlock = bound(startBlock, 10, 1e6);
         duration = bound(duration, 10, 1e6);

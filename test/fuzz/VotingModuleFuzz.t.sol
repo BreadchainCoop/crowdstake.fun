@@ -69,28 +69,32 @@ contract VotingModuleFuzz is Test {
         bytes memory sig = abi.encodePacked(randomR, randomS, v);
 
         // Build a fake struct hash
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)"),
-            voter,
-            randomR, // pretend this is pointsHash
-            nonce
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)"),
+                voter,
+                randomR, // pretend this is pointsHash
+                nonce
+            )
+        );
 
         // Hash with a fake domain separator
-        bytes32 domainSeparator = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("CrowdstakingVoting"),
-            keccak256("1"),
-            block.chainid,
-            address(0xdead)
-        ));
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("CrowdstakingVoting"),
+                keccak256("1"),
+                block.chainid,
+                address(0xdead)
+            )
+        );
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
         // Try to recover -- random bytes almost never produce a valid recovery matching voter.
         // We don't assert it never matches (extremely unlikely but theoretically possible),
         // but we verify the ecrecover doesn't revert and the flow is safe.
-        (address recovered, , ) = _tryRecover(digest, sig);
+        (address recovered,,) = _tryRecover(digest, sig);
         // The recovered address being different from voter is the expected case
         // but we don't hard-assert since random bytes could theoretically match
         if (recovered == voter) {
