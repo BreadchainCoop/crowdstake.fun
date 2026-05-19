@@ -1,0 +1,18 @@
+VotingModuleSimpleTest
+├── when initializing
+│   └── it should set max points and strategies
+├── when casting a direct vote
+│   └── it should record vote and update distribution
+├── when casting a vote with signature
+│   └── it should verify signature and record vote
+├── when replaying a nonce
+│   └── it should revert with NonceAlreadyUsed
+├── when using incorrect recipient count
+│   ├── it should revert with too few points
+│   └── it should revert with too many points
+├── when using valid recipient count
+│   └── it should accept and record vote
+├── when recipient registry updates
+│   └── it should accept votes matching new recipient count
+└── when using an invalid signature
+    └── it should revert with InvalidSignature

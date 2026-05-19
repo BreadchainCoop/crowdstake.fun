@@ -95,20 +95,26 @@ contract AutomationBaseTest is Test {
         distributionManager.setAvailableYield(2000);
     }
 
-    function testChainlinkCheckUpkeep() public {
+    // ============ when checking Chainlink upkeep ============
+
+    function test_WhenCheckingChainlinkUpkeep_ShouldReturnFalseWhenTooSoon() public {
         // Initially should not need upkeep (too soon)
         (bool upkeepNeeded,) = chainlinkAutomation.checkUpkeep("");
         assertFalse(upkeepNeeded);
+    }
 
+    function test_WhenCheckingChainlinkUpkeep_ShouldReturnTrueWhenReady() public {
         // Advance blocks
         vm.roll(block.number + 101);
 
         // Now should need upkeep
-        (upkeepNeeded,) = chainlinkAutomation.checkUpkeep("");
+        (bool upkeepNeeded,) = chainlinkAutomation.checkUpkeep("");
         assertTrue(upkeepNeeded);
     }
 
-    function testChainlinkPerformUpkeep() public {
+    // ============ when performing Chainlink upkeep ============
+
+    function test_WhenPerformingChainlinkUpkeep_ShouldExecuteDistributionAndEmitEvent() public {
         // Advance blocks to make distribution ready
         vm.roll(block.number + 101);
 
@@ -128,67 +134,47 @@ contract AutomationBaseTest is Test {
         assertEq(distributionManager.currentCycleNumber(), 2);
     }
 
-    // function testGelatoChecker() public {
-    //     // Initially should not be executable (too soon)
-    //     (bool canExec, bytes memory execPayload) = gelatoAutomation.checker();
-    //     assertFalse(canExec);
+    // ============ when resolving distribution conditions ============
 
-    //     // Advance blocks
-    //     vm.roll(block.number + 101);
-
-    //     // Now should be executable
-    //     (canExec, execPayload) = gelatoAutomation.checker();
-    //     assertTrue(canExec);
-    //     assertGt(execPayload.length, 0);
-    // }
-
-    // function testGelatoExecute() public {
-    //     // Advance blocks to make distribution ready
-    //     vm.roll(block.number + 101);
-
-    //     // Check if executable
-    //     (bool canExec,) = gelatoAutomation.checker();
-    //     assertTrue(canExec);
-
-    //     // Execute
-    //     vm.expectEmit(true, false, false, true);
-    //     emit AutomationExecuted(gelatoExecutor, block.number);
-
-    //     vm.prank(gelatoExecutor);
-    //     gelatoAutomation.execute("");
-
-    //     // Verify distribution was called
-    //     assertEq(distributionModule.distributeCallCount(), 1);
-    //     assertEq(distributionManager.currentCycleNumber(), 2);
-    // }
-
-    function testResolveDistributionConditions() public {
-        // Test: Not enough blocks passed
+    function test_WhenResolvingDistributionConditions_ShouldFailWhenNotEnoughBlocksPassed() public {
         bool isReady = chainlinkAutomation.isDistributionReady();
         assertFalse(isReady);
+    }
 
+    function test_WhenResolvingDistributionConditions_ShouldFailWhenNoVotes() public {
         vm.roll(block.number + 101);
 
-        // Test: No votes
         distributionManager.setCurrentVotes(0);
-        isReady = chainlinkAutomation.isDistributionReady();
+        bool isReady = chainlinkAutomation.isDistributionReady();
         assertFalse(isReady);
+    }
 
-        // Test: Insufficient yield
+    function test_WhenResolvingDistributionConditions_ShouldFailWhenInsufficientYield() public {
+        vm.roll(block.number + 101);
+
         distributionManager.setCurrentVotes(100);
         distributionManager.setAvailableYield(500);
-        isReady = chainlinkAutomation.isDistributionReady();
+        bool isReady = chainlinkAutomation.isDistributionReady();
         assertFalse(isReady);
+    }
 
-        // Test: System disabled
+    function test_WhenResolvingDistributionConditions_ShouldFailWhenSystemDisabled() public {
+        vm.roll(block.number + 101);
+
+        distributionManager.setCurrentVotes(100);
         distributionManager.setAvailableYield(2000);
         distributionManager.setEnabled(false);
-        isReady = chainlinkAutomation.isDistributionReady();
+        bool isReady = chainlinkAutomation.isDistributionReady();
         assertFalse(isReady);
+    }
 
-        // Test: All conditions met
+    function test_WhenResolvingDistributionConditions_ShouldPassWhenAllConditionsMet() public {
+        vm.roll(block.number + 101);
+
+        distributionManager.setCurrentVotes(100);
+        distributionManager.setAvailableYield(2000);
         distributionManager.setEnabled(true);
-        isReady = chainlinkAutomation.isDistributionReady();
+        bool isReady = chainlinkAutomation.isDistributionReady();
         assertTrue(isReady);
 
         // Test automation data is returned when ready
@@ -196,13 +182,17 @@ contract AutomationBaseTest is Test {
         assertGt(data.length, 0);
     }
 
-    function testExecutionRevertsWhenNotResolved() public {
+    // ============ when execution is not resolved ============
+
+    function test_RevertWhen_ExecutionIsNotResolved_ShouldRevertWithNotResolved() public {
         // Try to execute when conditions not met
         vm.expectRevert(AbstractAutomation.NotResolved.selector);
         chainlinkAutomation.executeDistribution();
     }
 
-    function testCycleManagerIntegration() public {
+    // ============ when integrating with cycle manager ============
+
+    function test_WhenIntegratingWithCycleManager_ShouldAdvanceCycleAfterExecution() public {
         // Check initial state
         assertEq(distributionManager.currentCycleNumber(), 1);
         assertEq(distributionManager.currentVotes(), 100);
@@ -219,7 +209,9 @@ contract AutomationBaseTest is Test {
         assertEq(distributionManager.getLastDistributionBlock(), block.number);
     }
 
-    function testCycleInfo() public {
+    // ============ when querying cycle info ============
+
+    function test_WhenQueryingCycleInfo_ShouldReturnCorrectCycleBoundaries() public {
         (uint256 cycleNum, uint256 startBlock, uint256 endBlock) = distributionManager.getCycleInfo();
         assertEq(cycleNum, 1);
         assertEq(startBlock, block.number);
@@ -236,37 +228,23 @@ contract AutomationBaseTest is Test {
         assertEq(endBlock, block.number + 100);
     }
 
-    // function testBothAutomationTypesWork() public {
-    //     // Test Chainlink automation
-    //     vm.roll(block.number + 101);
-    //     distributionManager.setCurrentVotes(100);
-    //     distributionManager.setAvailableYield(2000);
+    // ============ when checking minimum yield ============
 
-    //     vm.prank(chainlinkKeeper);
-    //     chainlinkAutomation.performUpkeep("");
-    //     assertEq(distributionModule.distributeCallCount(), 1);
-
-    //     // // Test Gelato automation
-    //     // vm.roll(block.number + 101);
-    //     // distributionManager.setCurrentVotes(100);
-    //     // distributionManager.setAvailableYield(2000);
-
-    //     // vm.prank(gelatoExecutor);
-    //     // gelatoAutomation.execute("");
-    //     // assertEq(distributionModule.distributeCallCount(), 2);
-    // }
-
-    function testMinYieldRequired() public {
+    function test_WhenCheckingMinimumYield_ShouldFailBelowMinimum() public {
         vm.roll(block.number + 101);
 
         // Set yield below minimum
         distributionManager.setAvailableYield(999);
         bool isReady = chainlinkAutomation.isDistributionReady();
         assertFalse(isReady);
+    }
+
+    function test_WhenCheckingMinimumYield_ShouldPassAtMinimum() public {
+        vm.roll(block.number + 101);
 
         // Set yield at minimum
         distributionManager.setAvailableYield(1000);
-        isReady = chainlinkAutomation.isDistributionReady();
+        bool isReady = chainlinkAutomation.isDistributionReady();
         assertTrue(isReady);
     }
 }

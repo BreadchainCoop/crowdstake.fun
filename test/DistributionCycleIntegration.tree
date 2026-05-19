@@ -1,0 +1,5 @@
+DistributionCycleIntegrationTest
+├── when calling claimAndDistribute
+│   └── it should advance the cycle atomically
+└── when manager is not wired as distribution manager
+    └── it should return false for isDistributionReady

@@ -1,0 +1,26 @@
+FactoryModuleDeploymentTest
+├── when creating a cycle module
+│   └── it should deploy and initialize correctly
+├── when creating an admin recipient registry
+│   └── it should deploy and initialize correctly
+├── when creating a recipient registry
+│   └── it should deploy and initialize correctly
+├── when creating a voting recipient registry
+│   └── it should deploy and initialize correctly
+├── when creating an equal distribution strategy
+│   └── it should deploy and initialize correctly
+├── when creating a voting distribution strategy
+│   └── it should deploy and initialize correctly
+├── when creating a basis points voting module
+│   └── it should deploy and initialize correctly
+├── when creating a base distribution manager
+│   └── it should deploy and initialize correctly
+├── when creating a multi strategy distribution manager
+│   └── it should deploy and initialize correctly
+├── when computing addresses
+│   ├── it should return deterministic address
+│   └── it should match actual deployment address
+├── when using non-allowlisted beacon
+│   └── it should revert
+└── when assembling full system
+    └── it should deploy and wire all modules

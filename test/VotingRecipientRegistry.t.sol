@@ -32,7 +32,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.initialize(ADMIN, initial, 7 days);
     }
 
-    function test_Initialize() public view {
+    function test_WhenInitializing() external view {
+        // it should set admin recipients and expiry
         assertEq(registry.owner(), ADMIN);
         assertEq(registry.getRecipientCount(), 3);
         assertTrue(registry.isRecipient(RECIPIENT_1));
@@ -40,7 +41,9 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(RECIPIENT_3));
     }
 
-    function test_ProposeAddition() public {
+    function test_WhenProposingAnAddition() external {
+        // it should create proposal with auto-vote from proposer
+        // it should snapshot required votes at creation
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -63,7 +66,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertTrue(registry.hasVoted(proposalId, RECIPIENT_1));
     }
 
-    function test_VoteOnProposal() public {
+    function test_WhenVotingOnAProposal() external {
+        // it should increment vote count
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -77,7 +81,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertTrue(registry.hasVoted(proposalId, RECIPIENT_2));
     }
 
-    function test_UnanimousVoteExecutesAutomatically() public {
+    function test_WhenUnanimousVoteIsReached() external {
+        // it should auto-execute and queue recipient
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -108,7 +113,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertFalse(registry.isQueuedForAddition(NEW_RECIPIENT)); // No longer in queue
     }
 
-    function test_ManualExecuteProposal() public {
+    function test_WhenManuallyExecutingAProposal() external {
+        // it should queue recipient after enough votes
         // Add a fourth recipient first so we can test manual execution
         vm.prank(RECIPIENT_1);
         uint256 addProposal = registry.proposeAddition(NEW_RECIPIENT);
@@ -145,7 +151,9 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(address(0x99))); // Now added
     }
 
-    function test_ProposeRemoval() public {
+    function test_WhenProposingARemoval() external {
+        // it should create removal proposal
+        // it should require fewer votes than addition
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeRemoval(RECIPIENT_3);
 
@@ -158,7 +166,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertEq(requiredVotes, 2); // Snapshotted at creation: 3 - 1 for removal
     }
 
-    function test_RemovalRequiresFewerVotes() public {
+    function test_WhenRemovalReachesThreshold() external {
+        // it should auto-execute and queue for removal
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeRemoval(RECIPIENT_3);
 
@@ -186,7 +195,9 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertFalse(registry.isQueuedForRemoval(RECIPIENT_3)); // No longer queued
     }
 
-    function test_ProposalExpiry() public {
+    function test_WhenAProposalExpires() external {
+        // it should reject votes on expired proposals
+        // it should reject execution of expired proposals
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -205,13 +216,15 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.executeProposal(proposalId);
     }
 
-    function test_RevertOnNonRecipientPropose() public {
+    function test_WhenANonRecipientProposes() external {
+        // it should revert with NotARecipient
         vm.prank(NON_RECIPIENT);
         vm.expectRevert(VotingRecipientRegistry.NotARecipient.selector);
         registry.proposeAddition(NEW_RECIPIENT);
     }
 
-    function test_RevertOnNonRecipientVote() public {
+    function test_WhenANonRecipientVotes() external {
+        // it should revert with NotEligibleVoter
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -220,7 +233,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
     }
 
-    function test_RevertOnDoubleVote() public {
+    function test_WhenDoubleVoting() external {
+        // it should revert with AlreadyVoted
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -229,13 +243,15 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
     }
 
-    function test_RevertOnInvalidProposal() public {
+    function test_WhenVotingOnInvalidProposal() external {
+        // it should revert with ProposalNotFound
         vm.prank(RECIPIENT_1);
         vm.expectRevert(VotingRecipientRegistry.ProposalNotFound.selector);
         registry.vote(999);
     }
 
-    function test_RevertOnExecutedProposal() public {
+    function test_WhenVotingOnExecutedProposal() external {
+        // it should revert with ProposalAlreadyExecuted
         // Create and execute a proposal
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
@@ -252,19 +268,22 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
     }
 
-    function test_RevertOnProposingExistingRecipient() public {
+    function test_WhenProposingExistingRecipient() external {
+        // it should revert with RecipientAlreadyExists
         vm.prank(RECIPIENT_1);
         vm.expectRevert(IRecipientRegistry.RecipientAlreadyExists.selector);
         registry.proposeAddition(RECIPIENT_2);
     }
 
-    function test_RevertOnRemovingNonExistent() public {
+    function test_WhenRemovingNonExistentRecipient() external {
+        // it should revert with RecipientNotFound
         vm.prank(RECIPIENT_1);
         vm.expectRevert(IRecipientRegistry.RecipientNotFound.selector);
         registry.proposeRemoval(NEW_RECIPIENT);
     }
 
-    function test_RevertOnNotEnoughVotes() public {
+    function test_WhenExecutingWithoutEnoughVotes() external {
+        // it should revert with NotEnoughVotes
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
@@ -276,7 +295,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.executeProposal(proposalId);
     }
 
-    function test_NewRecipientCanVoteAfterAdded() public {
+    function test_WhenNewRecipientVotesAfterBeingAdded() external {
+        // it should allow new recipient to participate
         // Add new recipient
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
@@ -300,7 +320,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertEq(registry.getRequiredVotes(newProposalId), 4);
     }
 
-    function test_RevertOnEmptyInitialRecipients() public {
+    function test_WhenInitializingWithEmptyRecipients() external {
+        // it should revert with NoRecipients
         VotingRecipientRegistry newRegistry = new VotingRecipientRegistry();
         address[] memory empty = new address[](0);
 
@@ -308,12 +329,13 @@ contract VotingRecipientRegistryTest is TestWrapper {
         newRegistry.initialize(ADMIN, empty, 7 days);
     }
 
-    function test_ProposalExpiryConfiguration() public view {
-        // Test that proposal expiry is set correctly during initialization
+    function test_WhenConfiguringProposalExpiry_ShouldReturnConfiguredExpiry() external view {
+        // it should return configured expiry
         assertEq(registry.proposalExpiry(), 7 days);
     }
 
-    function test_SetProposalExpiry() public {
+    function test_WhenConfiguringProposalExpiry_ShouldAllowAdminToUpdateExpiry() external {
+        // it should allow admin to update expiry
         uint256 newExpiry = 3 days;
 
         vm.prank(ADMIN);
@@ -324,7 +346,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertEq(registry.proposalExpiry(), newExpiry);
     }
 
-    function test_RevertOnInvalidProposalExpiryInitialize() public {
+    function test_RevertWhen_ConfiguringProposalExpiry_ZeroExpiryInInitialize() external {
+        // it should revert on zero expiry in initialize
         VotingRecipientRegistry newRegistry = new VotingRecipientRegistry();
         address[] memory initial = new address[](1);
         initial[0] = RECIPIENT_1;
@@ -333,19 +356,22 @@ contract VotingRecipientRegistryTest is TestWrapper {
         newRegistry.initialize(ADMIN, initial, 0);
     }
 
-    function test_RevertOnInvalidProposalExpiryUpdate() public {
+    function test_RevertWhen_ConfiguringProposalExpiry_ZeroExpiryInUpdate() external {
+        // it should revert on zero expiry in update
         vm.prank(ADMIN);
         vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
         registry.setProposalExpiry(0);
     }
 
-    function test_OnlyAdminCanSetProposalExpiry() public {
+    function test_RevertWhen_ConfiguringProposalExpiry_NonAdminSetsExpiry() external {
+        // it should only allow admin to set expiry
         vm.prank(RECIPIENT_1);
         vm.expectRevert();
         registry.setProposalExpiry(3 days);
     }
 
-    function test_RequiredVotesUnchangedAfterRecipientSetChanges() public {
+    function test_WhenRequiredVotesAreSnapshotted() external {
+        // it should not change after recipient set changes
         // Create an addition proposal while there are 3 recipients (requires 3 votes)
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);

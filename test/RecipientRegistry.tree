@@ -1,0 +1,47 @@
+RecipientRegistryTest
+├── when initializing
+│   └── it should set owner and zero recipients
+├── when queuing a recipient for addition
+│   ├── given the recipient is valid
+│   │   ├── it should add to queue and emit RecipientQueued
+│   │   └── it should support multiple additions
+│   ├── given the recipient is address zero
+│   │   └── it should revert
+│   ├── given the recipient is already active
+│   │   └── it should revert
+│   └── given the recipient is already queued
+│       └── it should revert with RecipientAlreadyQueued
+├── when queuing a recipient for removal
+│   ├── given the recipient is active
+│   │   └── it should add to removal queue and emit RecipientQueued
+│   ├── given the recipient is not active
+│   │   └── it should revert
+│   └── given the recipient is already queued for removal
+│       └── it should revert with RecipientAlreadyQueued
+├── when processing the queue
+│   ├── given the queue has additions
+│   │   └── it should add recipients and emit events
+│   ├── given the queue has removals
+│   │   └── it should remove recipients and emit events
+│   ├── given the queue has mixed operations
+│   │   └── it should process additions and removals together
+│   └── given the queue is empty
+│       └── it should not revert
+├── when clearing the addition queue
+│   └── it should remove all queued additions
+├── when clearing the removal queue
+│   └── it should remove all queued removals
+├── when re-queuing after removal
+│   └── it should allow re-adding a previously removed recipient
+├── when re-queuing after clearing
+│   └── it should allow re-adding after clearing addition queue
+├── when checking queue independence
+│   └── it should keep addition and removal queues independent
+├── when getting recipients
+│   └── it should return all active recipients
+├── when checking access control
+│   ├── it should only allow owner to queue
+│   ├── it should only allow owner to clear queues
+│   └── it should allow anyone to process queue
+└── when performing large scale operations
+    └── it should handle 100 additions and 50 removals

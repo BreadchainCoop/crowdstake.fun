@@ -1,0 +1,30 @@
+VotingModuleTest
+├── when initializing
+│   └── it should set max points and strategies
+├── when casting a direct vote
+│   └── it should record vote and update distribution
+├── when casting a vote with signature
+│   └── it should verify signature and emit VoteCast
+├── when casting batch votes
+│   └── it should record all votes and emit BatchVotesCast
+├── when recasting a vote
+│   └── it should replace the previous vote distribution
+├── when replaying a nonce
+│   └── it should revert with NonceAlreadyUsed
+├── when using an invalid signature
+│   └── it should revert with InvalidSignature
+├── when voting with zero power
+│   └── it should record vote with zero effect
+├── when exceeding max points
+│   └── it should revert with ExceedsMaxPoints
+├── when all points are zero
+│   └── it should revert with ZeroVotePoints
+├── when validating a signature
+│   ├── it should return true for valid signature
+│   └── it should return false for wrong voter
+├── when querying voting power
+│   └── it should return correct power per token holdings
+├── when advancing to a new cycle
+│   └── it should reset vote tracking for new cycle
+└── when skipping nonces
+    └── it should allow non-sequential nonce usage

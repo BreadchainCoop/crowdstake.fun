@@ -147,7 +147,19 @@ contract VotingModuleTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function testInitialization() public view {
+    // Helper functions
+
+    function _createVoteDigest(address voter, uint256[] memory points, uint256 nonce) internal view returns (bytes32) {
+        bytes32 voteTypehash = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)");
+
+        bytes32 structHash = keccak256(abi.encode(voteTypehash, voter, keccak256(abi.encodePacked(points)), nonce));
+
+        return keccak256(abi.encodePacked("\x19\x01", votingModule.DOMAIN_SEPARATOR(), structHash));
+    }
+
+    // ============ when initializing ============
+
+    function test_WhenInitializing_ItShouldSetMaxPointsAndStrategies() public view {
         assertEq(votingModule.maxPoints(), MAX_POINTS);
         assertEq(cycleModule.getCurrentCycle(), 1);
 
@@ -157,7 +169,9 @@ contract VotingModuleTest is Test {
         assertEq(address(votingModule.recipientRegistry()), address(recipientRegistry));
     }
 
-    function testDirectVoting() public {
+    // ============ when casting a direct vote ============
+
+    function test_WhenCastingDirectVote_ItShouldRecordVoteAndUpdateDistribution() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
         points[1] = 30;
@@ -174,7 +188,9 @@ contract VotingModuleTest is Test {
         assertEq(projectDist.length, 3);
     }
 
-    function testSignatureVoting() public {
+    // ============ when casting a vote with signature ============
+
+    function test_WhenCastingVoteWithSignature_ItShouldVerifySignatureAndEmitVoteCast() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 40;
         points[1] = 35;
@@ -200,7 +216,9 @@ contract VotingModuleTest is Test {
         assertTrue(votingModule.isNonceUsed(voter1, nonce));
     }
 
-    function testBatchVoting() public {
+    // ============ when casting batch votes ============
+
+    function test_WhenCastingBatchVotes_ItShouldRecordAllVotesAndEmitBatchVotesCast() public {
         address[] memory voters = new address[](2);
         voters[0] = voter1;
         voters[1] = voter2;
@@ -242,7 +260,9 @@ contract VotingModuleTest is Test {
         assertTrue(votingModule.hasVotedInCurrentCycle(voter2), "Voter2 should have voted in current cycle");
     }
 
-    function testVoteRecasting() public {
+    // ============ when recasting a vote ============
+
+    function test_WhenRecastingVote_ItShouldReplacePreviousVoteDistribution() public {
         uint256[] memory points1 = new uint256[](3);
         points1[0] = 50;
         points1[1] = 30;
@@ -294,7 +314,9 @@ contract VotingModuleTest is Test {
         assertEq(dist2[2], (15 * votingPower * 1e18) / totalPoints2 / 1e18, "Third project should have new allocation");
     }
 
-    function testNonceReplayProtection() public {
+    // ============ when replaying a nonce ============
+
+    function test_RevertWhen_ReplayingNonce_NonceAlreadyUsed() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
         points[1] = 30;
@@ -315,7 +337,9 @@ contract VotingModuleTest is Test {
         votingModule.castVoteWithSignature(voter1, points, nonce, signature);
     }
 
-    function testInvalidSignature() public {
+    // ============ when using an invalid signature ============
+
+    function test_RevertWhen_UsingInvalidSignature_InvalidSignature() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
         points[1] = 30;
@@ -333,7 +357,9 @@ contract VotingModuleTest is Test {
         votingModule.castVoteWithSignature(voter1, points, nonce, signature);
     }
 
-    function testZeroVotingPower() public {
+    // ============ when voting with zero power ============
+
+    function test_WhenVotingWithZeroPower_ItShouldRecordVoteWithZeroEffect() public {
         // Create account with no tokens
         uint256 noTokensVoterPrivateKey = 0x999;
         address noTokensVoter = vm.addr(noTokensVoterPrivateKey);
@@ -354,7 +380,9 @@ contract VotingModuleTest is Test {
         );
     }
 
-    function testExceedsMaxPoints() public {
+    // ============ when exceeding max points ============
+
+    function test_RevertWhen_ExceedingMaxPoints_ExceedsMaxPoints() public {
         uint256[] memory points = new uint256[](3);
         points[0] = MAX_POINTS + 1; // Exceeds max
         points[1] = 50;
@@ -366,7 +394,9 @@ contract VotingModuleTest is Test {
         votingModule.castVoteWithSignature(voter1, points, nonce, signature);
     }
 
-    function testZeroVotePoints() public {
+    // ============ when all points are zero ============
+
+    function test_RevertWhen_AllPointsAreZero_ZeroVotePoints() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 0;
         points[1] = 0;
@@ -378,7 +408,9 @@ contract VotingModuleTest is Test {
         votingModule.castVoteWithSignature(voter1, points, nonce, signature);
     }
 
-    function testValidateSignature() public view {
+    // ============ when validating a signature ============
+
+    function test_WhenValidatingSignature_ItShouldReturnTrueForValidSignature() public view {
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
         points[1] = 30;
@@ -393,12 +425,28 @@ contract VotingModuleTest is Test {
 
         // Should return true for valid signature
         assertTrue(votingModule.validateSignature(voter1, points, nonce, signature));
+    }
+
+    function test_WhenValidatingSignature_ItShouldReturnFalseForWrongVoter() public view {
+        uint256[] memory points = new uint256[](3);
+        points[0] = 50;
+        points[1] = 30;
+        points[2] = 20;
+
+        uint256 nonce = 1;
+
+        // Create valid signature
+        bytes32 digest = _createVoteDigest(voter1, points, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PrivateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         // Should return false for wrong voter
         assertFalse(votingModule.validateSignature(voter2, points, nonce, signature));
     }
 
-    function testGetVotingPower() public view {
+    // ============ when querying voting power ============
+
+    function test_WhenQueryingVotingPower_ItShouldReturnCorrectPowerPerTokenHoldings() public view {
         uint256 power = votingModule.getVotingPower(voter1);
         assertGt(power, 0);
 
@@ -407,7 +455,9 @@ contract VotingModuleTest is Test {
         assertGt(power, power2);
     }
 
-    function testNewCycle() public {
+    // ============ when advancing to a new cycle ============
+
+    function test_WhenAdvancingToNewCycle_ItShouldResetVoteTrackingForNewCycle() public {
         // Vote in cycle 1
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
@@ -440,7 +490,9 @@ contract VotingModuleTest is Test {
         assertEq(cycleModule.getCurrentCycle(), 2);
     }
 
-    function testNonceSkipping() public {
+    // ============ when skipping nonces ============
+
+    function test_WhenSkippingNonces_ItShouldAllowNonSequentialNonceUsage() public {
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
         points[1] = 30;
@@ -462,15 +514,5 @@ contract VotingModuleTest is Test {
         assertFalse(votingModule.isNonceUsed(voter1, 2));
         assertFalse(votingModule.isNonceUsed(voter1, 3));
         assertFalse(votingModule.isNonceUsed(voter1, 4));
-    }
-
-    // Helper functions
-
-    function _createVoteDigest(address voter, uint256[] memory points, uint256 nonce) internal view returns (bytes32) {
-        bytes32 voteTypehash = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)");
-
-        bytes32 structHash = keccak256(abi.encode(voteTypehash, voter, keccak256(abi.encodePacked(points)), nonce));
-
-        return keccak256(abi.encodePacked("\x19\x01", votingModule.DOMAIN_SEPARATOR(), structHash));
     }
 }

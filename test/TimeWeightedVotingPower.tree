@@ -1,0 +1,37 @@
+TimeWeightedVotingPowerTest
+├── when constructing
+│   ├── it should set voting token and cycle module
+│   ├── it should revert with invalid token
+│   └── it should revert with invalid cycle module
+├── when calculating exact checkpoint integration
+│   └── it should compute correct time-weighted average
+├── when balance is constant for full cycle
+│   └── it should return proportional power
+├── when a flash loan occurs
+│   ├── it should dilute flash loan power
+│   └── it should compute exact area under curve
+├── when balance is zero
+│   └── it should return zero power
+├── when at cycle start
+│   └── it should return zero power
+├── when querying power for a specific period
+│   ├── it should return correct power for full period
+│   ├── it should revert when start equals end
+│   └── it should revert for future period
+├── when balance changes mid-period
+│   └── it should compute weighted average
+├── when multiple checkpoints exist in period
+│   └── it should walk all checkpoints correctly
+├── when checkpoint is before period start
+│   └── it should use balance at period start
+├── when checkpoint is after period start
+│   └── it should weight from checkpoint onward
+├── when balance decreases in period
+│   └── it should account for decreased balance
+├── when crossing cycle boundaries
+│   ├── it should use new cycle start as period start
+│   └── it should reflect lookback from cycle length
+├── when multiple users hold tokens
+│   └── it should calculate independent power per user
+└── when measuring gas
+    └── it should use low gas with few checkpoints

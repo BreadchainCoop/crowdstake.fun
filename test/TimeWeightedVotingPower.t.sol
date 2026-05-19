@@ -68,26 +68,26 @@ contract TimeWeightedVotingPowerTest is Test {
         strategy = new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(cycleModule)));
     }
 
-    // ============ Constructor Tests ============
+    // ============ when constructing ============
 
-    function testConstructorSetsState() public view {
+    function test_WhenConstructing_ItShouldSetVotingTokenAndCycleModule() public view {
         assertEq(address(strategy.votingToken()), address(token));
         assertEq(address(strategy.cycleModule()), address(cycleModule));
     }
 
-    function testConstructorRevertsInvalidToken() public {
+    function test_RevertWhen_Constructing_InvalidToken() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidToken.selector);
         new TimeWeightedVotingPower(IVotesCheckpoints(address(0)), ICycleModule(address(cycleModule)));
     }
 
-    function testConstructorRevertsInvalidCycleModule() public {
+    function test_RevertWhen_Constructing_InvalidCycleModule() public {
         vm.expectRevert(TimeWeightedVotingPower.InvalidCycleModule.selector);
         new TimeWeightedVotingPower(IVotesCheckpoints(address(token)), ICycleModule(address(0)));
     }
 
-    // ============ Lossless Calculation Tests ============
+    // ============ when calculating exact checkpoint integration ============
 
-    function testExactCheckpointIntegration() public {
+    function test_WhenCalculatingExactCheckpointIntegration_ItShouldComputeCorrectTimeWeightedAverage() public {
         vm.roll(10);
         token.mint(user1, 1_000_000);
 
@@ -107,7 +107,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 1_250_000);
     }
 
-    function testConstantBalanceFullCycle() public {
+    // ============ when balance is constant for full cycle ============
+
+    function test_WhenBalanceIsConstantForFullCycle_ItShouldReturnProportionalPower() public {
         // Mint early in cycle
         vm.roll(10);
         token.mint(user1, 100 ether);
@@ -123,7 +125,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, expected);
     }
 
-    function testFlashLoanProtection() public {
+    // ============ when a flash loan occurs ============
+
+    function test_WhenFlashLoanOccurs_ItShouldDiluteFlashLoanPower() public {
         // User has held 1 ether for a long time
         vm.roll(10);
         token.mint(user1, 1 ether);
@@ -149,7 +153,7 @@ contract TimeWeightedVotingPowerTest is Test {
         assertLt(power, 10 ether, "Flash loan should not give significant power");
     }
 
-    function testFlashLoanExactMath() public {
+    function test_WhenFlashLoanOccurs_ItShouldComputeExactAreaUnderCurve() public {
         // Verify the exact area-under-curve for a flash loan scenario
         vm.roll(10);
         token.mint(user1, 10 ether);
@@ -169,19 +173,25 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 19 ether);
     }
 
-    function testZeroBalanceReturnsZero() public {
+    // ============ when balance is zero ============
+
+    function test_WhenBalanceIsZero_ItShouldReturnZeroPower() public {
         vm.roll(200);
         uint256 power = strategy.getCurrentVotingPower(user1);
         assertEq(power, 0);
     }
 
-    function testPowerAtCycleStart() public {
+    // ============ when at cycle start ============
+
+    function test_WhenAtCycleStart_ItShouldReturnZeroPower() public {
         vm.roll(1);
         uint256 power = strategy.getCurrentVotingPower(user1);
         assertEq(power, 0, "Power should be 0 at cycle start");
     }
 
-    function testGetVotingPowerForPeriod() public {
+    // ============ when querying power for a specific period ============
+
+    function test_WhenQueryingPowerForSpecificPeriod_ItShouldReturnCorrectPowerForFullPeriod() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
@@ -192,21 +202,21 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 100 ether);
     }
 
-    function testGetVotingPowerForPeriodRevertsStartAfterEnd() public {
+    function test_RevertWhen_QueryingPowerForSpecificPeriod_StartEqualsEnd() public {
         vm.roll(100);
         vm.expectRevert(TimeWeightedVotingPower.StartAfterEnd.selector);
         strategy.getVotingPowerForPeriod(user1, 50, 50);
     }
 
-    function testGetVotingPowerForPeriodRevertsFuturePeriod() public {
+    function test_RevertWhen_QueryingPowerForSpecificPeriod_FuturePeriod() public {
         vm.roll(100);
         vm.expectRevert(TimeWeightedVotingPower.FuturePeriod.selector);
         strategy.getVotingPowerForPeriod(user1, 50, 200);
     }
 
-    // ============ Checkpoint-walking edge cases ============
+    // ============ when balance changes mid-period ============
 
-    function testMidPeriodBalanceChange() public {
+    function test_WhenBalanceChangesMidPeriod_ItShouldComputeWeightedAverage() public {
         vm.roll(10);
         token.mint(user1, 50 ether);
 
@@ -222,7 +232,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 75 ether);
     }
 
-    function testMultipleCheckpointsInPeriod() public {
+    // ============ when multiple checkpoints exist in period ============
+
+    function test_WhenMultipleCheckpointsExistInPeriod_ItShouldWalkAllCheckpointsCorrectly() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
@@ -242,18 +254,22 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 200 ether);
     }
 
-    function testCheckpointBeforePeriodStart() public {
-        // Token acquired well before the period — should count as constant
+    // ============ when checkpoint is before period start ============
+
+    function test_WhenCheckpointIsBeforePeriodStart_ItShouldUseBalanceAtPeriodStart() public {
+        // Token acquired well before the period -- should count as constant
         vm.roll(5);
         token.mint(user1, 100 ether);
 
         vm.roll(200);
-        // Period [100, 200) — user had 100 ether the whole time
+        // Period [100, 200) -- user had 100 ether the whole time
         uint256 power = strategy.getVotingPowerForPeriod(user1, 100, 200);
         assertEq(power, 100 ether);
     }
 
-    function testCheckpointAfterPeriodStart() public {
+    // ============ when checkpoint is after period start ============
+
+    function test_WhenCheckpointIsAfterPeriodStart_ItShouldWeightFromCheckpointOnward() public {
         // No tokens at period start, acquired mid-period
         vm.roll(50);
         token.mint(user1, 100 ether);
@@ -267,7 +283,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 60 ether);
     }
 
-    function testBalanceDecreaseInPeriod() public {
+    // ============ when balance decreases in period ============
+
+    function test_WhenBalanceDecreasesInPeriod_ItShouldAccountForDecreasedBalance() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
@@ -285,9 +303,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 75 ether);
     }
 
-    // ============ Cycle Boundary Tests ============
+    // ============ when crossing cycle boundaries ============
 
-    function testCycleBoundaryHandling() public {
+    function test_WhenCrossingCycleBoundaries_ItShouldUseNewCycleStartAsPeriodStart() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
@@ -305,7 +323,7 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power, 100 ether);
     }
 
-    function testLookbackDerivedFromCycleLength() public {
+    function test_WhenCrossingCycleBoundaries_ItShouldReflectLookbackFromCycleLength() public {
         // getCurrentVotingPower uses cycle start, not a separate lookback
         // So the effective lookback is always from cycle start to now
         vm.roll(10);
@@ -330,9 +348,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertGt(power2, 98 ether);
     }
 
-    // ============ Multiple Users ============
+    // ============ when multiple users hold tokens ============
 
-    function testMultipleUsersIndependent() public {
+    function test_WhenMultipleUsersHoldTokens_ItShouldCalculateIndependentPowerPerUser() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 
@@ -353,9 +371,9 @@ contract TimeWeightedVotingPowerTest is Test {
         assertEq(power2, expected2);
     }
 
-    // ============ Gas ============
+    // ============ when measuring gas ============
 
-    function testGasWithFewCheckpoints() public {
+    function test_WhenMeasuringGas_ItShouldUseLowGasWithFewCheckpoints() public {
         vm.roll(10);
         token.mint(user1, 100 ether);
 

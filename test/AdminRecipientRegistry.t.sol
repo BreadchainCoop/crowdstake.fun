@@ -19,12 +19,14 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.initialize(ADMIN);
     }
 
-    function test_Initialize() public view {
+    function test_WhenInitializing() external view {
+        // it should set admin and zero recipients
         assertEq(registry.owner(), ADMIN);
         assertEq(registry.getRecipientCount(), 0);
     }
 
-    function test_QueueAndUpdateRecipient() public {
+    function test_WhenQueuingASingleAddition() external {
+        // it should queue recipient and process correctly
         vm.prank(ADMIN);
         vm.expectEmit(true, false, false, false);
         emit IRecipientRegistry.RecipientQueued(RECIPIENT_1, true);
@@ -54,7 +56,8 @@ contract AdminRecipientRegistryTest is TestWrapper {
         assertEq(recipients[0], RECIPIENT_1);
     }
 
-    function test_QueueMultipleRecipients() public {
+    function test_WhenQueuingMultipleAdditions() external {
+        // it should queue and process all recipients
         address[] memory toAdd = new address[](3);
         toAdd[0] = RECIPIENT_1;
         toAdd[1] = RECIPIENT_2;
@@ -75,7 +78,8 @@ contract AdminRecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(RECIPIENT_3));
     }
 
-    function test_QueueAndRemoveRecipient() public {
+    function test_WhenQueuingARemoval() external {
+        // it should remove recipient after processing
         vm.startPrank(ADMIN);
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.queueRecipientAddition(RECIPIENT_2);
@@ -103,7 +107,8 @@ contract AdminRecipientRegistryTest is TestWrapper {
         assertEq(registry.getRecipientCount(), 1);
     }
 
-    function test_QueueMultipleRemoval() public {
+    function test_WhenQueuingMultipleRemovals() external {
+        // it should remove selected recipients
         vm.startPrank(ADMIN);
 
         // Add recipients
@@ -131,13 +136,15 @@ contract AdminRecipientRegistryTest is TestWrapper {
         assertEq(registry.getRecipientCount(), 2);
     }
 
-    function test_RevertOnInvalidRecipient() public {
+    function test_RevertWhen_QueuingAnInvalidRecipient() external {
+        // it should revert
         vm.prank(ADMIN);
         vm.expectRevert();
         registry.queueRecipientAddition(address(0));
     }
 
-    function test_RevertOnDuplicateRecipient() public {
+    function test_RevertWhen_QueuingADuplicateRecipient() external {
+        // it should revert
         vm.startPrank(ADMIN);
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.processQueue();
@@ -147,19 +154,22 @@ contract AdminRecipientRegistryTest is TestWrapper {
         vm.stopPrank();
     }
 
-    function test_RevertOnRemovingNonExistent() public {
+    function test_RevertWhen_RemovingANonExistentRecipient() external {
+        // it should revert
         vm.prank(ADMIN);
         vm.expectRevert();
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 
-    function test_OnlyAdminCanQueue() public {
+    function test_RevertWhen_ANonAdminQueuesAddition() external {
+        // it should revert
         vm.prank(address(0xdead));
         vm.expectRevert();
         registry.queueRecipientAddition(RECIPIENT_1);
     }
 
-    function test_OnlyAdminCanQueueRemoval() public {
+    function test_RevertWhen_ANonAdminQueuesRemoval() external {
+        // it should revert
         vm.prank(ADMIN);
         registry.queueRecipientAddition(RECIPIENT_1);
         registry.processQueue();
@@ -169,7 +179,8 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 
-    function test_TransferAdmin() public {
+    function test_WhenTransferringAdmin() external {
+        // it should allow new admin and revoke old
         address newAdmin = address(0xBEEF);
 
         vm.prank(ADMIN);
@@ -189,7 +200,8 @@ contract AdminRecipientRegistryTest is TestWrapper {
         registry.queueRecipientAddition(RECIPIENT_2);
     }
 
-    function test_LargeScaleOperations() public {
+    function test_WhenPerformingLargeScaleOperations() external {
+        // it should handle 100 additions and 50 removals
         vm.startPrank(ADMIN);
 
         // Queue many recipients

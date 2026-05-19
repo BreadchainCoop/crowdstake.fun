@@ -1,0 +1,46 @@
+CycleModuleTest
+├── when initializing
+│   ├── it should set initial state correctly
+│   ├── it should revert on reinitialize
+│   ├── it should revert with zero address owner
+│   └── it should prevent implementation initialization
+├── when not initialized
+│   └── it should revert all state queries
+├── when checking cycle completion before end
+│   └── it should return false
+├── when checking cycle completion at end
+│   └── it should return true
+├── when starting a new cycle as distribution manager
+│   └── it should advance to next cycle
+├── when starting a new cycle before completion
+│   └── it should revert with InvalidCycleTransition
+├── when starting a new cycle as non distribution manager
+│   └── it should revert with OnlyDistributionManager
+├── when starting a new cycle without distribution manager set
+│   └── it should revert with DistributionManagerNotSet
+├── when querying blocks until next cycle
+│   ├── it should return full cycle length at start
+│   ├── it should return remaining blocks partway
+│   └── it should return zero when complete
+├── when querying cycle progress
+│   ├── it should return zero at start
+│   ├── it should return 50 halfway
+│   └── it should return 100 when complete
+├── when updating cycle length as owner
+│   └── it should update the cycle length
+├── when updating cycle length to zero
+│   └── it should revert with InvalidCycleLength
+├── when updating cycle length as non owner
+│   └── it should revert
+├── when setting distribution manager as owner
+│   └── it should update distribution manager
+├── when setting zero distribution manager
+│   └── it should revert with ZeroAddress
+├── when setting distribution manager as non owner
+│   └── it should revert
+├── when running multiple cycles
+│   └── it should correctly track cycle number and start block
+├── when managing ownership
+│   └── it should transfer ownership correctly
+└── when anyone initializes
+    └── it should allow first caller to become owner

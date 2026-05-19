@@ -1,0 +1,15 @@
+VotingStreakNFTModuleTest
+├── when voting consecutively
+│   └── it should increment streak
+├── when missing a cycle
+│   └── it should reset streak to zero
+├── when reaching ten consecutive votes
+│   └── it should mint an NFT
+├── when recasting a vote in same cycle
+│   └── it should not increment streak
+├── when non-owner sets NFT contract
+│   └── it should revert
+├── when rebuilding a broken streak
+│   └── it should track new streak from zero
+└── when multiple users vote
+    └── it should track independent streaks

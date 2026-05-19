@@ -43,7 +43,9 @@ contract BreadKitTest is TestWrapper {
         token.mint{value: 1}(0x0000000000000000000000000000000000000009);
     }
 
-    function test_mint() public {
+    // ============ when minting tokens ============
+
+    function test_WhenMintingTokens_ShouldUpdateSupplyBalanceAndYieldBacking() public {
         uint256 supplyBefore = token.totalSupply();
         uint256 balBefore = token.balanceOf(address(this));
         uint256 contractBalBefore = IERC20(SX_DAI).balanceOf(address(token));
@@ -78,7 +80,9 @@ contract BreadKitTest is TestWrapper {
         assertEq(token.balanceOf(address(this)), 1.5 ether);
     }
 
-    function test_finalizeNewYieldClaimer_revertsBeforeTimelock() public {
+    // ============ when finalizing new yield claimer ============
+
+    function test_RevertWhen_FinalizingNewYieldClaimer_GivenTimelockHasNotElapsed() public {
         address newClaimer = address(0xCAFE);
 
         token.prepareNewYieldClaimer(newClaimer);
@@ -90,7 +94,7 @@ contract BreadKitTest is TestWrapper {
         token.finalizeNewYieldClaimer();
     }
 
-    function test_finalizeNewYieldClaimer_succeedsAfterTimelock() public {
+    function test_WhenFinalizingNewYieldClaimer_GivenTimelockHasElapsed_ShouldUpdateYieldClaimer() public {
         address newClaimer = address(0xCAFE);
 
         token.prepareNewYieldClaimer(newClaimer);
@@ -103,7 +107,7 @@ contract BreadKitTest is TestWrapper {
         assertEq(AbstractToken(address(token)).yieldClaimer(), newClaimer);
     }
 
-    function test_finalizeNewYieldClaimer_clearsPendingState() public {
+    function test_WhenFinalizingNewYieldClaimer_ShouldClearPendingStateAfterFinalization() public {
         address newClaimer = address(0xCAFE);
 
         token.prepareNewYieldClaimer(newClaimer);
