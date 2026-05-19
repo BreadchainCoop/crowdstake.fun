@@ -16,9 +16,7 @@ interface ICovaProjectRegistry is IRecipientRegistry {
         bool exists;
     }
 
-    event ProjectRegistered(
-        address indexed project, uint256 fullBudget, uint256 minViableBudget, string title
-    );
+    event ProjectRegistered(address indexed project, uint256 fullBudget, uint256 minViableBudget, string title);
 
     error InvalidBudget();
     error BudgetNotSet();

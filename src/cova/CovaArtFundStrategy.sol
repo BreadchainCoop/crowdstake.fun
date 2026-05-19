@@ -129,11 +129,7 @@ contract CovaArtFundStrategy is AbstractDistributionStrategy {
         }
     }
 
-    function _budgets(address[] memory projects)
-        internal
-        view
-        returns (uint256[] memory full, uint256[] memory minv)
-    {
+    function _budgets(address[] memory projects) internal view returns (uint256[] memory full, uint256[] memory minv) {
         ICovaProjectRegistry reg = ICovaProjectRegistry(address(recipientRegistry()));
         uint256 n = projects.length;
         full = new uint256[](n);
@@ -164,11 +160,7 @@ contract CovaArtFundStrategy is AbstractDistributionStrategy {
         }
     }
 
-    function _rank(uint256[] memory points, uint256[] memory minv)
-        internal
-        pure
-        returns (uint256[] memory rank)
-    {
+    function _rank(uint256[] memory points, uint256[] memory minv) internal pure returns (uint256[] memory rank) {
         uint256 n = points.length;
         uint256 c;
         for (uint256 i = 0; i < n; i++) {
@@ -190,11 +182,7 @@ contract CovaArtFundStrategy is AbstractDistributionStrategy {
         }
     }
 
-    function _before(uint256 x, uint256 y, uint256[] memory points, uint256[] memory minv)
-        private
-        pure
-        returns (bool)
-    {
+    function _before(uint256 x, uint256 y, uint256[] memory points, uint256[] memory minv) private pure returns (bool) {
         if (points[x] != points[y]) return points[x] > points[y];
         if (minv[x] != minv[y]) return minv[x] < minv[y];
         return x < y;
@@ -217,12 +205,11 @@ contract CovaArtFundStrategy is AbstractDistributionStrategy {
         }
     }
 
-    function _allocateCapped(
-        uint256 pool,
-        uint256[] memory sel,
-        uint256[] memory points,
-        uint256[] memory full
-    ) private pure returns (uint256[] memory a) {
+    function _allocateCapped(uint256 pool, uint256[] memory sel, uint256[] memory points, uint256[] memory full)
+        private
+        pure
+        returns (uint256[] memory a)
+    {
         uint256 m = sel.length;
         a = new uint256[](m);
         bool[] memory capped = new bool[](m);

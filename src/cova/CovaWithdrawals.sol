@@ -121,9 +121,7 @@ contract CovaWithdrawals is Initializable, OwnableUpgradeable {
         Store storage $ = _s();
         if (amount == 0 || amount > $.funds[fund]) revert InvalidAmount();
         id = $.withdrawals.length;
-        $.withdrawals.push(
-            Withdrawal(msg.sender, fund, amount, recipient, purpose, Status.Voting, 0, 0)
-        );
+        $.withdrawals.push(Withdrawal(msg.sender, fund, amount, recipient, purpose, Status.Voting, 0, 0));
         emit WithdrawalProposed(id, msg.sender, fund, amount, recipient, purpose);
     }
 

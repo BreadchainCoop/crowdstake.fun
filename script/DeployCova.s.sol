@@ -84,7 +84,13 @@ contract DeployCova is Script {
         address vmB = _beacon(address(new CovaPointsVotingModule()));
         address wdB = _beacon(address(new CovaWithdrawals()));
         address[] memory bs = new address[](7);
-        bs[0] = cycB; bs[1] = regB; bs[2] = tokB; bs[3] = dmB; bs[4] = stB; bs[5] = vmB; bs[6] = wdB;
+        bs[0] = cycB;
+        bs[1] = regB;
+        bs[2] = tokB;
+        bs[3] = dmB;
+        bs[4] = stB;
+        bs[5] = vmB;
+        bs[6] = wdB;
         factory.allowlistBeacons(bs);
 
         cyc = factory.create(
@@ -100,9 +106,7 @@ contract DeployCova is Script {
         );
         dm = factory.create(
             dmB,
-            abi.encodeWithSelector(
-                BaseDistributionManager.initialize.selector, cyc, reg, tok, dep, address(0), dep
-            ),
+            abi.encodeWithSelector(BaseDistributionManager.initialize.selector, cyc, reg, tok, dep, address(0), dep),
             keccak256("cova-dm")
         );
         strat = factory.create(
@@ -113,9 +117,7 @@ contract DeployCova is Script {
         IVotingPowerStrategy[] memory vps = new IVotingPowerStrategy[](1);
         vps[0] = IVotingPowerStrategy(address(power));
         voting = factory.create(
-            vmB,
-            abi.encodeWithSelector(CovaPointsVotingModule.initialize.selector, vps, dm, dep),
-            keccak256("cova-vm")
+            vmB, abi.encodeWithSelector(CovaPointsVotingModule.initialize.selector, vps, dm, dep), keccak256("cova-vm")
         );
         wd = factory.create(
             wdB,
@@ -139,12 +141,48 @@ contract DeployCova is Script {
         power.addMembers(mem);
 
         CovaProjectRegistry R = CovaProjectRegistry(reg);
-        R.registerProject(address(0xA11CE0001), 5000 * E, 2000 * E, "Mural at the old textile mill", "Large-scale community mural; paint, scaffolding, food.");
-        R.registerProject(address(0xA11CE0002), 3000 * E, 1500 * E, "Community theatre series", "Weekly riverside performances; sound + costumes.");
-        R.registerProject(address(0xA11CE0003), 1200 * E, 400 * E, "Photography zine, 200 copies", "Print and distribute an estuary photography zine.");
-        R.registerProject(address(0xA11CE0004), 2400 * E, 1800 * E, "Sculpture for the plaza", "Steel + concrete plinth piece, plaza commission.");
-        R.registerProject(address(0xA11CE0005), 1800 * E, 800 * E, "Workshops for youth at risk", "Three months of weekend painting workshops.");
-        R.registerProject(address(0xA11CE0006), 1500 * E, 500 * E, "Print studio open hours", "Subsidize open studio hours; ink + plates.");
+        R.registerProject(
+            address(0xA11CE0001),
+            5000 * E,
+            2000 * E,
+            "Mural at the old textile mill",
+            "Large-scale community mural; paint, scaffolding, food."
+        );
+        R.registerProject(
+            address(0xA11CE0002),
+            3000 * E,
+            1500 * E,
+            "Community theatre series",
+            "Weekly riverside performances; sound + costumes."
+        );
+        R.registerProject(
+            address(0xA11CE0003),
+            1200 * E,
+            400 * E,
+            "Photography zine, 200 copies",
+            "Print and distribute an estuary photography zine."
+        );
+        R.registerProject(
+            address(0xA11CE0004),
+            2400 * E,
+            1800 * E,
+            "Sculpture for the plaza",
+            "Steel + concrete plinth piece, plaza commission."
+        );
+        R.registerProject(
+            address(0xA11CE0005),
+            1800 * E,
+            800 * E,
+            "Workshops for youth at risk",
+            "Three months of weekend painting workshops."
+        );
+        R.registerProject(
+            address(0xA11CE0006),
+            1500 * E,
+            500 * E,
+            "Print studio open hours",
+            "Subsidize open studio hours; ink + plates."
+        );
         R.processQueue();
 
         // Art Fund pool: mint cUSD (principal -> vault), then simulate yield.
@@ -158,8 +196,7 @@ contract DeployCova is Script {
         usd.approve(tok, 5350 * E);
         CovaDollarYield(tok).mint(dep, 5350 * E);
         CovaDollarYield(tok).approve(wd, 5350 * E);
-        CovaWithdrawals(wd).allocateInflow(
-            [uint256(1200 * E), 800 * E, 950 * E, 2400 * E], "Quarterly cooperative allocation"
-        );
+        CovaWithdrawals(wd)
+            .allocateInflow([uint256(1200 * E), 800 * E, 950 * E, 2400 * E], "Quarterly cooperative allocation");
     }
 }
