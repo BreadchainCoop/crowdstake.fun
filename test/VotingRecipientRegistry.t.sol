@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {TestWrapper} from "./TestWrapper.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {IRecipientRegistry} from "../src/interfaces/IRecipientRegistry.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract VotingRecipientRegistryTest is TestWrapper {
     VotingRecipientRegistry public registry;
@@ -21,7 +22,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
     event ProposalExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
 
     function setUp() public {
-        registry = new VotingRecipientRegistry();
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
 
         // Initialize with 3 recipients
         address[] memory initial = new address[](3);
@@ -29,7 +30,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         initial[1] = RECIPIENT_2;
         initial[2] = RECIPIENT_3;
 
-        registry.initialize(ADMIN, initial, 7 days);
+        bytes memory initData = abi.encodeCall(VotingRecipientRegistry.initialize, (ADMIN, initial, 7 days));
+        registry = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
     }
 
     function test_WhenInitializing() external view {
@@ -322,11 +324,12 @@ contract VotingRecipientRegistryTest is TestWrapper {
 
     function test_WhenInitializingWithEmptyRecipients() external {
         // it should revert with NoRecipients
-        VotingRecipientRegistry newRegistry = new VotingRecipientRegistry();
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
         address[] memory empty = new address[](0);
+        bytes memory initData = abi.encodeCall(VotingRecipientRegistry.initialize, (ADMIN, empty, 7 days));
 
         vm.expectRevert(VotingRecipientRegistry.NoRecipients.selector);
-        newRegistry.initialize(ADMIN, empty, 7 days);
+        new ERC1967Proxy(address(impl), initData);
     }
 
     function test_WhenConfiguringProposalExpiry_ShouldReturnConfiguredExpiry() external view {
@@ -348,12 +351,13 @@ contract VotingRecipientRegistryTest is TestWrapper {
 
     function test_RevertWhen_ConfiguringProposalExpiry_ZeroExpiryInInitialize() external {
         // it should revert on zero expiry in initialize
-        VotingRecipientRegistry newRegistry = new VotingRecipientRegistry();
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
         address[] memory initial = new address[](1);
         initial[0] = RECIPIENT_1;
+        bytes memory initData = abi.encodeCall(VotingRecipientRegistry.initialize, (ADMIN, initial, 0));
 
         vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
-        newRegistry.initialize(ADMIN, initial, 0);
+        new ERC1967Proxy(address(impl), initData);
     }
 
     function test_RevertWhen_ConfiguringProposalExpiry_ZeroExpiryInUpdate() external {
