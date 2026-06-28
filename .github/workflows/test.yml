@@ -2,12 +2,9 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Auto-format Code"]
-    types:
-      - completed
 
 env:
   FOUNDRY_PROFILE: ci
@@ -26,14 +23,14 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: "1.4.4"
 
       - name: Show Forge version
         run: |
           forge --version
 
-      # Skip format check on PRs since auto-format workflow handles it
       - name: Run Forge fmt
-        if: github.event_name != 'pull_request'
         run: |
           forge fmt --check
         id: fmt
