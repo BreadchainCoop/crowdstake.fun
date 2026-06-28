@@ -18,13 +18,20 @@ contract FixedFeePayment is IAutomationPayment {
     }
 
     /// @inheritdoc IAutomationPayment
-    function calculateFee(uint256 /* totalYield */) external view override returns (uint256 fee) {
+    function calculateFee(
+        uint256 /* totalYield */
+    )
+        external
+        view
+        override
+        returns (uint256 fee)
+    {
         return FEE_AMOUNT;
     }
 
     /// @inheritdoc IAutomationPayment
     function getPaymentConfig() external view override returns (PaymentConfig memory config) {
-        return PaymentConfig({strategy: PaymentStrategy.FIXED_FEE, feeAmount: FEE_AMOUNT, minimumYield: MINIMUM_YIELD});
+        return PaymentConfig({strategy: PaymentStrategy.FIXED_FEE, feeValue: FEE_AMOUNT, minimumYield: MINIMUM_YIELD});
     }
 
     /// @inheritdoc IAutomationPayment

@@ -57,10 +57,9 @@ contract MockDistModule is IDistributionModule {
 contract MockPaidAutomation is AbstractPaidAutomation {
     uint256 private _availableYield;
 
-    constructor(
-        address _distributionManager,
-        address _paymentProvider
-    ) AbstractPaidAutomation(_distributionManager, _paymentProvider) {}
+    constructor(address _distributionManager, address _paymentProvider)
+        AbstractPaidAutomation(_distributionManager, _paymentProvider)
+    {}
 
     function setAvailableYield(uint256 yield_) external {
         _availableYield = yield_;
@@ -68,11 +67,6 @@ contract MockPaidAutomation is AbstractPaidAutomation {
 
     function _getAvailableYield() internal view override returns (uint256) {
         return _availableYield;
-    }
-
-    /// @notice Exposed for testing fee deduction
-    function deductFee(uint256 totalYield) external returns (uint256) {
-        return _deductFee(totalYield);
     }
 }
 
@@ -132,7 +126,7 @@ contract FixedFeePayment_GetPaymentConfig_Test is Test {
     function test_WhenGettingPaymentConfig_ShouldReturnCorrectValues() public view {
         IAutomationPayment.PaymentConfig memory config = payment.getPaymentConfig();
         assertEq(uint256(config.strategy), uint256(IAutomationPayment.PaymentStrategy.FIXED_FEE));
-        assertEq(config.feeAmount, 100);
+        assertEq(config.feeValue, 100);
         assertEq(config.minimumYield, 500);
     }
 }
@@ -242,7 +236,7 @@ contract PercentagePayment_GetPaymentConfig_Test is Test {
         PercentagePayment payment = new PercentagePayment(500, 200);
         IAutomationPayment.PaymentConfig memory config = payment.getPaymentConfig();
         assertEq(uint256(config.strategy), uint256(IAutomationPayment.PaymentStrategy.PERCENTAGE_BASED));
-        assertEq(config.feeAmount, 500);
+        assertEq(config.feeValue, 500);
         assertEq(config.minimumYield, 200);
     }
 }
@@ -289,43 +283,6 @@ contract AbstractPaidAutomation_IsDistributionReady_Test is Test {
     }
 }
 
-contract AbstractPaidAutomation_DeductFee_Test is Test {
-    MockPaidAutomation public automation;
-    MockDistributionManager public distributionManager;
-    FixedFeePayment public fixedPayment;
-    MockDistModule public distModule;
-
-    event AutomationFeeDeducted(uint256 fee, uint256 remainingYield);
-
-    function setUp() public {
-        distModule = new MockDistModule();
-        distributionManager = new MockDistributionManager(address(distModule), 100);
-        fixedPayment = new FixedFeePayment(100, 0);
-        automation = new MockPaidAutomation(address(distributionManager), address(fixedPayment));
-    }
-
-    function test_WhenDeductingFee_ShouldReturnCorrectRemainingYield() public {
-        uint256 remaining = automation.deductFee(1000);
-        assertEq(remaining, 900);
-    }
-
-    function test_WhenDeductingFee_ShouldEmitEvent() public {
-        vm.expectEmit(true, true, true, true);
-        emit AutomationFeeDeducted(100, 900);
-        automation.deductFee(1000);
-    }
-
-    function test_RevertWhen_FeeExceedsTotalYield() public {
-        vm.expectRevert(AbstractPaidAutomation.InsufficientYieldForFee.selector);
-        automation.deductFee(50); // Fee is 100, yield is 50
-    }
-
-    function test_WhenFeeEqualsYield_ShouldReturnZero() public {
-        uint256 remaining = automation.deductFee(100);
-        assertEq(remaining, 0);
-    }
-}
-
 contract AbstractPaidAutomation_Constructor_Test is Test {
     MockDistModule public distModule;
     MockDistributionManager public distributionManager;
@@ -338,7 +295,7 @@ contract AbstractPaidAutomation_Constructor_Test is Test {
     }
 
     function test_RevertWhen_PaymentProviderIsZeroAddress() public {
-        vm.expectRevert("Invalid payment provider");
+        vm.expectRevert(AbstractPaidAutomation.ZeroPaymentProvider.selector);
         new MockPaidAutomation(address(distributionManager), address(0));
     }
 
@@ -363,8 +320,6 @@ contract PaidAutomation_Integration_Test is Test {
     MockDistributionManager public distributionManager;
     PercentagePayment public percentagePayment;
     MockDistModule public distModule;
-
-    event AutomationFeeDeducted(uint256 fee, uint256 remainingYield);
 
     function setUp() public {
         distModule = new MockDistModule();
@@ -392,25 +347,19 @@ contract PaidAutomation_Integration_Test is Test {
         assertFalse(automation.isDistributionReady());
     }
 
-    function test_WhenDeductingPercentageFee_ShouldCalculateCorrectly() public {
-        // 5% of 10000 = 500, remaining = 9500
-        vm.expectEmit(true, true, true, true);
-        emit AutomationFeeDeducted(500, 9500);
-        uint256 remaining = automation.deductFee(10_000);
-        assertEq(remaining, 9500);
-    }
-
-    function test_WhenExecutingFullFlow_ShouldDeductFeeAndDistribute() public {
+    function test_WhenExecutingFullFlow_ShouldGateOnYieldAndDistribute() public {
         vm.roll(block.number + 101);
         automation.setAvailableYield(10_000);
 
-        // Verify readiness
+        // Yield (10000) covers the 5% fee + 100 minimum, so the gate passes
         assertTrue(automation.isDistributionReady());
 
         // Execute distribution through the base contract
         automation.executeDistribution();
 
-        // Verify distribution happened
+        // Verify distribution happened and the cycle advanced.
+        // NOTE: this layer only gates on fee sufficiency; it does not itself settle the
+        // fee (the DistributionManager owns the yield). See AbstractPaidAutomation NatSpec.
         assertEq(distModule.distributeCallCount(), 1);
         assertEq(distributionManager.currentCycleNumber(), 2);
     }

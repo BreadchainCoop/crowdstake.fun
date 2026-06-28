@@ -24,28 +24,30 @@ contract PercentagePayment is IAutomationPayment {
     }
 
     /// @inheritdoc IAutomationPayment
-    /// @dev Uses division-first approach for large values to avoid overflow:
-    ///      fee = (totalYield / DENOMINATOR) * BASIS_POINTS + (totalYield % DENOMINATOR) * BASIS_POINTS / DENOMINATOR
     function calculateFee(uint256 totalYield) external view override returns (uint256 fee) {
-        return (totalYield / BASIS_POINTS_DENOMINATOR) * BASIS_POINTS
-            + (totalYield % BASIS_POINTS_DENOMINATOR) * BASIS_POINTS / BASIS_POINTS_DENOMINATOR;
+        return _fee(totalYield);
     }
 
     /// @inheritdoc IAutomationPayment
     function getPaymentConfig() external view override returns (PaymentConfig memory config) {
         return PaymentConfig({
-            strategy: PaymentStrategy.PERCENTAGE_BASED,
-            feeAmount: BASIS_POINTS,
-            minimumYield: MINIMUM_YIELD
+            strategy: PaymentStrategy.PERCENTAGE_BASED, feeValue: BASIS_POINTS, minimumYield: MINIMUM_YIELD
         });
     }
 
     /// @inheritdoc IAutomationPayment
     function isYieldSufficient(uint256 totalYield) external view override returns (bool sufficient) {
-        uint256 fee = (totalYield / BASIS_POINTS_DENOMINATOR) * BASIS_POINTS
-            + (totalYield % BASIS_POINTS_DENOMINATOR) * BASIS_POINTS / BASIS_POINTS_DENOMINATOR;
+        uint256 fee = _fee(totalYield);
         if (fee > totalYield) return false;
-        uint256 remaining = totalYield - fee;
-        return remaining >= MINIMUM_YIELD;
+        return totalYield - fee >= MINIMUM_YIELD;
+    }
+
+    /// @notice Computes the basis-points fee for a yield amount
+    /// @dev Division-first to avoid overflow on large values:
+    ///      fee = (totalYield / DENOMINATOR) * BASIS_POINTS + (totalYield % DENOMINATOR) * BASIS_POINTS / DENOMINATOR
+    ///      Single source of truth shared by calculateFee() and isYieldSufficient().
+    function _fee(uint256 totalYield) internal view returns (uint256) {
+        return (totalYield / BASIS_POINTS_DENOMINATOR) * BASIS_POINTS + (totalYield % BASIS_POINTS_DENOMINATOR)
+            * BASIS_POINTS / BASIS_POINTS_DENOMINATOR;
     }
 }

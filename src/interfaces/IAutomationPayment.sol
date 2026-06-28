@@ -12,12 +12,14 @@ interface IAutomationPayment {
     }
 
     /// @notice Configuration for automation payments
+    /// @dev `feeValue` is strategy-dependent — read it together with `strategy`:
+    ///      for FIXED_FEE it is an absolute token amount; for PERCENTAGE_BASED it is basis points.
     /// @param strategy The payment strategy to use
-    /// @param feeAmount Fixed fee amount (for FIXED_FEE) or basis points (for PERCENTAGE_BASED)
+    /// @param feeValue Absolute fee amount (FIXED_FEE) or fee in basis points (PERCENTAGE_BASED)
     /// @param minimumYield Minimum yield required after fee deduction
     struct PaymentConfig {
         PaymentStrategy strategy;
-        uint256 feeAmount;
+        uint256 feeValue;
         uint256 minimumYield;
     }
 
