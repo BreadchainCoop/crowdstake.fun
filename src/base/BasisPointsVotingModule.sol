@@ -174,7 +174,7 @@ contract BasisPointsVotingModule is AbstractVotingModule {
     /// @param voter Address of the voter
     /// @param points Array of points allocated to each recipient
     /// @param votingPower Total voting power of the voter
-    function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal override virtual {
+    function _processVote(address voter, uint256[] calldata points, uint256 votingPower) internal virtual override {
         AbstractVotingModuleStorage storage base = _getAbstractVotingModuleStorage();
         BasisPointsVotingModuleStorage storage $ = _getBasisPointsVotingModuleStorage();
         uint256 currentCycle = base.cycleModule.getCurrentCycle();

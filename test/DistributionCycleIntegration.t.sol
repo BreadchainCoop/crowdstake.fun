@@ -33,8 +33,7 @@ contract DistributionCycleIntegrationTest is Test {
 
         // Deploy cycle module
         CycleModule cycleImpl = new CycleModule();
-        bytes memory cycleInit =
-            abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
+        bytes memory cycleInit = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
         cycleModule = CycleModule(address(new ERC1967Proxy(address(cycleImpl), cycleInit)));
 
         // Deploy base distribution manager
@@ -85,14 +84,10 @@ contract DistributionCycleIntegrationTest is Test {
             abi.encode(dist)
         );
         vm.mockCall(
-            mockRegistry,
-            abi.encodeWithSelector(IRecipientRegistry.getRecipientCount.selector),
-            abi.encode(uint256(1))
+            mockRegistry, abi.encodeWithSelector(IRecipientRegistry.getRecipientCount.selector), abi.encode(uint256(1))
         );
         vm.mockCall(
-            mockBaseToken,
-            abi.encodeWithSelector(IYieldModule.yieldAccrued.selector),
-            abi.encode(uint256(1000))
+            mockBaseToken, abi.encodeWithSelector(IYieldModule.yieldAccrued.selector), abi.encode(uint256(1000))
         );
         vm.mockCall(
             mockBaseToken,
@@ -104,11 +99,7 @@ contract DistributionCycleIntegrationTest is Test {
             abi.encodeWithSelector(IERC20.transfer.selector, mockStrategy, uint256(1000)),
             abi.encode(true)
         );
-        vm.mockCall(
-            mockStrategy,
-            abi.encodeWithSelector(IDistributionStrategy.distribute.selector, uint256(1000)),
-            ""
-        );
+        vm.mockCall(mockStrategy, abi.encodeWithSelector(IDistributionStrategy.distribute.selector, uint256(1000)), "");
 
         // Execute
         baseManager.claimAndDistribute();

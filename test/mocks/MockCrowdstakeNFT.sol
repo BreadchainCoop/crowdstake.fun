@@ -18,5 +18,4 @@ contract MockCrowdstakeNFT is ERC721, ICrowdstakeNFT {
         _safeMint(to, tokenId);
         return tokenId;
     }
-
 }

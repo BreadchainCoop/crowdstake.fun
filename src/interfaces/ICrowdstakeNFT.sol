@@ -10,5 +10,4 @@ interface ICrowdstakeNFT is IERC721 {
     /// @param to The address that will receive the NFT.
     /// @return tokenId The unique ID of the newly minted NFT.
     function mint(address to) external returns (uint256);
-
 }

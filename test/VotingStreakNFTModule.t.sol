@@ -142,7 +142,7 @@ contract VotingStreakNFTModuleTest is Test {
 
         // Act - Cycle 1: User votes
         harness.exposed_processVote(user, points, VOTING_POWER);
-        (uint256 streak1, ) = harness.userActivity(user);
+        (uint256 streak1,) = harness.userActivity(user);
         assertEq(streak1, 1, "Streak should be 1 after first vote");
 
         // Act - Cycle 2: Advance cycle but don't vote (user misses this cycle)
@@ -178,11 +178,7 @@ contract VotingStreakNFTModuleTest is Test {
         }
 
         // Assert
-        assertEq(
-            mockNft.balanceOf(user),
-            1,
-            "User should have 1 NFT after 10 consecutive votes"
-        );
+        assertEq(mockNft.balanceOf(user), 1, "User should have 1 NFT after 10 consecutive votes");
         (uint256 streak, uint256 lastVoteCycle) = harness.userActivity(user);
         assertEq(streak, 10, "Streak should be 10");
         assertEq(lastVoteCycle, 10, "lastVoteCycle should be 10");
@@ -209,11 +205,7 @@ contract VotingStreakNFTModuleTest is Test {
 
         // Assert after recast - streak should NOT increment
         (uint256 streakAfterRecast, uint256 lastVoteCycleAfterRecast) = harness.userActivity(user);
-        assertEq(
-            streakAfterRecast,
-            1,
-            "Streak should remain 1 after recasting vote in same cycle"
-        );
+        assertEq(streakAfterRecast, 1, "Streak should remain 1 after recasting vote in same cycle");
         assertEq(lastVoteCycleAfterRecast, 1, "lastVoteCycle should still be 1");
     }
 
@@ -250,7 +242,7 @@ contract VotingStreakNFTModuleTest is Test {
             harness.exposed_processVote(user, points, VOTING_POWER);
             if (i < 2) cycleModule.advanceCycle();
         }
-        (uint256 streak1, ) = harness.userActivity(user);
+        (uint256 streak1,) = harness.userActivity(user);
         assertEq(streak1, 3, "Streak should be 3");
 
         // Act - Miss a cycle to break streak
@@ -259,7 +251,7 @@ contract VotingStreakNFTModuleTest is Test {
 
         // Act - Vote again, streak resets to 1
         harness.exposed_processVote(user, points, VOTING_POWER);
-        (uint256 streak2, ) = harness.userActivity(user);
+        (uint256 streak2,) = harness.userActivity(user);
         assertEq(streak2, 1, "Streak should reset to 1 after gap");
 
         // Act - Build streak again to 5
@@ -267,7 +259,7 @@ contract VotingStreakNFTModuleTest is Test {
             cycleModule.advanceCycle();
             harness.exposed_processVote(user, points, VOTING_POWER);
         }
-        (uint256 streak3, ) = harness.userActivity(user);
+        (uint256 streak3,) = harness.userActivity(user);
         assertEq(streak3, 5, "Streak should build to 5 again");
     }
 
@@ -281,11 +273,11 @@ contract VotingStreakNFTModuleTest is Test {
 
         // Act & Assert - user1 votes in cycle 1
         harness.exposed_processVote(user1, points, VOTING_POWER);
-        (uint256 streak1_c1, ) = harness.userActivity(user1);
+        (uint256 streak1_c1,) = harness.userActivity(user1);
         assertEq(streak1_c1, 1, "user1 streak should be 1 in cycle 1");
 
         // Act & Assert - user2 doesn't vote in cycle 1
-        (uint256 streak2_c1, ) = harness.userActivity(user2);
+        (uint256 streak2_c1,) = harness.userActivity(user2);
         assertEq(streak2_c1, 0, "user2 streak should be 0 if never voted");
 
         // Act - Advance to cycle 2
@@ -293,17 +285,17 @@ contract VotingStreakNFTModuleTest is Test {
 
         // Act & Assert - user1 votes again in cycle 2 (builds streak to 2)
         harness.exposed_processVote(user1, points, VOTING_POWER);
-        (uint256 streak1_c2, ) = harness.userActivity(user1);
+        (uint256 streak1_c2,) = harness.userActivity(user1);
         assertEq(streak1_c2, 2, "user1 streak should be 2 in cycle 2");
 
         // Act & Assert - user2 votes for first time in cycle 2 (starts at 1)
         harness.exposed_processVote(user2, points, VOTING_POWER);
-        (uint256 streak2_c2, ) = harness.userActivity(user2);
+        (uint256 streak2_c2,) = harness.userActivity(user2);
         assertEq(streak2_c2, 1, "user2 streak should be 1 (first vote)");
 
         // Assert final state
-        (uint256 finalStreak1, ) = harness.userActivity(user1);
-        (uint256 finalStreak2, ) = harness.userActivity(user2);
+        (uint256 finalStreak1,) = harness.userActivity(user1);
+        (uint256 finalStreak2,) = harness.userActivity(user2);
         assertEq(finalStreak1, 2, "user1 should maintain streak of 2");
         assertEq(finalStreak2, 1, "user2 should have streak of 1");
     }

@@ -47,10 +47,7 @@ contract DistributionFuzz is Test {
     }
 
     /// @notice Fuzz voting distribution: proportional split conserves total
-    function testFuzz_VotingDistributionConservation(
-        uint256 amount,
-        uint256[5] memory rawVotes
-    ) public pure {
+    function testFuzz_VotingDistributionConservation(uint256 amount, uint256[5] memory rawVotes) public pure {
         amount = bound(amount, 5, 1e30);
 
         // Ensure at least one vote is non-zero
@@ -102,12 +99,9 @@ contract DistributionFuzz is Test {
     }
 
     /// @notice Fuzz voting distribution with token transfers -- proportional and conserving
-    function testFuzz_VotingDistributionTokenTransfer(
-        uint256 amount,
-        uint256 vote0,
-        uint256 vote1,
-        uint256 vote2
-    ) public {
+    function testFuzz_VotingDistributionTokenTransfer(uint256 amount, uint256 vote0, uint256 vote1, uint256 vote2)
+        public
+    {
         amount = bound(amount, 3, 1e24);
         vote0 = bound(vote0, 0, 1e18);
         vote1 = bound(vote1, 0, 1e18);

@@ -8,3 +8,7 @@ libs = ["lib"]
 [fuzz]
 runs = 1000
 max_test_rejects = 100000
+
+# CI profile (referenced via FOUNDRY_PROFILE=ci in .github/workflows/test.yml).
+# Inherits all settings from the default profile.
+[profile.ci]
