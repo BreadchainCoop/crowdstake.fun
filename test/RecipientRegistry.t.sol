@@ -261,7 +261,7 @@ contract RecipientRegistryTest is TestWrapper {
     function test_RevertOnDuplicateQueuedAddition() public {
         registry.queueRecipientAddition(RECIPIENT_1);
 
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
         registry.queueRecipientAddition(RECIPIENT_1);
     }
 
@@ -276,7 +276,7 @@ contract RecipientRegistryTest is TestWrapper {
 
         registry.queueRecipientRemoval(RECIPIENT_1);
 
-        vm.expectRevert(IRecipientRegistry.RecipientAlreadyQueued.selector);
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
         registry.queueRecipientRemoval(RECIPIENT_1);
     }
 
