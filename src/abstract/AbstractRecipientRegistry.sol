@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {IRecipientRegistry} from "../interfaces/IRecipientRegistry.sol";
 
 /// @title AbstractRecipientRegistry
@@ -238,26 +239,25 @@ abstract contract AbstractRecipientRegistry is IRecipientRegistry, OwnableUpgrad
         return _binarySearch(_getAbstractRecipientRegistryStorage().queuedRecipientsForRemoval, recipient);
     }
 
-    /// @dev Binary search on a sorted address array
+    /// @dev Membership test on a sorted address array via OpenZeppelin's `Arrays.lowerBound`.
+    ///      The queue is reinterpreted as a `uint256[]` so the audited binary search can be
+    ///      reused (see `_asUint256Array`), then `lowerBound`'s insertion index is checked for
+    ///      an exact match.
     function _binarySearch(address[] storage arr, address target) internal view returns (bool) {
-        uint256 len = arr.length;
-        if (len == 0) return false;
-
-        uint256 low = 0;
-        uint256 high = len;
+        uint256[] storage casted = _asUint256Array(arr);
         uint256 targetUint = uint160(target);
+        uint256 idx = Arrays.lowerBound(casted, targetUint);
+        return idx < casted.length && casted[idx] == targetUint;
+    }
 
-        while (low < high) {
-            uint256 mid = low + (high - low) / 2;
-            uint256 midVal = uint160(arr[mid]);
-            if (midVal == targetUint) return true;
-            if (midVal < targetUint) {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
+    /// @dev Reinterprets a storage `address[]` as a `uint256[]` so it can be passed to
+    ///      OpenZeppelin's `Arrays` binary-search helpers, which are only typed for `uint256[]`.
+    ///      Safe because both element types occupy a single 32-byte storage slot with identical
+    ///      layout (an `address` is a zero-padded `uint160`).
+    function _asUint256Array(address[] storage arr) private pure returns (uint256[] storage casted) {
+        assembly {
+            casted.slot := arr.slot
         }
-        return false;
     }
 
     /// @notice Check if an address is currently an active recipient
