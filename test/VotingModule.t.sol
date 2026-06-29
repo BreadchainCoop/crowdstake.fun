@@ -590,11 +590,13 @@ contract VotingModuleTest is Test {
         strategies[0] = IVotingPowerStrategy(address(tokenStrategy));
         bytes memory initData = abi.encodeWithSelector(
             BasisPointsVotingModule.initialize.selector,
-            MAX_POINTS, strategies, address(distributionModule), address(this)
+            MAX_POINTS,
+            strategies,
+            address(distributionModule),
+            address(this)
         );
-        MockBasisPointsVotingModule mockModule = MockBasisPointsVotingModule(
-            address(new ERC1967Proxy(address(mockImpl), initData))
-        );
+        MockBasisPointsVotingModule mockModule =
+            MockBasisPointsVotingModule(address(new ERC1967Proxy(address(mockImpl), initData)));
 
         uint256[] memory points = new uint256[](3);
         points[0] = 50;
