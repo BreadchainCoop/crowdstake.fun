@@ -305,10 +305,7 @@ contract EqualDistributionStrategyTest is Test {
         // Deploy strategy behind proxy
         EqualDistributionStrategy impl = new EqualDistributionStrategy();
         bytes memory initData = abi.encodeWithSelector(
-            EqualDistributionStrategy.initialize.selector,
-            address(yieldToken),
-            address(mockManager),
-            address(this)
+            EqualDistributionStrategy.initialize.selector, address(yieldToken), address(mockManager), address(this)
         );
         strategy = EqualDistributionStrategy(address(new ERC1967Proxy(address(impl), initData)));
     }
@@ -509,10 +506,7 @@ contract VotingDistributionStrategyTest is Test {
         // Deploy strategy behind proxy
         VotingDistributionStrategy impl = new VotingDistributionStrategy();
         bytes memory initData = abi.encodeWithSelector(
-            VotingDistributionStrategy.initialize.selector,
-            address(yieldToken),
-            address(mockManager),
-            address(this)
+            VotingDistributionStrategy.initialize.selector, address(yieldToken), address(mockManager), address(this)
         );
         strategy = VotingDistributionStrategy(address(new ERC1967Proxy(address(impl), initData)));
     }
