@@ -25,7 +25,11 @@ contract GelatoAutomation is AbstractAutomation {
     /// @dev Called by Gelato executors when checker returns true.
     ///      No auth guard is needed here — DistributionManager.claimAndDistribute()
     ///      enforces its own readiness checks via isDistributionReady().
-    function execute(bytes calldata /* execData */) external {
+    function execute(
+        bytes calldata /* execData */
+    )
+        external
+    {
         executeDistribution();
     }
 }
