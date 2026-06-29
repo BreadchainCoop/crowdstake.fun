@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Breadchain design system: tokens, Pogaca @font-face, component classes. */
+@import "@breadcoop/ui/theme";
+
+/* Keep @breadcoop/ui's prebuilt classes from being purged. */
+@source "../../node_modules/@breadcoop/ui";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-paper-main text-text-standard font-breadBody antialiased;
+  }
+}
+
+@layer components {
+  /* Constrained, centered page gutter used across landing sections. */
+  .section-container {
+    @apply mx-auto w-full max-w-6xl px-6;
+  }
+}

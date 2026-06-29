@@ -1,0 +1,14 @@
+# Single-package workspace (the Next app at the repo root).
+# The Foundry project under contracts/ is not an npm package.
+packages:
+  - "."
+
+# Native deps that are allowed to run install scripts.
+onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
+  - bufferutil
+  - esbuild
+  - keccak
+  - secp256k1
+  - sharp
+  - utf-8-validate

@@ -1,0 +1,15 @@
+# Foundry compiler output
+cache/
+out/
+
+# Broadcast logs (keep non-local dry runs out of git)
+!broadcast/
+broadcast/*/31337/
+broadcast/**/dry-run/
+
+# Foundry lock + docs
+foundry.lock
+docs/
+
+# Dotenv
+.env
