@@ -67,14 +67,8 @@ function SiteNav() {
           >
             Documentation
           </Button>
-          <Button
-            app="fund"
-            variant="primary"
-            size="sm"
-            as="a"
-            href="#get-started"
-          >
-            Deploy Your Instance
+          <Button app="fund" variant="primary" size="sm" as="a" href="/app">
+            Launch App
           </Button>
         </div>
       </nav>
@@ -122,8 +116,8 @@ function Hero() {
           >
             Deploy Your Instance
           </Button>
-          <Button app="fund" variant="secondary" as="a" href="#how-it-works">
-            View Demo
+          <Button app="fund" variant="secondary" as="a" href="/app">
+            Launch App
           </Button>
         </div>
         <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">

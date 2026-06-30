@@ -1,0 +1,82 @@
+"use client";
+
+import { useAccount, useReadContract } from "wagmi";
+import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
+import { ADDRESSES, CHAIN_ID } from "@/lib/constants";
+import { useTx } from "@/hooks/use-tx";
+
+const LIVE = { refetchInterval: 12_000 } as const;
+
+/**
+ * Everything the vote page needs: current per-recipient vote distribution,
+ * expected points length, max points, the connected user's voting power, and
+ * whether they've voted this cycle.
+ */
+export function useVotingState() {
+  const { address } = useAccount();
+
+  const distribution = useReadContract({
+    address: ADDRESSES.votingModule,
+    abi: votingModuleAbi,
+    functionName: "getCurrentVotingDistribution",
+    chainId: CHAIN_ID,
+    query: LIVE,
+  });
+  const expectedPointsLength = useReadContract({
+    address: ADDRESSES.votingModule,
+    abi: votingModuleAbi,
+    functionName: "getExpectedPointsLength",
+    chainId: CHAIN_ID,
+    query: LIVE,
+  });
+  const maxPoints = useReadContract({
+    address: ADDRESSES.votingModule,
+    abi: votingModuleAbi,
+    functionName: "maxPoints",
+    chainId: CHAIN_ID,
+  });
+  const hasVoted = useReadContract({
+    address: ADDRESSES.votingModule,
+    abi: votingModuleAbi,
+    functionName: "hasVotedInCurrentCycle",
+    args: address ? [address] : undefined,
+    chainId: CHAIN_ID,
+    query: { enabled: Boolean(address), ...LIVE },
+  });
+  // Time-weighted voting power for the connected user this cycle.
+  const power = useReadContract({
+    address: ADDRESSES.votingPowerStrategy,
+    abi: votingPowerAbi,
+    functionName: "getCurrentVotingPower",
+    args: address ? [address] : undefined,
+    chainId: CHAIN_ID,
+    query: { enabled: Boolean(address), ...LIVE },
+  });
+
+  return {
+    distribution: (distribution.data ?? []) as readonly bigint[],
+    expectedPointsLength: expectedPointsLength.data,
+    maxPoints: maxPoints.data ?? 10_000n,
+    hasVoted: hasVoted.data ?? false,
+    votingPower: power.data,
+    isLoading: distribution.isLoading,
+    refetch: () => {
+      void distribution.refetch();
+      void hasVoted.refetch();
+      void power.refetch();
+    },
+  };
+}
+
+/** Cast a direct vote: `points[]` (one per recipient, basis points). */
+export function useVote() {
+  const tx = useTx();
+  const vote = (points: bigint[]) =>
+    tx.run({
+      address: ADDRESSES.votingModule,
+      abi: votingModuleAbi,
+      functionName: "voteWithData",
+      args: [points, "0x"],
+    });
+  return { vote, ...tx };
+}

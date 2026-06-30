@@ -22,7 +22,7 @@ contracts/            Foundry project (the protocol)
 - **pnpm 11** (`packageManager` pinned). Path alias `@/* → ./src/*`.
 - **Tailwind CSS v4** (CSS-first, no JS config) via `@tailwindcss/postcss`.
 - **Design system: `@breadcoop/ui`** (Breadchain bread-ui-kit). Tokens + Pogaca fonts + components come from `@import "@breadcoop/ui/theme"` in `src/app/globals.css`. Prefer its components (`Button`, `Heading1–5`, `Body`, `Logo`, `Chip`) and tokens (`bg-core-orange`, `text-text-standard`, `font-breadDisplay`, etc.). Icons: `@phosphor-icons/react`.
-- **Web3** (for the dapp): wagmi + viem (+ RainbowKit / Privy via the kit). Not yet wired — landing page only so far.
+- **Web3**: wagmi v2 + viem + RainbowKit (Gnosis chain). Config in `src/lib/wagmi.ts`, providers in `src/components/providers.tsx`, contract ABIs in `src/lib/abis/`, deployed addresses in `src/lib/constants.ts`, read/write hooks in `src/hooks/`.
 
 ## Commands
 
