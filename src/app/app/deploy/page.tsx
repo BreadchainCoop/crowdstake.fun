@@ -7,7 +7,7 @@ import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
 import { ArrowRight, CheckCircle } from "@phosphor-icons/react";
 import { Card, PageHeader } from "@/components/dapp/ui";
-import { ConnectGate } from "@/components/dapp/connect-gate";
+import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { useDeployInstance } from "@/hooks/use-deploy";
 import { useInstanceContext } from "@/components/instance-provider";
@@ -20,9 +20,7 @@ export default function DeployPage() {
         title="Deploy your instance"
         subtitle="Launch a complete, self-owned Crowdstaking instance on Gnosis in one transaction. You become the admin of every contract."
       />
-      <ConnectGate>
-        <DeployForm />
-      </ConnectGate>
+      <DeployForm />
     </div>
   );
 }
@@ -142,23 +140,22 @@ function DeployForm() {
           placeholder={address ?? "0x…"}
           mono
         />
-        {!ownerValid && (
+        {owner !== "" && !isAddress(owner) && (
           <Caption className="text-system-red mt-1 block">
             Not a valid address.
           </Caption>
         )}
       </Field>
 
-      <Button
-        app="fund"
-        variant="primary"
-        className="mt-2 w-full"
-        isLoading={isBusy}
-        onClick={onDeploy}
-        {...(!canDeploy ? { disabled: true } : {})}
-      >
-        Deploy instance
-      </Button>
+      <div className="mt-2">
+        <ActionButton
+          isLoading={isBusy}
+          disabled={!canDeploy}
+          onClick={onDeploy}
+        >
+          Deploy instance
+        </ActionButton>
+      </div>
 
       <TxStatus
         status={isBusy ? "confirming" : error ? "error" : "idle"}

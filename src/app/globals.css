@@ -6,13 +6,24 @@
 /* Keep @breadcoop/ui's prebuilt classes from being purged. */
 @source "../../node_modules/@breadcoop/ui";
 
-@layer base {
-  html {
-    scroll-behavior: smooth;
-  }
+/* Light app — force the paper background (unlayered so it beats the design
+   system's dark default / prefers-color-scheme), and offset anchor jumps
+   so section headings don't hide under the sticky nav. */
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+html,
+body {
+  background-color: #f6f3eb; /* paper-main */
+}
+:target {
+  scroll-margin-top: 5rem;
+}
 
+@layer base {
   body {
-    @apply bg-paper-main text-text-standard font-breadBody antialiased;
+    @apply text-text-standard font-breadBody antialiased;
   }
 }
 

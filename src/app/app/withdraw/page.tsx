@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Caption } from "@breadcoop/ui";
+import { Caption } from "@breadcoop/ui";
 import { Card, PageHeader } from "@/components/dapp/ui";
-import { ConnectGate } from "@/components/dapp/connect-gate";
 import { AmountField } from "@/components/dapp/amount-field";
+import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { TOKEN_SYMBOL } from "@/lib/constants";
@@ -17,9 +17,7 @@ export default function WithdrawPage() {
         title="Withdraw"
         subtitle={`Burn ${TOKEN_SYMBOL} to redeem your xDAI principal 1:1. Your stake is always fully withdrawable.`}
       />
-      <ConnectGate>
-        <WithdrawForm />
-      </ConnectGate>
+      <WithdrawForm />
     </div>
   );
 }
@@ -45,7 +43,7 @@ function WithdrawForm() {
   return (
     <Card>
       <AmountField
-        label={`Amount to withdraw`}
+        label="Amount to withdraw"
         value={amount}
         onChange={setAmount}
         balance={balance.data}
@@ -65,16 +63,15 @@ function WithdrawForm() {
         </Caption>
       )}
 
-      <Button
-        app="fund"
-        variant="primary"
-        className="mt-6 w-full"
-        isLoading={tx.isBusy}
-        onClick={() => parsed && withdraw(parsed)}
-        {...(disabled ? { disabled: true } : {})}
-      >
-        Withdraw to xDAI
-      </Button>
+      <div className="mt-6">
+        <ActionButton
+          isLoading={tx.isBusy}
+          disabled={disabled}
+          onClick={() => parsed && withdraw(parsed)}
+        >
+          Withdraw to xDAI
+        </ActionButton>
+      </div>
 
       <TxStatus
         status={tx.status}

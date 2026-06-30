@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { isAddress, type Address } from "viem";
+import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
 import { Plus, Trash, ArrowsClockwise } from "@phosphor-icons/react";
 import { Card, EmptyState, PageHeader } from "@/components/dapp/ui";
-import { ConnectGate } from "@/components/dapp/connect-gate";
 import { TxStatus } from "@/components/dapp/tx-status";
 import {
   useProcessQueue,
@@ -24,14 +24,13 @@ export default function RecipientsPage() {
         title="Recipients"
         subtitle="Funding recipients receive distributed yield. Changes are queued, then applied with “Process queue”."
       />
-      <ConnectGate>
-        <Recipients />
-      </ConnectGate>
+      <Recipients />
     </div>
   );
 }
 
 function Recipients() {
+  const { isConnected } = useAccount();
   const { isAdmin } = useRegistryOwner();
   const { recipients, queuedAdditions, queuedRemovals, refetch } =
     useRecipients();
@@ -58,7 +57,13 @@ function Recipients() {
 
   return (
     <div className="space-y-6">
-      {!isAdmin && (
+      {!isConnected && (
+        <Caption className="bg-paper-1 text-surface-grey-2 block rounded-lg px-4 py-3">
+          You&apos;re viewing the public recipient registry. Connect as the
+          registry admin to queue or process changes.
+        </Caption>
+      )}
+      {isConnected && !isAdmin && (
         <Caption className="bg-paper-1 text-surface-grey-2 block rounded-lg px-4 py-3">
           You are viewing as a non-admin. Only the registry admin can queue or
           process recipient changes.

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { type Address } from "viem";
-import { Body, Button, Caption } from "@breadcoop/ui";
+import { Body, Caption } from "@breadcoop/ui";
 import { CheckCircle } from "@phosphor-icons/react";
 import {
   Card,
@@ -10,7 +10,7 @@ import {
   PageHeader,
   ProgressBar,
 } from "@/components/dapp/ui";
-import { ConnectGate } from "@/components/dapp/connect-gate";
+import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useVote, useVotingState } from "@/hooks/use-voting";
@@ -25,9 +25,7 @@ export default function VotePage() {
         title="Vote"
         subtitle="Allocate your voting power across recipients. Yield is distributed proportionally to the community's weighted votes each cycle."
       />
-      <ConnectGate>
-        <VoteForm />
-      </ConnectGate>
+      <VoteForm />
     </div>
   );
 }
@@ -132,16 +130,15 @@ function VoteForm() {
         })}
       </div>
 
-      <Button
-        app="fund"
-        variant="primary"
-        className="mt-6 w-full"
-        isLoading={tx.isBusy}
-        onClick={() => vote(points)}
-        {...(!anyAllocated || voting.hasVoted ? { disabled: true } : {})}
-      >
-        {voting.hasVoted ? "Already voted this cycle" : "Cast vote"}
-      </Button>
+      <div className="mt-6">
+        <ActionButton
+          isLoading={tx.isBusy}
+          disabled={!anyAllocated || voting.hasVoted}
+          onClick={() => vote(points)}
+        >
+          {voting.hasVoted ? "Already voted this cycle" : "Cast vote"}
+        </ActionButton>
+      </div>
 
       {!anyAllocated && !voting.hasVoted && (
         <Caption className="text-surface-grey mt-2 block text-center">

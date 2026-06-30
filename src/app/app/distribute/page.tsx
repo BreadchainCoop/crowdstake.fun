@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Body, Button, Caption } from "@breadcoop/ui";
+import { Body, Caption } from "@breadcoop/ui";
 import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import { Card, PageHeader, StatCard } from "@/components/dapp/ui";
-import { ConnectGate } from "@/components/dapp/connect-gate";
+import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { useDistribute, useDistributionReady } from "@/hooks/use-distribution";
 import { useCycle } from "@/hooks/use-cycle";
@@ -21,9 +21,7 @@ export default function DistributePage() {
         title="Distribute"
         subtitle="Anyone can trigger a distribution once the cycle is ready. Accrued yield is split among recipients by their votes, and the cycle advances."
       />
-      <ConnectGate>
-        <Distribute />
-      </ConnectGate>
+      <Distribute />
     </div>
   );
 }
@@ -105,16 +103,15 @@ function Distribute() {
           ))}
         </ul>
 
-        <Button
-          app="fund"
-          variant="primary"
-          className="mt-6 w-full"
-          isLoading={tx.isBusy}
-          onClick={() => distribute()}
-          {...(!isReady ? { disabled: true } : {})}
-        >
-          {isReady ? "Claim & distribute" : "Not ready to distribute"}
-        </Button>
+        <div className="mt-6">
+          <ActionButton
+            isLoading={tx.isBusy}
+            disabled={!isReady}
+            onClick={() => distribute()}
+          >
+            {isReady ? "Claim & distribute" : "Not ready to distribute"}
+          </ActionButton>
+        </div>
 
         <TxStatus
           status={tx.status}

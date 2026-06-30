@@ -5,7 +5,6 @@ import {
   Button,
   Caption,
   Chip,
-  Heading1,
   Heading2,
   Heading3,
   Heading4,
@@ -21,7 +20,8 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { InterestCalculator } from "@/components/_home/interest-calculator";
 
-const DOCS_URL = "https://github.com/BreadchainCoop/crowdstake.fun";
+const DOCS_URL = "/docs"; // in-app documentation & walkthroughs
+const GITHUB_URL = "https://github.com/BreadchainCoop/crowdstake.fun";
 
 export function LandingPage() {
   return (
@@ -63,7 +63,7 @@ function SiteNav() {
             app="fund"
             variant="secondary"
             size="sm"
-            as="a"
+            as={Link}
             href={DOCS_URL}
           >
             Documentation
@@ -97,7 +97,9 @@ function Hero() {
       className="section-container grid gap-12 py-20 lg:grid-cols-2 lg:py-28"
     >
       <div className="flex flex-col justify-center">
-        <Heading1 className="text-core-orange">Crowdstaking</Heading1>
+        <h1 className="font-breadDisplay text-core-orange text-6xl leading-[1.04] font-extrabold tracking-tight break-words sm:text-7xl">
+          Crowdstaking
+        </h1>
         <Heading2 className="text-primary-jade mt-2 italic">
           Turning shared funds into shared futures.
         </Heading2>
@@ -350,10 +352,10 @@ function GetStarted() {
             timeline="1-2 weeks"
             technical="Solidity & Web3"
           >
-            <Button app="fund" variant="secondary" as="a" href={DOCS_URL}>
+            <Button app="fund" variant="secondary" as={Link} href={DOCS_URL}>
               View Documentation
             </Button>
-            <Button app="fund" variant="secondary" as="a" href={DOCS_URL}>
+            <Button app="fund" variant="secondary" as="a" href={GITHUB_URL}>
               Clone Repository
             </Button>
           </DeployCard>
@@ -364,7 +366,7 @@ function GetStarted() {
             Need help deciding? Our team is here to guide you.
           </Body>
           <div className="mt-3 flex justify-center">
-            <Button app="fund" variant="secondary" as="a" href={DOCS_URL}>
+            <Button app="fund" variant="secondary" as="a" href={GITHUB_URL}>
               Schedule a Consultation
             </Button>
           </div>
@@ -435,7 +437,7 @@ function CtaBand() {
           <Button app="fund" variant="light" as="a" href="#get-started">
             Deploy Your Instance
           </Button>
-          <Button app="fund" variant="light" as="a" href={DOCS_URL}>
+          <Button app="fund" variant="light" as={Link} href={DOCS_URL}>
             View Documentation
           </Button>
         </div>
@@ -483,16 +485,27 @@ function SiteFooter() {
               {col.heading}
             </Caption>
             <ul className="mt-4 space-y-2">
-              {col.links.map((link) => (
-                <li key={link}>
-                  <a
-                    href={DOCS_URL}
-                    className="text-surface-grey-2 hover:text-core-orange text-sm transition-colors"
-                  >
-                    {link}
-                  </a>
-                </li>
-              ))}
+              {col.links.map((link) =>
+                link === "Documentation" ? (
+                  <li key={link}>
+                    <Link
+                      href={DOCS_URL}
+                      className="text-surface-grey-2 hover:text-core-orange text-sm transition-colors"
+                    >
+                      {link}
+                    </Link>
+                  </li>
+                ) : (
+                  <li key={link}>
+                    <a
+                      href={GITHUB_URL}
+                      className="text-surface-grey-2 hover:text-core-orange text-sm transition-colors"
+                    >
+                      {link}
+                    </a>
+                  </li>
+                ),
+              )}
             </ul>
           </div>
         ))}
