@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { keccak256, toHex, isAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
-import { ArrowRight, CheckCircle } from "@phosphor-icons/react";
+import {
+  ArrowRight,
+  CaretDown,
+  CaretRight,
+  CheckCircle,
+} from "@phosphor-icons/react";
 import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
@@ -38,31 +43,42 @@ function DeployForm() {
   const [cycleLength, setCycleLength] = useState("17280");
   const [owner, setOwner] = useState("");
 
+  const [advanced, setAdvanced] = useState(false);
+  const [maxPoints, setMaxPoints] = useState(MAX_POINTS.toString());
+  const [customSalt, setCustomSalt] = useState("");
+
   const ownerValue = (owner.trim() || address || "") as string;
   const cleanCycle = cycleLength.trim();
+  const cleanPoints = maxPoints.trim();
   const ownerValid = isAddress(ownerValue);
   const cycleValid = /^\d+$/.test(cleanCycle) && BigInt(cleanCycle || "0") > 0n;
+  const pointsValid =
+    /^\d+$/.test(cleanPoints) && BigInt(cleanPoints || "0") > 0n;
   const canDeploy =
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
     cycleValid &&
+    pointsValid &&
     ownerValid;
 
   const onDeploy = () => {
     if (!canDeploy) return;
-    // Mix in name + per-attempt entropy so re-deploying with the same
-    // symbol/cycle/owner can't collide on the factory's CREATE2 (Create2Failed).
-    const salt = keccak256(
-      toHex(
-        `${name.trim()}|${symbol.trim()}|${cleanCycle}|${ownerValue}|${crypto.randomUUID()}`,
-      ),
-    );
+    // A custom salt makes the instance address deterministic; otherwise mix in
+    // name + per-attempt entropy so re-deploying the same config can't collide
+    // on the factory's CREATE2 (Create2Failed).
+    const salt = customSalt.trim()
+      ? keccak256(toHex(customSalt.trim()))
+      : keccak256(
+          toHex(
+            `${name.trim()}|${symbol.trim()}|${cleanCycle}|${ownerValue}|${crypto.randomUUID()}`,
+          ),
+        );
     void deploy({
       owner: ownerValue as Address,
       cycleLength: BigInt(cleanCycle),
       tokenName: name.trim(),
       tokenSymbol: symbol.trim(),
-      maxVotingPoints: MAX_POINTS,
+      maxVotingPoints: BigInt(cleanPoints),
       salt,
     });
   };
@@ -156,6 +172,43 @@ function DeployForm() {
           </Caption>
         )}
       </Field>
+
+      <button
+        type="button"
+        onClick={() => setAdvanced((a) => !a)}
+        className="text-surface-grey-2 hover:text-core-orange mb-4 flex items-center gap-1 text-sm font-medium"
+      >
+        {advanced ? <CaretDown weight="bold" /> : <CaretRight weight="bold" />}
+        Advanced
+      </button>
+      {advanced && (
+        <div className="border-paper-2 mb-4 space-y-4 rounded-xl border border-dashed p-4">
+          <Field label="Max voting points per recipient (basis points)">
+            <Input
+              value={maxPoints}
+              onChange={setMaxPoints}
+              placeholder="10000"
+            />
+            {!pointsValid && maxPoints !== "" && (
+              <Caption className="text-system-red mt-1 block">
+                Must be a positive integer (10000 = 100%).
+              </Caption>
+            )}
+          </Field>
+          <Field label="Custom CREATE2 salt (optional — deterministic address)">
+            <Input
+              value={customSalt}
+              onChange={setCustomSalt}
+              placeholder="leave blank for a fresh random salt"
+              mono
+            />
+            <Caption className="text-surface-grey mt-1 block">
+              Blank uses random entropy so repeat deploys never collide. A fixed
+              value makes the instance address reproducible.
+            </Caption>
+          </Field>
+        </div>
+      )}
 
       <div className="mt-2">
         <ActionButton
