@@ -46,7 +46,26 @@ export function useDeployInstance() {
           topics: log.topics,
         });
         if (ev.eventName === "SystemDeployed" && "instance" in ev.args) {
-          return ev.args.instance as unknown as InstanceAddresses;
+          // The event tuple names + order differ from InstanceAddresses
+          // (notably `registry` -> `recipientRegistry`), so map explicitly.
+          const i = ev.args.instance as {
+            cycleModule: Address;
+            registry: Address;
+            token: Address;
+            votingPowerStrategy: Address;
+            distributionManager: Address;
+            distributionStrategy: Address;
+            votingModule: Address;
+          };
+          return {
+            token: i.token,
+            distributionManager: i.distributionManager,
+            cycleModule: i.cycleModule,
+            votingModule: i.votingModule,
+            recipientRegistry: i.registry,
+            distributionStrategy: i.distributionStrategy,
+            votingPowerStrategy: i.votingPowerStrategy,
+          };
         }
       } catch {
         // not our event — keep scanning

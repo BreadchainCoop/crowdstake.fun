@@ -1,0 +1,15 @@
+{
+  "name": "crowdstake-onchain-journey",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test-only e2e harness: drives the real Crowdstake UI signing with an env key (no wallet prompt), against a local anvil Gnosis fork.",
+  "scripts": {
+    "test": "bash run.sh",
+    "journey": "node journey.cjs",
+    "check:bundle": "bash check-bundle.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1",
+    "viem": "2.53.1"
+  }
+}
