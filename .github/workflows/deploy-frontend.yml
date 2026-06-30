@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # pnpm 11 (our packageManager) requires Node >= 22.13
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
