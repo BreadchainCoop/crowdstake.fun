@@ -5,3 +5,5 @@ export { votingModuleAbi } from "./voting-module";
 export { recipientRegistryAbi } from "./recipient-registry";
 export { distributionStrategyAbi } from "./distribution-strategy";
 export { votingPowerAbi } from "./voting-power";
+export { deployerAbi } from "./crowdstake-deployer";
+export { factoryAbi } from "./factory";

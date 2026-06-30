@@ -2,7 +2,8 @@
 
 import { useAccount, useReadContract } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
-import { ADDRESSES, CHAIN_ID } from "@/lib/constants";
+import { CHAIN_ID } from "@/lib/constants";
+import { useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
@@ -13,39 +14,39 @@ const LIVE = { refetchInterval: 12_000 } as const;
  * whether they've voted this cycle.
  */
 export function useVotingState() {
+  const a = useInstance();
   const { address } = useAccount();
 
   const distribution = useReadContract({
-    address: ADDRESSES.votingModule,
+    address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "getCurrentVotingDistribution",
     chainId: CHAIN_ID,
     query: LIVE,
   });
   const expectedPointsLength = useReadContract({
-    address: ADDRESSES.votingModule,
+    address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "getExpectedPointsLength",
     chainId: CHAIN_ID,
     query: LIVE,
   });
   const maxPoints = useReadContract({
-    address: ADDRESSES.votingModule,
+    address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "maxPoints",
     chainId: CHAIN_ID,
   });
   const hasVoted = useReadContract({
-    address: ADDRESSES.votingModule,
+    address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "hasVotedInCurrentCycle",
     args: address ? [address] : undefined,
     chainId: CHAIN_ID,
     query: { enabled: Boolean(address), ...LIVE },
   });
-  // Time-weighted voting power for the connected user this cycle.
   const power = useReadContract({
-    address: ADDRESSES.votingPowerStrategy,
+    address: a.votingPowerStrategy,
     abi: votingPowerAbi,
     functionName: "getCurrentVotingPower",
     args: address ? [address] : undefined,
@@ -70,10 +71,11 @@ export function useVotingState() {
 
 /** Cast a direct vote: `points[]` (one per recipient, basis points). */
 export function useVote() {
+  const a = useInstance();
   const tx = useTx();
   const vote = (points: bigint[]) =>
     tx.run({
-      address: ADDRESSES.votingModule,
+      address: a.votingModule,
       abi: votingModuleAbi,
       functionName: "voteWithData",
       args: [points, "0x"],

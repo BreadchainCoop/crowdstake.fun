@@ -3,16 +3,18 @@
 import { erc20Abi, maxUint256, zeroAddress, type Address } from "viem";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { tokenAbi } from "@/lib/abis";
-import { ADDRESSES, CHAIN_ID, WXDAI } from "@/lib/constants";
+import { CHAIN_ID, WXDAI } from "@/lib/constants";
+import { useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
 
 export function useTokenBalance(account?: Address) {
+  const a = useInstance();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
-    address: ADDRESSES.token,
+    address: a.token,
     abi: tokenAbi,
     functionName: "balanceOf",
     args: owner ? [owner] : undefined,
@@ -23,15 +25,16 @@ export function useTokenBalance(account?: Address) {
 
 /** Protocol-wide token stats: total supply + accrued (claimable) yield. */
 export function useTokenStats() {
+  const a = useInstance();
   const totalSupply = useReadContract({
-    address: ADDRESSES.token,
+    address: a.token,
     abi: tokenAbi,
     functionName: "totalSupply",
     chainId: CHAIN_ID,
     query: LIVE,
   });
   const yieldAccrued = useReadContract({
-    address: ADDRESSES.token,
+    address: a.token,
     abi: tokenAbi,
     functionName: "yieldAccrued",
     chainId: CHAIN_ID,
@@ -49,10 +52,11 @@ export function useTokenStats() {
 }
 
 export function useVotes(account?: Address) {
+  const a = useInstance();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
-    address: ADDRESSES.token,
+    address: a.token,
     abi: tokenAbi,
     functionName: "getVotes",
     args: owner ? [owner] : undefined,
@@ -62,10 +66,11 @@ export function useVotes(account?: Address) {
 }
 
 export function useDelegate(account?: Address) {
+  const a = useInstance();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
-    address: ADDRESSES.token,
+    address: a.token,
     abi: tokenAbi,
     functionName: "delegates",
     args: owner ? [owner] : undefined,
@@ -86,6 +91,7 @@ export function useNativeBalance(account?: Address) {
 
 /** wxDAI balance + current allowance granted to the token contract. */
 export function useWxdai(account?: Address) {
+  const a = useInstance();
   const { address } = useAccount();
   const owner = account ?? address;
   const balance = useReadContract({
@@ -100,7 +106,7 @@ export function useWxdai(account?: Address) {
     address: WXDAI,
     abi: erc20Abi,
     functionName: "allowance",
-    args: owner ? [owner, ADDRESSES.token] : undefined,
+    args: owner ? [owner, a.token] : undefined,
     chainId: CHAIN_ID,
     query: { enabled: Boolean(owner) },
   });
@@ -117,19 +123,21 @@ export function useWxdai(account?: Address) {
 /* ----------------------------- Write actions ----------------------------- */
 
 export function useApproveWxdai() {
+  const a = useInstance();
   const tx = useTx();
   const approve = (amount: bigint = maxUint256) =>
     tx.run({
       address: WXDAI,
       abi: erc20Abi,
       functionName: "approve",
-      args: [ADDRESSES.token, amount],
+      args: [a.token, amount],
     });
   return { approve, ...tx };
 }
 
 /** Deposit: native xDAI (`mint(receiver){value}`) or wxDAI (`mint(receiver, amount)`). */
 export function useDeposit() {
+  const a = useInstance();
   const { address } = useAccount();
   const tx = useTx();
   const deposit = (opts: {
@@ -140,7 +148,7 @@ export function useDeposit() {
     const receiver = opts.receiver ?? address ?? zeroAddress;
     if (opts.mode === "native") {
       return tx.run({
-        address: ADDRESSES.token,
+        address: a.token,
         abi: tokenAbi,
         functionName: "mint",
         args: [receiver],
@@ -148,7 +156,7 @@ export function useDeposit() {
       });
     }
     return tx.run({
-      address: ADDRESSES.token,
+      address: a.token,
       abi: tokenAbi,
       functionName: "mint",
       args: [receiver, opts.amount],
@@ -157,16 +165,32 @@ export function useDeposit() {
   return { deposit, ...tx };
 }
 
-/** Withdraw: burn CSTAKE and remit native xDAI to `receiver`. */
+/** Withdraw: burn the token and remit native xDAI to `receiver`. */
 export function useWithdraw() {
+  const a = useInstance();
   const { address } = useAccount();
   const tx = useTx();
   const withdraw = (amount: bigint, receiver?: Address) =>
     tx.run({
-      address: ADDRESSES.token,
+      address: a.token,
       abi: tokenAbi,
       functionName: "burn",
       args: [amount, receiver ?? address ?? zeroAddress],
     });
   return { withdraw, ...tx };
+}
+
+/** Manually (re)delegate voting power to an address (self by default). */
+export function useDelegateVotes() {
+  const a = useInstance();
+  const { address } = useAccount();
+  const tx = useTx();
+  const delegate = (to?: Address) =>
+    tx.run({
+      address: a.token,
+      abi: tokenAbi,
+      functionName: "delegate",
+      args: [to ?? address ?? zeroAddress],
+    });
+  return { delegate, ...tx };
 }

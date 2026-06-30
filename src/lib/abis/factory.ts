@@ -1,0 +1,267 @@
+export const factoryAbi = [
+  {
+    type: "constructor",
+    inputs: [{ name: "_owner", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "allowlistBeacons",
+    inputs: [
+      { name: "beacons_", type: "address[]", internalType: "address[]" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "beacons",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]", internalType: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "beaconsContains",
+    inputs: [{ name: "beacon_", type: "address", internalType: "address" }],
+    outputs: [{ name: "isContained", type: "bool", internalType: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "cancelOwnershipHandover",
+    inputs: [],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "completeOwnershipHandover",
+    inputs: [
+      { name: "pendingOwner", type: "address", internalType: "address" },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "computeAddress",
+    inputs: [
+      { name: "beacon_", type: "address", internalType: "address" },
+      { name: "payload_", type: "bytes", internalType: "bytes" },
+      { name: "salt_", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "computeAddress",
+    inputs: [
+      { name: "beacon_", type: "address", internalType: "address" },
+      { name: "payload_", type: "bytes", internalType: "bytes" },
+      { name: "salt_", type: "bytes32", internalType: "bytes32" },
+      { name: "sender_", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "computeTokenAddress",
+    inputs: [
+      { name: "beacon_", type: "address", internalType: "address" },
+      { name: "payload_", type: "bytes", internalType: "bytes" },
+      { name: "salt_", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "create",
+    inputs: [
+      { name: "beacon_", type: "address", internalType: "address" },
+      { name: "payload_", type: "bytes", internalType: "bytes" },
+      { name: "salt_", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "module", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "createToken",
+    inputs: [
+      { name: "beacon_", type: "address", internalType: "address" },
+      { name: "payload_", type: "bytes", internalType: "bytes" },
+      { name: "salt_", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "token", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "denylistBeacons",
+    inputs: [
+      { name: "beacons_", type: "address[]", internalType: "address[]" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "owner",
+    inputs: [],
+    outputs: [{ name: "result", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "ownershipHandoverExpiresAt",
+    inputs: [
+      { name: "pendingOwner", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "result", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "renounceOwnership",
+    inputs: [],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "requestOwnershipHandover",
+    inputs: [],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "transferOwnership",
+    inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "event",
+    name: "AllowlistBeacons",
+    inputs: [
+      {
+        name: "beacons",
+        type: "address[]",
+        indexed: false,
+        internalType: "address[]",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "CreateModule",
+    inputs: [
+      {
+        name: "module",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      {
+        name: "beacon",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      { name: "payload", type: "bytes", indexed: false, internalType: "bytes" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "CreateToken",
+    inputs: [
+      {
+        name: "token",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      {
+        name: "beacon",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      { name: "payload", type: "bytes", indexed: false, internalType: "bytes" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "DenylistBeacons",
+    inputs: [
+      {
+        name: "beacons",
+        type: "address[]",
+        indexed: false,
+        internalType: "address[]",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipHandoverCanceled",
+    inputs: [
+      {
+        name: "pendingOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipHandoverRequested",
+    inputs: [
+      {
+        name: "pendingOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipTransferred",
+    inputs: [
+      {
+        name: "oldOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  { type: "error", name: "AlreadyAllowlistedBeacon", inputs: [] },
+  { type: "error", name: "AlreadyInitialized", inputs: [] },
+  { type: "error", name: "Create2Failed", inputs: [] },
+  { type: "error", name: "NewOwnerIsZeroAddress", inputs: [] },
+  { type: "error", name: "NoHandoverRequest", inputs: [] },
+  { type: "error", name: "NotAllowlistedBeacon", inputs: [] },
+  { type: "error", name: "NotBeacon", inputs: [] },
+  { type: "error", name: "Unauthorized", inputs: [] },
+] as const;

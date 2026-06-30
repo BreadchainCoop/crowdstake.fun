@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { wagmiConfig } from "@/lib/wagmi";
+import { InstanceProvider } from "@/components/instance-provider";
 
 export function Providers({ children }: { children: ReactNode }) {
   // One QueryClient per browser session; hashFn keeps bigint query keys stable.
@@ -28,7 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
             borderRadius: "medium",
           })}
         >
-          {children}
+          <InstanceProvider>{children}</InstanceProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

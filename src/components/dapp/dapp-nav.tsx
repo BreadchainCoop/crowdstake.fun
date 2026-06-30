@@ -6,6 +6,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Logo } from "@breadcoop/ui";
 import { cn } from "@/lib/utils";
 import { useRegistryOwner } from "@/hooks/use-recipients";
+import { InstanceSwitcher } from "@/components/dapp/instance-switcher";
 
 const LINKS = [
   { href: "/app", label: "Portfolio" },
@@ -13,13 +14,18 @@ const LINKS = [
   { href: "/app/withdraw", label: "Withdraw" },
   { href: "/app/vote", label: "Vote" },
   { href: "/app/distribute", label: "Distribute" },
+  { href: "/app/deploy", label: "Deploy" },
 ];
 
 export function DappNav() {
   const pathname = usePathname();
   const { isAdmin } = useRegistryOwner();
   const links = isAdmin
-    ? [...LINKS, { href: "/app/recipients", label: "Recipients" }]
+    ? [
+        ...LINKS,
+        { href: "/app/recipients", label: "Recipients" },
+        { href: "/app/admin", label: "Admin" },
+      ]
     : LINKS;
 
   return (
@@ -55,11 +61,14 @@ export function DappNav() {
           })}
         </div>
 
-        <ConnectButton
-          showBalance={false}
-          accountStatus="address"
-          chainStatus="icon"
-        />
+        <div className="flex items-center gap-2">
+          <InstanceSwitcher />
+          <ConnectButton
+            showBalance={false}
+            accountStatus="address"
+            chainStatus="icon"
+          />
+        </div>
       </nav>
 
       {/* Mobile nav */}
