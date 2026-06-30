@@ -11,12 +11,12 @@ import {
   useVotes,
   useNativeBalance,
   useTokenStats,
+  useInstanceToken,
 } from "@/hooks/use-token";
 import { useCycle } from "@/hooks/use-cycle";
 import { useDistributionReady } from "@/hooks/use-distribution";
 import { useIsRecipient, useRecipients } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
-import { TOKEN_SYMBOL } from "@/lib/constants";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
@@ -28,6 +28,7 @@ export default function PortfolioPage() {
   const { isReady } = useDistributionReady();
   const isRecipient = useIsRecipient();
   const { recipients } = useRecipients();
+  const { symbol: tokenSymbol } = useInstanceToken();
 
   return (
     <div>
@@ -49,8 +50,8 @@ export default function PortfolioPage() {
       {/* Your position */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label={`Your ${TOKEN_SYMBOL}`}
-          value={`${formatAmount(balance.data)} ${TOKEN_SYMBOL}`}
+          label={`Your ${tokenSymbol}`}
+          value={`${formatAmount(balance.data)} ${tokenSymbol}`}
           sub="Redeemable 1:1 for xDAI"
           accent
         />
@@ -71,11 +72,11 @@ export default function PortfolioPage() {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Total staked"
-          value={`${formatAmount(totalSupply)} ${TOKEN_SYMBOL}`}
+          value={`${formatAmount(totalSupply)} ${tokenSymbol}`}
         />
         <StatCard
           label="Accrued yield"
-          value={`${formatAmount(yieldAccrued)} ${TOKEN_SYMBOL}`}
+          value={`${formatAmount(yieldAccrued)} ${tokenSymbol}`}
           sub="Claimable on next distribution"
         />
         <StatCard label="Active recipients" value={`${recipients.length}`} />

@@ -8,21 +8,22 @@ import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
 import { formatAmount, parseAmount } from "@/lib/format";
-import { TOKEN_SYMBOL } from "@/lib/constants";
 import {
   useApproveWxdai,
   useDeposit,
+  useInstanceToken,
   useNativeBalance,
   useTokenBalance,
   useWxdai,
 } from "@/hooks/use-token";
 
 export default function DepositPage() {
+  const { symbol } = useInstanceToken();
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Deposit"
-        subtitle={`Stake xDAI to mint ${TOKEN_SYMBOL} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
+        subtitle={`Stake xDAI to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
       />
       <DepositForm />
     </div>
@@ -33,6 +34,7 @@ function DepositForm() {
   const [mode, setMode] = useState<"native" | "wxdai">("native");
   const [amount, setAmount] = useState("");
 
+  const { symbol } = useInstanceToken();
   const native = useNativeBalance();
   const wxdai = useWxdai();
   const stake = useTokenBalance();
@@ -102,7 +104,7 @@ function DepositForm() {
       <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
         <Caption className="text-surface-grey-2">You receive</Caption>
         <span className="font-breadDisplay text-text-standard font-bold">
-          {parsed ? formatAmount(parsed) : "0"} {TOKEN_SYMBOL}
+          {parsed ? formatAmount(parsed) : "0"} {symbol}
         </span>
       </div>
 
@@ -134,9 +136,9 @@ function DepositForm() {
       />
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Your {TOKEN_SYMBOL} balance:{" "}
+        Your {symbol} balance:{" "}
         <span className="text-text-standard font-semibold">
-          {formatAmount(stake.data)} {TOKEN_SYMBOL}
+          {formatAmount(stake.data)} {symbol}
         </span>
       </Body>
     </Card>

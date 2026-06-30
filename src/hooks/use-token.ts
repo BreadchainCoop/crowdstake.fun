@@ -3,11 +3,36 @@
 import { erc20Abi, maxUint256, zeroAddress, type Address } from "viem";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { tokenAbi } from "@/lib/abis";
-import { CHAIN_ID, WXDAI } from "@/lib/constants";
+import { CHAIN_ID, TOKEN_SYMBOL, WXDAI } from "@/lib/constants";
 import { useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
+
+/**
+ * The active instance's token symbol + name, read on-chain. Every instance
+ * picks its own ticker at deploy time, so the UI must not hardcode one. Falls
+ * back to the default symbol while the read resolves.
+ */
+export function useInstanceToken() {
+  const a = useInstance();
+  const symbol = useReadContract({
+    address: a.token,
+    abi: tokenAbi,
+    functionName: "symbol",
+    chainId: CHAIN_ID,
+  });
+  const name = useReadContract({
+    address: a.token,
+    abi: tokenAbi,
+    functionName: "name",
+    chainId: CHAIN_ID,
+  });
+  return {
+    symbol: (symbol.data as string | undefined) || TOKEN_SYMBOL,
+    name: name.data as string | undefined,
+  };
+}
 
 export function useTokenBalance(account?: Address) {
   const a = useInstance();

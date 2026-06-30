@@ -10,9 +10,8 @@ import { useDistribute, useDistributionReady } from "@/hooks/use-distribution";
 import { useCycle } from "@/hooks/use-cycle";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useVotingState } from "@/hooks/use-voting";
-import { useTokenStats } from "@/hooks/use-token";
+import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
 import { formatAmount } from "@/lib/format";
-import { TOKEN_SYMBOL } from "@/lib/constants";
 
 export default function DistributePage() {
   return (
@@ -34,6 +33,7 @@ function Distribute() {
   const voting = useVotingState();
   const tokenStats = useTokenStats();
   const { yieldAccrued } = tokenStats;
+  const { symbol } = useInstanceToken();
 
   const totalVotes = useMemo(
     () => voting.distribution.reduce((a, b) => a + b, 0n),
@@ -69,7 +69,7 @@ function Distribute() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Accrued yield"
-          value={`${formatAmount(yieldAccrued)} ${TOKEN_SYMBOL}`}
+          value={`${formatAmount(yieldAccrued)} ${symbol}`}
           sub="To be distributed"
           accent
         />
@@ -135,8 +135,8 @@ function Distribute() {
 
       <Body className="text-surface-grey mt-6 text-sm">
         Distribution claims the protocol&apos;s accrued sDAI yield as freshly
-        minted {TOKEN_SYMBOL}, splits it across recipients proportionally to
-        their votes, and starts a new cycle — all in one transaction.
+        minted {symbol}, splits it across recipients proportionally to their
+        votes, and starts a new cycle — all in one transaction.
       </Body>
     </div>
   );
