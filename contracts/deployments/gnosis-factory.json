@@ -1,0 +1,12 @@
+{
+  "factory": "0x75b383Dc91822Bc8138a75fd8E7aE144f88AEed6",
+  "deployer": "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
+  "beacons": {
+    "cycleModule": "0x4108acedbf2d0e1806a589903945a0ca260bf2da",
+    "adminRegistry": "0x856f8c0d2d56acfc0d77b98bdd2aec9283b6bbea",
+    "token": "0x97b0a0ef59cb1e43c29e6748ebaf03f109f5486f",
+    "baseDistributionManager": "0xaa3a42be84bb45d59faf15b44f72943d4d0665b4",
+    "votingStrategy": "0xc47decd27ea604e6b423cca1d1c4cbec328930c1",
+    "votingModule": "0x8d8855fae60fafff906305b9fda8840d7d7ec3d1"
+  }
+}
