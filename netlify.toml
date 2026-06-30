@@ -1,0 +1,9 @@
+# Alternative host (root domain). The app is a static export, so Netlify just
+# builds and serves ./out. Leave NEXT_PUBLIC_BASE_PATH unset for a root domain.
+# To use: connect this repo in Netlify — no other config needed.
+[build]
+  command = "pnpm build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"

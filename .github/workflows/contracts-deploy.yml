@@ -1,0 +1,89 @@
+name: Deploy contracts (Gnosis)
+
+# Manual deploy of a fresh CrowdStake instance to Gnosis, with Blockscout
+# verification. Reuses etherform's verify-blockscout.sh (sparse-checkout) for
+# the verify step — etherform's reusable *workflow* assumes a root Foundry
+# layout, so the deploy itself runs forge from ./contracts here.
+#
+# Requires repo secrets: DEPLOY_PRIVATE_KEY (funded Gnosis key), GNOSIS_RPC_URL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: "System owner address (receives admin of all modules)"
+        required: true
+      token_name:
+        description: "ERC20 token name"
+        default: "Crowdstaking Stake"
+      token_symbol:
+        description: "ERC20 token symbol"
+        default: "CSTAKE"
+      cycle_length:
+        description: "Cycle length in blocks (~5s each on Gnosis)"
+        default: "17280"
+      salt:
+        description: "CREATE2 salt (change for a fresh instance)"
+        default: "crowdstake.fun-gnosis"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sparse-checkout etherform deploy scripts
+        uses: actions/checkout@v4
+        with:
+          repository: BreadchainCoop/etherform
+          ref: main
+          sparse-checkout: scripts
+          path: .etherform
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: "1.4.4"
+
+      - name: Deploy
+        id: deploy
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOY_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
+          OWNER: ${{ inputs.owner }}
+          TOKEN_NAME: ${{ inputs.token_name }}
+          TOKEN_SYMBOL: ${{ inputs.token_symbol }}
+          CYCLE_LENGTH: ${{ inputs.cycle_length }}
+          MAX_VOTING_POINTS: "10000"
+          SALT: ${{ inputs.salt }}
+          WXDAI: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d"
+          SXDAI: "0xaf204776c7245bF4147c2612BF6e5972Ee483701"
+        run: |
+          source ../.etherform/scripts/deploy/prepare-env.sh
+          forge script script/DeployGnosis.s.sol:DeployGnosis \
+            --rpc-url "$RPC_URL" --broadcast --slow -vvvv
+
+      - name: Verify on Blockscout
+        continue-on-error: true
+        env:
+          RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
+          BLOCKSCOUT_URL: "https://gnosis.blockscout.com"
+        run: |
+          BROADCAST_FILE=$(ls broadcast/DeployGnosis.s.sol/100/run-latest.json 2>/dev/null || true)
+          if [ -n "$BROADCAST_FILE" ]; then
+            BROADCAST_FILE="$BROADCAST_FILE" bash ../.etherform/scripts/deploy/verify-blockscout.sh || true
+          fi
+
+      - name: Upload deployment manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnosis-deployment
+          path: contracts/deployments/gnosis.json
+          if-no-files-found: warn

@@ -1,0 +1,10 @@
+{
+  "networks": [
+    {
+      "name": "gnosis",
+      "chain_id": 100,
+      "blockscout_url": "https://gnosis.blockscout.com",
+      "environment": "mainnet"
+    }
+  ]
+}

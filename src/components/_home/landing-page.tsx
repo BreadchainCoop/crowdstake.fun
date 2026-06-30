@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   Body,
   Button,
@@ -67,7 +68,7 @@ function SiteNav() {
           >
             Documentation
           </Button>
-          <Button app="fund" variant="primary" size="sm" as="a" href="/app">
+          <Button app="fund" variant="primary" size="sm" as={Link} href="/app">
             Launch App
           </Button>
         </div>
@@ -116,7 +117,7 @@ function Hero() {
           >
             Deploy Your Instance
           </Button>
-          <Button app="fund" variant="secondary" as="a" href="/app">
+          <Button app="fund" variant="secondary" as={Link} href="/app">
             Launch App
           </Button>
         </div>
