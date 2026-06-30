@@ -32,7 +32,8 @@ function Distribute() {
   const cycle = useCycle();
   const { recipients } = useRecipients();
   const voting = useVotingState();
-  const { yieldAccrued } = useTokenStats();
+  const tokenStats = useTokenStats();
+  const { yieldAccrued } = tokenStats;
 
   const totalVotes = useMemo(
     () => voting.distribution.reduce((a, b) => a + b, 0n),
@@ -46,16 +47,19 @@ function Distribute() {
     {
       label: "Yield has accrued",
       ok:
-        yieldAccrued !== undefined &&
-        yieldAccrued >= BigInt(Math.max(1, recipients.length)),
+        yieldAccrued !== undefined && yieldAccrued >= BigInt(recipients.length),
     },
   ];
+  // All shown gates green but the contract still says not-ready means the
+  // instance is mis-wired (cycle module not pointing at this manager).
+  const wiringIssue = !isReady && checks.every((c) => c.ok);
 
   useEffect(() => {
     if (tx.isSuccess) {
       refetchReady();
       cycle.refetch();
       voting.refetch();
+      tokenStats.refetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tx.isSuccess]);
@@ -102,6 +106,14 @@ function Distribute() {
             </li>
           ))}
         </ul>
+
+        {wiringIssue && (
+          <Caption className="text-system-warning mt-3 block">
+            All checks pass but the protocol still reports not ready — this
+            instance may be mis-wired (its cycle module isn&apos;t pointed at
+            this distribution manager).
+          </Caption>
+        )}
 
         <div className="mt-6">
           <ActionButton

@@ -96,10 +96,22 @@ export function useDeployInstance() {
     }
   };
 
+  const status: "idle" | "signing" | "confirming" | "success" | "error" =
+    writeError || receiptError
+      ? "error"
+      : isSuccess
+        ? "success"
+        : isConfirming
+          ? "confirming"
+          : isSigning
+            ? "signing"
+            : "idle";
+
   return {
     deploy,
     hash,
     instance,
+    status,
     isBusy: isSigning || isConfirming,
     isSuccess,
     error: writeError

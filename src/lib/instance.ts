@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Address } from "viem";
+import { createPublicClient, getAddress, http, type Address } from "viem";
 import { gnosis } from "viem/chains";
 import { ADDRESSES, RPC_URL, TOKEN_SYMBOL } from "@/lib/constants";
 import { distributionManagerAbi, votingModuleAbi } from "@/lib/abis";
@@ -49,19 +49,24 @@ export async function resolveInstance(
       client.readContract({ ...base, functionName: "baseToken" }),
       client.readContract({ ...base, functionName: "distributionStrategy" }),
     ]);
-  const vpStrategies = await client.readContract({
+  const vpStrategies = (await client.readContract({
     address: votingModule as Address,
     abi: votingModuleAbi,
     functionName: "getVotingPowerStrategies",
-  });
+  })) as readonly Address[];
+  if (vpStrategies.length === 0) {
+    // No voting-power strategy means a half-wired/incompatible instance —
+    // refuse rather than persist one whose vote page would silently break.
+    throw new Error("Instance has no voting-power strategy");
+  }
   return {
-    distributionManager,
-    cycleModule: cycleModule as Address,
-    votingModule: votingModule as Address,
-    recipientRegistry: recipientRegistry as Address,
-    token: token as Address,
-    distributionStrategy: strategy as Address,
-    votingPowerStrategy: (vpStrategies as readonly Address[])[0],
+    distributionManager: getAddress(distributionManager),
+    cycleModule: getAddress(cycleModule as Address),
+    votingModule: getAddress(votingModule as Address),
+    recipientRegistry: getAddress(recipientRegistry as Address),
+    token: getAddress(token as Address),
+    distributionStrategy: getAddress(strategy as Address),
+    votingPowerStrategy: getAddress(vpStrategies[0]),
   };
 }
 

@@ -35,6 +35,8 @@ const tokenAbi = parseAbi([
   "function yieldAccrued() view returns (uint256)",
   "function getVotes(address) view returns (uint256)",
   "function delegates(address) view returns (address)",
+  "function yieldClaimer() view returns (address)",
+  "function pendingYieldClaimer() view returns (address)",
 ]);
 const votingAbi = parseAbi([
   "function getCurrentVotingDistribution() view returns (uint256[])",
@@ -57,6 +59,9 @@ const distAbi = parseAbi([
 ]);
 const registryAbi = parseAbi([
   "function getRecipients() view returns (address[])",
+  "function getQueuedAdditions() view returns (address[])",
+  "function getQueuedRemovals() view returns (address[])",
+  "function isRecipient(address) view returns (bool)",
   "function owner() view returns (address)",
 ]);
 const deployerAbi = parseAbi([
@@ -76,75 +81,94 @@ const wallet = account
 const read = (address, abi, functionName, args) =>
   pub.readContract({ address, abi, functionName, args });
 
-// On-chain reads (independent of the UI) used to assert each journey step.
-const R = {
-  balanceOf: (a) => read(A.token, tokenAbi, "balanceOf", [a]),
-  totalSupply: () => read(A.token, tokenAbi, "totalSupply", []),
-  yieldAccrued: () => read(A.token, tokenAbi, "yieldAccrued", []),
-  getVotes: (a) => read(A.token, tokenAbi, "getVotes", [a]),
-  hasVoted: (a) =>
-    read(A.votingModule, votingAbi, "hasVotedInCurrentCycle", [a]),
-  isDistributionReady: () =>
-    read(A.distributionManager, distAbi, "isDistributionReady", []),
-  currentCycle: () => read(A.cycleModule, cycleAbi, "getCurrentCycle", []),
-  recipients: () => read(A.recipientRegistry, registryAbi, "getRecipients", []),
-  // Resolve a freshly deployed instance from its distribution manager, the same
-  // way the app does (src/lib/instance.ts), and read its registry owner.
-  resolveInstance: async (distributionManager) => {
-    const base = { address: distributionManager, abi: distAbi };
-    const [cycleModule, votingModule, recipientRegistry, token, strategy] =
-      await Promise.all([
-        read(distributionManager, distAbi, "cycleManager", []),
-        read(distributionManager, distAbi, "votingModule", []),
-        read(distributionManager, distAbi, "recipientRegistry", []),
-        read(distributionManager, distAbi, "baseToken", []),
-        read(distributionManager, distAbi, "distributionStrategy", []),
-      ]);
-    void base;
-    const vps = await read(
-      votingModule,
-      votingAbi,
-      "getVotingPowerStrategies",
-      [],
-    );
-    return {
-      distributionManager,
-      cycleModule,
-      votingModule,
-      recipientRegistry,
-      token,
-      distributionStrategy: strategy,
-      votingPowerStrategy: vps[0],
-    };
-  },
-  registryOwner: (registry) => read(registry, registryAbi, "owner", []),
-  // The most recent instance deployed by `owner` via the deployer (decoded).
-  latestDeployedInstance: async (owner) => {
-    const logs = await pub.getLogs({
-      address: A.deployer,
-      fromBlock: "earliest",
-      toBlock: "latest",
-    });
-    for (let i = logs.length - 1; i >= 0; i--) {
-      try {
-        const ev = decodeEventLog({
-          abi: deployerAbi,
-          data: logs[i].data,
-          topics: logs[i].topics,
-        });
-        if (
-          ev.eventName === "SystemDeployed" &&
-          ev.args.owner.toLowerCase() === owner.toLowerCase()
-        ) {
-          return ev.args.instance;
-        }
-      } catch {
-        /* not our event */
+// On-chain reads bound to a specific instance's addresses, so the harness can
+// assert against the default instance OR a freshly deployed self-owned one.
+function reads(inst) {
+  return {
+    inst,
+    balanceOf: (a) => read(inst.token, tokenAbi, "balanceOf", [a]),
+    totalSupply: () => read(inst.token, tokenAbi, "totalSupply", []),
+    yieldAccrued: () => read(inst.token, tokenAbi, "yieldAccrued", []),
+    getVotes: (a) => read(inst.token, tokenAbi, "getVotes", [a]),
+    delegates: (a) => read(inst.token, tokenAbi, "delegates", [a]),
+    yieldClaimer: () => read(inst.token, tokenAbi, "yieldClaimer", []),
+    hasVoted: (a) =>
+      read(inst.votingModule, votingAbi, "hasVotedInCurrentCycle", [a]),
+    distribution: () =>
+      read(inst.votingModule, votingAbi, "getCurrentVotingDistribution", []),
+    isDistributionReady: () =>
+      read(inst.distributionManager, distAbi, "isDistributionReady", []),
+    currentCycle: () => read(inst.cycleModule, cycleAbi, "getCurrentCycle", []),
+    isCycleComplete: () =>
+      read(inst.cycleModule, cycleAbi, "isCycleComplete", []),
+    cycleLength: () => read(inst.cycleModule, cycleAbi, "cycleLength", []),
+    recipients: () =>
+      read(inst.recipientRegistry, registryAbi, "getRecipients", []),
+    queuedAdditions: () =>
+      read(inst.recipientRegistry, registryAbi, "getQueuedAdditions", []),
+    queuedRemovals: () =>
+      read(inst.recipientRegistry, registryAbi, "getQueuedRemovals", []),
+    registryOwner: () => read(inst.recipientRegistry, registryAbi, "owner", []),
+  };
+}
+
+// Default-instance reads (the common case).
+const R = reads(A);
+
+// Resolve a full instance from its distribution manager, the same way the app
+// does (src/lib/instance.ts).
+async function resolveInstance(distributionManager) {
+  const [cycleModule, votingModule, recipientRegistry, token, strategy] =
+    await Promise.all([
+      read(distributionManager, distAbi, "cycleManager", []),
+      read(distributionManager, distAbi, "votingModule", []),
+      read(distributionManager, distAbi, "recipientRegistry", []),
+      read(distributionManager, distAbi, "baseToken", []),
+      read(distributionManager, distAbi, "distributionStrategy", []),
+    ]);
+  const vps = await read(
+    votingModule,
+    votingAbi,
+    "getVotingPowerStrategies",
+    [],
+  );
+  return {
+    distributionManager,
+    cycleModule,
+    votingModule,
+    recipientRegistry,
+    token,
+    distributionStrategy: strategy,
+    votingPowerStrategy: vps[0],
+  };
+}
+
+// The most recent instance deployed by `owner` via the deployer (decoded).
+async function latestDeployedInstance(owner) {
+  const logs = await pub.getLogs({
+    address: A.deployer,
+    fromBlock: "earliest",
+    toBlock: "latest",
+  });
+  for (let i = logs.length - 1; i >= 0; i--) {
+    try {
+      const ev = decodeEventLog({
+        abi: deployerAbi,
+        data: logs[i].data,
+        topics: logs[i].topics,
+      });
+      if (
+        ev.eventName === "SystemDeployed" &&
+        ev.args.owner.toLowerCase() === owner.toLowerCase()
+      ) {
+        return ev.args.instance;
       }
+    } catch {
+      /* not our event */
     }
-    return null;
-  },
-};
+  }
+  return null;
+}
 
 const hex = (n) => "0x" + BigInt(n).toString(16);
 const rpc = (method, params = []) =>
@@ -163,6 +187,16 @@ const rpc = (method, params = []) =>
 const fork = {
   setBalance: (a, wei) => rpc("anvil_setBalance", [a, hex(wei)]),
   mine: (n) => rpc("anvil_mine", [hex(n)]),
+  // Give the signer WXDAI (wrap native xDAI) so the WXDAI deposit path can run.
+  wrapWxdai: async (wei) => {
+    const h = await wallet.writeContract({
+      address: A.WXDAI,
+      abi: wxdaiAbi,
+      functionName: "deposit",
+      value: wei,
+    });
+    await pub.waitForTransactionReceipt({ hash: h });
+  },
   // sDAI yield is push-based: send WXDAI to the sDAI vault so yieldAccrued rises.
   forceYield: async (wei) => {
     await wallet.writeContract({
@@ -221,4 +255,17 @@ async function handle(method, params = []) {
   }
 }
 
-module.exports = { A, R, rpc, hex, fork, handle, account, pub, wallet };
+module.exports = {
+  A,
+  R,
+  reads,
+  resolveInstance,
+  latestDeployedInstance,
+  rpc,
+  hex,
+  fork,
+  handle,
+  account,
+  pub,
+  wallet,
+};

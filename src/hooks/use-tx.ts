@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { BaseError, type Abi, type Address } from "viem";
+import { CHAIN_ID } from "@/lib/constants";
 
 /** Pull the most useful human-readable message out of a viem/wagmi error. */
 export function parseTxError(err: unknown): string {
@@ -50,7 +51,7 @@ export function useTx() {
     isLoading: isConfirming,
     isSuccess,
     error: receiptError,
-  } = useWaitForTransactionReceipt({ hash });
+  } = useWaitForTransactionReceipt({ hash, chainId: CHAIN_ID });
 
   const run = useCallback(
     async (request: TxRequest): Promise<`0x${string}` | undefined> => {

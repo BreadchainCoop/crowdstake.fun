@@ -40,7 +40,16 @@ function DepositForm() {
   const { approve, ...approveTx } = useApproveWxdai();
 
   const parsed = parseAmount(amount);
-  const balance = mode === "native" ? native.data?.value : wxdai.balance;
+  // Native deposits pay gas in xDAI too, so reserve a little for gas — otherwise
+  // a MAX deposit sends the whole balance as value and can't fund the tx.
+  const GAS_RESERVE = 10n ** 16n; // ~0.01 xDAI
+  const rawBalance = mode === "native" ? native.data?.value : wxdai.balance;
+  const balance =
+    mode === "native" && rawBalance !== undefined
+      ? rawBalance > GAS_RESERVE
+        ? rawBalance - GAS_RESERVE
+        : 0n
+      : rawBalance;
   const overBalance =
     parsed !== null && balance !== undefined && parsed > balance;
   const needsApproval =
@@ -118,12 +127,10 @@ function DepositForm() {
       </div>
 
       <TxStatus
-        status={
-          approveTx.status === "idle" ? depositTx.status : approveTx.status
-        }
-        hash={approveTx.hash ?? depositTx.hash}
-        error={depositTx.error ?? approveTx.error}
-        successLabel={depositTx.isSuccess ? "Deposit confirmed" : "Approved"}
+        status={needsApproval ? approveTx.status : depositTx.status}
+        hash={needsApproval ? approveTx.hash : depositTx.hash}
+        error={needsApproval ? approveTx.error : depositTx.error}
+        successLabel={needsApproval ? "Approved" : "Deposit confirmed"}
       />
 
       <Body className="text-surface-grey mt-6 text-sm">

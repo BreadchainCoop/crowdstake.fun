@@ -16,7 +16,7 @@ import { useRecipients } from "@/hooks/use-recipients";
 import { useVote, useVotingState } from "@/hooks/use-voting";
 import { useCycle } from "@/hooks/use-cycle";
 import { formatAmount, shortenAddress } from "@/lib/format";
-import { MAX_POINTS, addressUrl } from "@/lib/constants";
+import { addressUrl } from "@/lib/constants";
 
 export default function VotePage() {
   return (
@@ -66,6 +66,16 @@ function VoteForm() {
     BigInt(Math.round((weights[r] ?? 0) * 100)),
   ); // % → basis points
 
+  const maxPercent = Number(voting.maxPoints) / 100;
+  // Time-weighted voting power is 0 until it accrues within the cycle; voting
+  // then "succeeds" but records nothing and locks you out — block it.
+  const noPower = !voting.votingPower || voting.votingPower === 0n;
+  // The contract requires points.length == recipient count; if the recipient
+  // set changed under us, refuse rather than revert.
+  const lengthMismatch =
+    voting.expectedPointsLength !== undefined &&
+    points.length !== Number(voting.expectedPointsLength);
+
   return (
     <div>
       <Card className="mb-6">
@@ -114,7 +124,7 @@ function VoteForm() {
                 <input
                   type="range"
                   min={0}
-                  max={100}
+                  max={maxPercent}
                   step={1}
                   value={weight}
                   onChange={(e) => setWeight(r, Number(e.target.value))}
@@ -133,14 +143,26 @@ function VoteForm() {
       <div className="mt-6">
         <ActionButton
           isLoading={tx.isBusy}
-          disabled={!anyAllocated || voting.hasVoted}
+          disabled={
+            !anyAllocated || voting.hasVoted || noPower || lengthMismatch
+          }
           onClick={() => vote(points)}
         >
           {voting.hasVoted ? "Already voted this cycle" : "Cast vote"}
         </ActionButton>
       </div>
 
-      {!anyAllocated && !voting.hasVoted && (
+      {!voting.hasVoted && noPower && (
+        <Caption className="text-system-warning mt-2 block text-center">
+          Your voting power is still accruing this cycle — try again shortly.
+        </Caption>
+      )}
+      {!voting.hasVoted && !noPower && lengthMismatch && (
+        <Caption className="text-system-warning mt-2 block text-center">
+          The recipient list just changed — refresh before voting.
+        </Caption>
+      )}
+      {!anyAllocated && !voting.hasVoted && !noPower && !lengthMismatch && (
         <Caption className="text-surface-grey mt-2 block text-center">
           Allocate weight to at least one recipient.
         </Caption>
@@ -156,8 +178,8 @@ function VoteForm() {
       <Body className="text-surface-grey mt-6 text-sm">
         Weights are relative — each recipient&apos;s share of the next
         distribution is proportional to its total weighted votes (your weight ×
-        your voting power, summed across all voters). Max {MAX_POINTS / 100n}%
-        per recipient.
+        your voting power, summed across all voters). Max{" "}
+        {voting.maxPoints / 100n}% per recipient.
       </Body>
     </div>
   );

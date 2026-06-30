@@ -31,6 +31,8 @@ interface InstanceContextValue {
   setActive: (distributionManager: Address) => void;
   /** Add (and activate) a newly discovered/deployed instance. */
   addInstance: (instance: KnownInstance) => void;
+  /** Remove a custom instance (the built-in default can't be removed). */
+  removeInstance: (distributionManager: Address) => void;
 }
 
 const InstanceContext = createContext<InstanceContextValue | null>(null);
@@ -48,7 +50,10 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
     const saved = loadActiveManager();
     if (
       saved &&
-      loaded.some((i) => i.addresses.distributionManager === saved)
+      loaded.some(
+        (i) =>
+          i.addresses.distributionManager.toLowerCase() === saved.toLowerCase(),
+      )
     ) {
       setActiveManager(saved);
     }
@@ -56,8 +61,11 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
 
   const active = useMemo(
     () =>
-      known.find((i) => i.addresses.distributionManager === activeManager) ??
-      DEFAULT_INSTANCE,
+      known.find(
+        (i) =>
+          i.addresses.distributionManager.toLowerCase() ===
+          activeManager.toLowerCase(),
+      ) ?? DEFAULT_INSTANCE,
     [known, activeManager],
   );
 
@@ -81,6 +89,28 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
     saveActiveManager(instance.addresses.distributionManager);
   }, []);
 
+  const removeInstance = useCallback((distributionManager: Address) => {
+    const dm = distributionManager.toLowerCase();
+    // Never remove the built-in default.
+    if (dm === DEFAULT_INSTANCE.addresses.distributionManager.toLowerCase())
+      return;
+    setKnown((prev) => {
+      const next = prev.filter(
+        (i) => i.addresses.distributionManager.toLowerCase() !== dm,
+      );
+      saveKnownInstances(next);
+      return next;
+    });
+    setActiveManager((cur) => {
+      if (cur.toLowerCase() === dm) {
+        const fallback = DEFAULT_INSTANCE.addresses.distributionManager;
+        saveActiveManager(fallback);
+        return fallback;
+      }
+      return cur;
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       addresses: active.addresses,
@@ -88,8 +118,9 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
       known,
       setActive,
       addInstance,
+      removeInstance,
     }),
-    [active, known, setActive, addInstance],
+    [active, known, setActive, addInstance, removeInstance],
   );
 
   return (

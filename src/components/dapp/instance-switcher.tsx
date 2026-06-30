@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
-import { CaretDown, Check, Plus, SpinnerGap } from "@phosphor-icons/react";
+import { CaretDown, Check, Plus, SpinnerGap, X } from "@phosphor-icons/react";
 import { useInstanceContext } from "@/components/instance-provider";
-import { resolveInstance } from "@/lib/instance";
+import { DEFAULT_INSTANCE, resolveInstance } from "@/lib/instance";
 import { shortenAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Pick the active CrowdStake instance, or add one by its distribution-manager address. */
 export function InstanceSwitcher() {
-  const { label, known, addresses, setActive, addInstance } =
+  const { label, known, addresses, setActive, addInstance, removeInstance } =
     useInstanceContext();
+  const defaultDm =
+    DEFAULT_INSTANCE.addresses.distributionManager.toLowerCase();
   const [open, setOpen] = useState(false);
   const [addr, setAddr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,24 +56,36 @@ export function InstanceSwitcher() {
               Instances
             </p>
             {known.map((inst) => {
+              const dm = inst.addresses.distributionManager;
               const isActive =
-                inst.addresses.distributionManager ===
-                addresses.distributionManager;
+                dm.toLowerCase() ===
+                addresses.distributionManager.toLowerCase();
+              const isDefault = dm.toLowerCase() === defaultDm;
               return (
-                <button
-                  key={inst.addresses.distributionManager}
-                  onClick={() => {
-                    setActive(inst.addresses.distributionManager);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "hover:bg-paper-1 flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm",
-                    isActive && "text-core-orange",
+                <div key={dm} className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setActive(dm);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "hover:bg-paper-1 flex flex-1 items-center justify-between rounded-lg px-2 py-2 text-left text-sm",
+                      isActive && "text-core-orange",
+                    )}
+                  >
+                    <span className="truncate">{inst.label}</span>
+                    {isActive && <Check size={16} weight="bold" />}
+                  </button>
+                  {!isDefault && (
+                    <button
+                      onClick={() => removeInstance(dm)}
+                      aria-label="Remove instance"
+                      className="text-surface-grey hover:text-system-red flex-none rounded p-1.5"
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
                   )}
-                >
-                  <span className="truncate">{inst.label}</span>
-                  {isActive && <Check size={16} weight="bold" />}
-                </button>
+                </div>
               );
             })}
 

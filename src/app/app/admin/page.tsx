@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { isAddress, type Address } from "viem";
+import { isAddress, zeroAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
 import { ArrowRight } from "@phosphor-icons/react";
@@ -38,10 +38,20 @@ function Delegation() {
   const { address } = useAccount();
   const delegate = useDelegate();
   const { delegate: doDelegate, ...tx } = useDelegateVotes();
+  const [to, setTo] = useState("");
+  const toValid = isAddress(to) && to.toLowerCase() !== zeroAddress;
   const delegatedToSelf =
     delegate.data &&
     address &&
     delegate.data.toLowerCase() === address.toLowerCase();
+
+  useEffect(() => {
+    if (tx.isSuccess) {
+      delegate.refetch();
+      setTo("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.isSuccess]);
 
   return (
     <Card>
@@ -54,18 +64,36 @@ function Delegation() {
         {delegatedToSelf ? " (you)" : ""}
       </Body>
       <Body className="text-surface-grey mt-2 text-sm">
-        Deposits auto-delegate to you. Use this to re-delegate your voting power
-        to another address.
+        Deposits auto-delegate to you. Re-delegate your voting power to yourself
+        or to another address.
       </Body>
-      <Button
-        app="fund"
-        variant="secondary"
-        className="mt-4"
-        isLoading={tx.isBusy}
-        onClick={() => doDelegate()}
-      >
-        Delegate to myself
-      </Button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          app="fund"
+          variant="secondary"
+          isLoading={tx.isBusy}
+          onClick={() => doDelegate()}
+        >
+          Delegate to myself
+        </Button>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="0x… delegate to address"
+          className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none"
+        />
+        <Button
+          app="fund"
+          variant="secondary"
+          isLoading={tx.isBusy}
+          onClick={() => toValid && doDelegate(to as Address)}
+          {...(!toValid ? { disabled: true } : {})}
+        >
+          Delegate
+        </Button>
+      </div>
       <TxStatus
         status={tx.status}
         hash={tx.hash}
@@ -114,7 +142,16 @@ function CycleLength() {
   const cycle = useCycle();
   const { update, ...tx } = useUpdateCycleLength();
   const [blocks, setBlocks] = useState("");
-  const valid = /^\d+$/.test(blocks) && BigInt(blocks || "0") > 0n;
+  const valid =
+    /^\d+$/.test(blocks.trim()) && BigInt(blocks.trim() || "0") > 0n;
+
+  useEffect(() => {
+    if (tx.isSuccess) {
+      cycle.refetch();
+      setBlocks("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.isSuccess]);
 
   return (
     <Card>
@@ -137,14 +174,14 @@ function CycleLength() {
           app="fund"
           variant="primary"
           isLoading={tx.isBusy}
-          onClick={() => valid && update(BigInt(blocks))}
+          onClick={() => valid && update(BigInt(blocks.trim()))}
           {...(!valid ? { disabled: true } : {})}
         >
           Update
         </Button>
       </div>
       <Caption className="text-surface-grey mt-1 block">
-        Applies to future cycles only.
+        Applies immediately — it changes when the current cycle ends.
       </Caption>
       <TxStatus
         status={tx.status}
@@ -160,10 +197,22 @@ function YieldClaimer() {
   const claimer = useYieldClaimer();
   const { prepare, finalize, ...tx } = useYieldClaimerAdmin();
   const [addr, setAddr] = useState("");
-  const valid = isAddress(addr);
-  const hasPending =
-    claimer.pending &&
-    claimer.pending !== "0x0000000000000000000000000000000000000000";
+  const valid = isAddress(addr) && addr.toLowerCase() !== zeroAddress;
+  const hasPending = claimer.pending && claimer.pending !== zeroAddress;
+  const unlockMs =
+    claimer.pendingFinishedAt !== undefined
+      ? Number(claimer.pendingFinishedAt) * 1000
+      : undefined;
+  const canFinalize =
+    hasPending && unlockMs !== undefined && Date.now() >= unlockMs;
+
+  useEffect(() => {
+    if (tx.isSuccess) {
+      claimer.refetch();
+      setAddr("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.isSuccess]);
 
   return (
     <Card>
@@ -180,8 +229,12 @@ function YieldClaimer() {
       </Body>
       {hasPending && (
         <Caption className="text-system-warning mt-2 block">
-          Pending: {shortenAddress(claimer.pending!, 6)} — finalizable after the
-          timelock.
+          Pending: {shortenAddress(claimer.pending!, 6)} —{" "}
+          {canFinalize
+            ? "ready to finalize."
+            : unlockMs !== undefined
+              ? `finalizable on ${new Date(unlockMs).toLocaleString()}.`
+              : "finalizable after the 14-day timelock."}
         </Caption>
       )}
       <div className="mt-3 flex gap-2">
@@ -189,14 +242,15 @@ function YieldClaimer() {
           value={addr}
           onChange={(e) => setAddr(e.target.value)}
           placeholder="0x… new claimer"
-          className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none"
+          disabled={Boolean(hasPending)}
+          className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none disabled:opacity-50"
         />
         <Button
           app="fund"
           variant="secondary"
           isLoading={tx.isBusy}
-          onClick={() => valid && prepare(addr as Address)}
-          {...(!valid ? { disabled: true } : {})}
+          onClick={() => valid && !hasPending && prepare(addr as Address)}
+          {...(!valid || hasPending ? { disabled: true } : {})}
         >
           Prepare
         </Button>
@@ -207,9 +261,10 @@ function YieldClaimer() {
           variant="primary"
           className="mt-3"
           isLoading={tx.isBusy}
-          onClick={() => finalize()}
+          onClick={() => canFinalize && finalize()}
+          {...(!canFinalize ? { disabled: true } : {})}
         >
-          Finalize rotation
+          {canFinalize ? "Finalize rotation" : "Timelock not elapsed"}
         </Button>
       )}
       <TxStatus

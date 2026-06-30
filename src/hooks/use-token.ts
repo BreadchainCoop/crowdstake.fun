@@ -108,7 +108,7 @@ export function useWxdai(account?: Address) {
     functionName: "allowance",
     args: owner ? [owner, a.token] : undefined,
     chainId: CHAIN_ID,
-    query: { enabled: Boolean(owner) },
+    query: { enabled: Boolean(owner), ...LIVE },
   });
   return {
     balance: balance.data,

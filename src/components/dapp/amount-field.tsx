@@ -1,5 +1,6 @@
 "use client";
 
+import { formatUnits } from "viem";
 import { Caption } from "@breadcoop/ui";
 import { formatAmount } from "@/lib/format";
 
@@ -26,7 +27,7 @@ export function AmountField({
         {balance !== undefined && (
           <button
             type="button"
-            onClick={() => onChange(formatAmountForInput(balance, decimals))}
+            onClick={() => onChange(formatUnits(balance, decimals))}
             className="text-core-orange text-xs font-medium hover:underline"
           >
             Balance: {formatAmount(balance, 4, decimals)} {symbol} · MAX
@@ -47,17 +48,4 @@ export function AmountField({
       </div>
     </div>
   );
-}
-
-/** Full-precision string for the input (no thousands separators). */
-function formatAmountForInput(value: bigint, decimals: number): string {
-  const s = (Number(value) / 10 ** decimals).toString();
-  // For large/precise values, fall back to a manual fixed conversion.
-  if (s.includes("e")) {
-    const whole = value / 10n ** BigInt(decimals);
-    const frac = value % 10n ** BigInt(decimals);
-    const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
-    return fracStr ? `${whole}.${fracStr}` : `${whole}`;
-  }
-  return s;
 }
