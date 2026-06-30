@@ -39,10 +39,17 @@ contract SexyDaiYield is AbstractToken {
     }
 
     function _remit(address receiver_, uint256 amount_) internal override {
-        SEXY_DAI.withdraw(amount_, address(this), receiver_);
+        // This contract holds the sDAI shares, so it is both the ERC-4626 `owner`
+        // (whose shares are burned) and the `receiver` of the unwrapped wxDAI.
+        // The native xDAI is then forwarded to `receiver_` below.
+        SEXY_DAI.withdraw(amount_, address(this), address(this));
         WX_DAI.withdraw(amount_);
         _nativeTransfer(receiver_, amount_);
     }
+
+    /// @notice Accept native xDAI sent during withdrawals (WXDAI.withdraw unwraps wxDAI → xDAI
+    ///         to this contract before it is forwarded to the redeemer).
+    receive() external payable {}
 
     function _yieldAccrued() internal view override returns (uint256) {
         uint256 bal = IERC20(address(SEXY_DAI)).balanceOf(address(this));
