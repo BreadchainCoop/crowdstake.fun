@@ -194,9 +194,9 @@ const wxBalance = (a) =>
     (await btn("Cast vote").isDisabled()) === true,
     "Cast vote disabled with no allocation",
   );
-  const sliders = page.locator('input[type="range"]');
-  await sliders.nth(0).fill("70");
-  await sliders.nth(1).fill("30");
+  const steppers = page.locator('input[inputmode="numeric"]');
+  await steppers.nth(0).fill("70");
+  await steppers.nth(1).fill("30");
   await page.waitForTimeout(500);
   await click("Cast vote");
   ok(
@@ -392,7 +392,7 @@ const wxBalance = (a) =>
 
   head("E2) vote (single recipient R1)");
   await goto("/app/vote", 2000);
-  await page.locator('input[type="range"]').first().fill("100");
+  await page.locator('input[inputmode="numeric"]').first().fill("50");
   await page.waitForTimeout(400);
   await click("Cast vote");
   ok(

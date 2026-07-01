@@ -19,13 +19,14 @@ import { useIsRecipient, useRecipients } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
+import { LiveYield } from "@/components/dapp/live-yield";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
   const balance = useTokenBalance();
   const votes = useVotes();
   const native = useNativeBalance();
-  const { totalSupply, yieldAccrued } = useTokenStats();
+  const { totalSupply } = useTokenStats();
   const cycle = useCycle();
   const { isReady } = useDistributionReady();
   const isRecipient = useIsRecipient();
@@ -85,8 +86,8 @@ export default function PortfolioPage() {
         />
         <StatCard
           label="Accrued yield"
-          value={`${fmt(yieldAccrued)} ${tokenSymbol}`}
-          sub="Claimable on next distribution"
+          value={<LiveYield symbol={tokenSymbol} />}
+          sub="Accruing live · claimable on next distribution"
         />
         <StatCard label="Active recipients" value={`${recipients.length}`} />
       </div>

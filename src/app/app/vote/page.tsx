@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { type Address } from "viem";
 import { Body, Caption } from "@breadcoop/ui";
-import { CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle, Plus, Minus } from "@phosphor-icons/react";
 import {
   Card,
   EmptyState,
@@ -63,12 +63,13 @@ function VoteForm() {
     );
   }
 
-  const anyAllocated = recipients.some((r) => (weights[r] ?? 0) > 0);
-  const points = recipients.map((r) =>
-    BigInt(Math.round((weights[r] ?? 0) * 100)),
-  ); // % → basis points
+  // Relative points per recipient: the module normalises by the voter's own
+  // total, so a recipient's share is points[i] / sum(points).
+  const totalPts = recipients.reduce((s, r) => s + (weights[r] ?? 0), 0);
+  const anyAllocated = totalPts > 0;
+  const points = recipients.map((r) => BigInt(weights[r] ?? 0));
+  const maxStep = Math.min(99, Number(voting.maxPoints)); // per-recipient cap
 
-  const maxPercent = Number(voting.maxPoints) / 100;
   // Time-weighted voting power is 0 until it accrues within the cycle; voting
   // then "succeeds" but records nothing and locks you out — block it.
   const noPower = !voting.votingPower || voting.votingPower === 0n;
@@ -77,6 +78,12 @@ function VoteForm() {
   const lengthMismatch =
     voting.expectedPointsLength !== undefined &&
     points.length !== Number(voting.expectedPointsLength);
+
+  const distributeEqually = () => {
+    const w: Record<string, number> = {};
+    recipients.forEach((r) => (w[r] = 1));
+    setWeights(w);
+  };
 
   return (
     <div>
@@ -98,12 +105,26 @@ function VoteForm() {
         )}
       </Card>
 
+      <div className="mb-3 flex items-center justify-between">
+        <Caption className="text-surface-grey-2">
+          Allocate points — each recipient&apos;s share is relative
+        </Caption>
+        <button
+          onClick={distributeEqually}
+          disabled={voting.hasVoted}
+          className="text-core-orange text-sm font-semibold hover:underline disabled:opacity-50"
+        >
+          Distribute equally
+        </button>
+      </div>
+
       <div className="space-y-4">
         {recipients.map((r, i) => {
           const current = voting.distribution[i] ?? 0n;
           const share =
             totalVotes > 0n ? Number((current * 10000n) / totalVotes) / 100 : 0;
-          const weight = weights[r] ?? 0;
+          const pts = weights[r] ?? 0;
+          const alloc = totalPts > 0 ? (pts / totalPts) * 100 : 0;
           return (
             <Card key={r}>
               <div className="flex items-center justify-between">
@@ -122,20 +143,20 @@ function VoteForm() {
               <div className="mt-2">
                 <ProgressBar value={share / 100} />
               </div>
-              <div className="mt-4 flex items-center gap-4">
-                <input
-                  type="range"
-                  min={0}
-                  max={maxPercent}
-                  step={1}
-                  value={weight}
-                  onChange={(e) => setWeight(r, Number(e.target.value))}
-                  disabled={voting.hasVoted}
-                  className="bg-paper-2 accent-core-orange h-2 w-full cursor-pointer appearance-none rounded-full disabled:opacity-50"
-                />
-                <span className="font-breadDisplay text-core-orange w-14 text-right font-bold">
-                  {weight}%
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <span className="text-text-standard text-sm">
+                  Your allocation:{" "}
+                  <span className="font-breadDisplay text-core-orange font-bold">
+                    {alloc.toFixed(0)}%
+                  </span>
                 </span>
+                <Stepper
+                  value={pts}
+                  disabled={voting.hasVoted}
+                  onChange={(v) =>
+                    setWeight(r, Math.max(0, Math.min(maxStep, v)))
+                  }
+                />
               </div>
             </Card>
           );
@@ -178,11 +199,56 @@ function VoteForm() {
       />
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Weights are relative — each recipient&apos;s share of the next
-        distribution is proportional to its total weighted votes (your weight ×
-        your voting power, summed across all voters). Max{" "}
-        {voting.maxPoints / 100n}% per recipient.
+        Points are relative — each recipient&apos;s share is its points ÷ your
+        total points, weighted by your voting power. Use the +/− steppers or
+        type a value.
       </Body>
+    </div>
+  );
+}
+
+function Stepper({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  const btn =
+    "border-paper-2 text-text-standard hover:border-core-orange flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-40";
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="Decrease"
+        onClick={() => onChange(value - 1)}
+        disabled={disabled || value <= 0}
+        className={btn}
+      >
+        <Minus weight="bold" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          const n = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
+          onChange(Number.isNaN(n) ? 0 : n);
+        }}
+        className="border-paper-2 bg-paper-main text-text-standard w-12 rounded-lg border py-1.5 text-center font-bold outline-none disabled:opacity-50"
+      />
+      <button
+        type="button"
+        aria-label="Increase"
+        onClick={() => onChange(value + 1)}
+        disabled={disabled}
+        className={btn}
+      >
+        <Plus weight="bold" />
+      </button>
     </div>
   );
 }
