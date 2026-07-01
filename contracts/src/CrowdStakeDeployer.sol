@@ -7,6 +7,7 @@ import {AbstractDistributionManager} from "./abstract/AbstractDistributionManage
 import {BasisPointsVotingModule} from "./base/BasisPointsVotingModule.sol";
 import {VotingDistributionStrategy} from "./implementation/strategies/VotingDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "./implementation/registries/AdminRecipientRegistry.sol";
+import {VotingRecipientRegistry} from "./implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "./implementation/token/SexyDaiYield.sol";
 import {AbstractToken} from "./abstract/AbstractToken.sol";
 import {TimeWeightedVotingPower} from "./implementation/TimeWeightedVotingPower.sol";
@@ -20,19 +21,28 @@ interface ICrowdStakeFactory {
 }
 
 /// @title CrowdStakeDeployer
-/// @notice One-transaction deployer for a complete, fully-wired CrowdStake instance
-///         (the voting-driven configuration). Reuses an existing factory + allowlisted
-///         beacons. Mirrors DeployGnosis._deploySystemInstance: the deployer temporarily
-///         owns the cycle module, token, and distribution manager so it can wire references
-///         and set the yield claimer, then hands every contract to `params.owner`.
+/// @notice The one canonical, one-transaction deployer for a complete, fully-wired
+///         CrowdStake instance. The caller chooses the recipient registry kind —
+///         an admin-controlled registry or a democratic VotingRecipientRegistry where
+///         current recipients vote to add and remove members — and optionally supplies
+///         instance artwork (token + banner image URIs) that is written to the
+///         distribution manager (the app's canonical per-instance key) in the same tx.
+///         Reuses one CrowdStakeFactory + its allowlisted beacons.
 contract CrowdStakeDeployer {
     ICrowdStakeFactory public immutable FACTORY;
     address public immutable CYCLE_BEACON;
-    address public immutable REGISTRY_BEACON;
+    address public immutable REGISTRY_BEACON; // AdminRecipientRegistry
+    address public immutable VOTING_REGISTRY_BEACON; // VotingRecipientRegistry
     address public immutable TOKEN_BEACON;
     address public immutable DIST_MANAGER_BEACON;
     address public immutable STRATEGY_BEACON;
     address public immutable VOTING_BEACON;
+
+    /// @notice 0 = admin-controlled registry, 1 = democratic (recipient-voted).
+    enum RegistryKind {
+        Admin,
+        Voting
+    }
 
     struct Params {
         address owner;
@@ -41,6 +51,13 @@ contract CrowdStakeDeployer {
         string tokenSymbol;
         uint256 maxVotingPoints;
         bytes32 salt;
+        // Recipient governance
+        uint8 registryKind; // 0 = admin, 1 = democratic
+        address[] initialRecipients; // democratic only: the founding recipient cohort
+        uint256 proposalExpiry; // democratic only: seconds a proposal stays open
+        // Instance artwork (off-chain URIs: ipfs/https/data). Empty = none.
+        string tokenImageURI;
+        string bannerImageURI;
     }
 
     struct Instance {
@@ -55,6 +72,9 @@ contract CrowdStakeDeployer {
 
     error ZeroOwner();
     error ZeroCycleLength();
+    error InvalidRegistryKind();
+    error EmptyInitialRecipients();
+    error ZeroProposalExpiry();
 
     /// @notice Emitted once a full instance is deployed and handed to its owner.
     event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, Instance instance);
@@ -63,6 +83,7 @@ contract CrowdStakeDeployer {
         address factory,
         address cycleBeacon,
         address registryBeacon,
+        address votingRegistryBeacon,
         address tokenBeacon,
         address distManagerBeacon,
         address strategyBeacon,
@@ -71,6 +92,7 @@ contract CrowdStakeDeployer {
         FACTORY = ICrowdStakeFactory(factory);
         CYCLE_BEACON = cycleBeacon;
         REGISTRY_BEACON = registryBeacon;
+        VOTING_REGISTRY_BEACON = votingRegistryBeacon;
         TOKEN_BEACON = tokenBeacon;
         DIST_MANAGER_BEACON = distManagerBeacon;
         STRATEGY_BEACON = strategyBeacon;
@@ -78,14 +100,17 @@ contract CrowdStakeDeployer {
     }
 
     /// @notice Deploy a full, working CrowdStake instance in one transaction.
-    /// @param p owner / cycle length / token name+symbol / max voting points / salt
-    /// @return inst the seven deployed addresses
     function deploy(Params calldata p) external returns (Instance memory inst) {
         if (p.owner == address(0)) revert ZeroOwner();
         if (p.cycleLength == 0) revert ZeroCycleLength();
+        if (p.registryKind > uint8(RegistryKind.Voting)) revert InvalidRegistryKind();
+        if (p.registryKind == uint8(RegistryKind.Voting)) {
+            // Pre-validate here so a bad config reverts cleanly instead of deep in
+            // the registry's initialize (which would abort the whole one-tx deploy).
+            if (p.initialRecipients.length == 0) revert EmptyInitialRecipients();
+            if (p.proposalExpiry == 0) revert ZeroProposalExpiry();
+        }
 
-        // Scope CREATE2 salts to (caller, salt) so distinct users/instances never collide
-        // (the factory already scopes by msg.sender, which is this deployer for every call).
         bytes32 baseSalt = keccak256(abi.encodePacked(p.salt, msg.sender));
         address self = address(this);
 
@@ -96,12 +121,22 @@ contract CrowdStakeDeployer {
             keccak256(abi.encodePacked(baseSalt, "cycle"))
         );
 
-        // 2. Admin recipient registry (owned by the final owner).
-        inst.registry = FACTORY.create(
-            REGISTRY_BEACON,
-            abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, p.owner),
-            keccak256(abi.encodePacked(baseSalt, "registry"))
-        );
+        // 2. Recipient registry — admin-controlled or democratic.
+        if (p.registryKind == uint8(RegistryKind.Voting)) {
+            inst.registry = FACTORY.create(
+                VOTING_REGISTRY_BEACON,
+                abi.encodeWithSelector(
+                    VotingRecipientRegistry.initialize.selector, p.owner, p.initialRecipients, p.proposalExpiry
+                ),
+                keccak256(abi.encodePacked(baseSalt, "registry"))
+            );
+        } else {
+            inst.registry = FACTORY.create(
+                REGISTRY_BEACON,
+                abi.encodeWithSelector(AdminRecipientRegistry.initialize.selector, p.owner),
+                keccak256(abi.encodePacked(baseSalt, "registry"))
+            );
+        }
 
         // 3. Token (deployer-owned so it can set the yield claimer).
         inst.token = FACTORY.createToken(
@@ -121,7 +156,7 @@ contract CrowdStakeDeployer {
                 BaseDistributionManager.initialize.selector,
                 inst.cycleModule,
                 inst.registry,
-                inst.token, // baseToken == token (the yield module)
+                inst.token,
                 self, // placeholder votingModule
                 address(0), // placeholder strategy
                 self // deployer owns it temporarily
@@ -154,6 +189,11 @@ contract CrowdStakeDeployer {
         AbstractDistributionManager(inst.distributionManager).setVotingModule(inst.votingModule);
         AbstractCycleModule(inst.cycleModule).setDistributionManager(inst.distributionManager);
         AbstractToken(inst.token).setYieldClaimer(inst.distributionManager);
+
+        // Seed instance artwork on the distribution manager while still owner-of-record.
+        if (bytes(p.tokenImageURI).length != 0 || bytes(p.bannerImageURI).length != 0) {
+            AbstractDistributionManager(inst.distributionManager).setInstanceMetadata(p.tokenImageURI, p.bannerImageURI);
+        }
 
         // Hand the temporarily-owned contracts to the final owner.
         AbstractToken(inst.token).transferOwnership(p.owner);

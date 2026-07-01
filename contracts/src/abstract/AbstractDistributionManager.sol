@@ -10,6 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// @title AbstractDistributionManager
 /// @notice Abstract contract that manages yield claiming and distribution to strategies
@@ -31,6 +32,10 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         ICycleModule cycleManager;
         /// @notice ERC-20 token from which yield is claimed and distributed
         IERC20 baseToken;
+        /// @notice Off-chain URI (ipfs/https/data) for this instance's token image
+        string tokenImageURI;
+        /// @notice Off-chain URI (ipfs/https/data) for this instance's header/banner image
+        string bannerImageURI;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractDistributionManager")) - 1)) & ~bytes32(uint256(0xff))
@@ -74,10 +79,38 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         return _getAbstractDistributionManagerStorage().baseToken;
     }
 
+    // ============ Instance Metadata (ERC-7572) ============
+
+    /// @notice Off-chain URI for this instance's token image
+    function tokenImageURI() public view returns (string memory) {
+        return _getAbstractDistributionManagerStorage().tokenImageURI;
+    }
+
+    /// @notice Off-chain URI for this instance's header/banner image
+    function bannerImageURI() public view returns (string memory) {
+        return _getAbstractDistributionManagerStorage().bannerImageURI;
+    }
+
+    /// @notice ERC-7572 contract-level metadata: a data URI JSON pointing at the
+    ///         instance's two image URIs (the distribution manager is the app's
+    ///         canonical per-instance key; the token pulls this via its claimer).
+    function contractURI() external view returns (string memory) {
+        AbstractDistributionManagerStorage storage $ = _getAbstractDistributionManagerStorage();
+        string memory json =
+            string(abi.encodePacked('{"image":"', $.tokenImageURI, '","banner_image":"', $.bannerImageURI, '"}'));
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
+    }
+
     // ============ Events ============
 
     /// @notice Emitted when the voting module is set or changed
     event VotingModuleSet(address indexed votingModule);
+
+    /// @notice Emitted when the instance image metadata changes
+    event InstanceMetadataSet(string tokenImageURI, string bannerImageURI);
+
+    /// @notice ERC-7572: signals indexers/wallets to refresh contract metadata
+    event ContractURIUpdated();
 
     // ============ Admin ============
 
@@ -87,6 +120,16 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         if (_votingModule == address(0)) revert ZeroAddress();
         _getAbstractDistributionManagerStorage().votingModule = IVotingModule(_votingModule);
         emit VotingModuleSet(_votingModule);
+    }
+
+    /// @notice Set the instance's token + banner image URIs (owner only). The
+    ///         deployer seeds these at deploy; the instance owner can update later.
+    function setInstanceMetadata(string calldata tokenImageURI_, string calldata bannerImageURI_) external onlyOwner {
+        AbstractDistributionManagerStorage storage $ = _getAbstractDistributionManagerStorage();
+        $.tokenImageURI = tokenImageURI_;
+        $.bannerImageURI = bannerImageURI_;
+        emit InstanceMetadataSet(tokenImageURI_, bannerImageURI_);
+        emit ContractURIUpdated();
     }
 
     // ============ Initialization ============

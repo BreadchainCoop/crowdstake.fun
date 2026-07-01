@@ -9,6 +9,11 @@ import {
     ERC20Upgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 
+/// @notice Minimal ERC-7572 reader — the distribution manager holds the instance metadata.
+interface IContractURI {
+    function contractURI() external view returns (string memory);
+}
+
 /// @title AbstractToken
 /// @author BreadKit
 /// @notice Abstract base contract for yield-bearing ERC20 tokens with voting delegation
@@ -68,6 +73,20 @@ abstract contract AbstractToken is ERC20VotesUpgradeable, Ownable, IToken {
     /// @notice Returns the current yield claimer address
     function yieldClaimer() public view returns (address) {
         return _getAbstractTokenStorage().yieldClaimer;
+    }
+
+    /// @notice ERC-7572 contract-level metadata, pulled from the instance's
+    ///         distribution manager (which is this token's yield claimer). Lets
+    ///         wallets/explorers show the instance's token image without the
+    ///         token storing metadata itself. Returns "" if unavailable.
+    function contractURI() external view returns (string memory) {
+        address claimer = _getAbstractTokenStorage().yieldClaimer;
+        if (claimer == address(0)) return "";
+        try IContractURI(claimer).contractURI() returns (string memory uri) {
+            return uri;
+        } catch {
+            return "";
+        }
     }
 
     /// @notice Returns the address awaiting timelock to become the new yield claimer
