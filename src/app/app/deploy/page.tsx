@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { keccak256, toHex, isAddress, type Address } from "viem";
+import { keccak256, toHex, isAddress, zeroAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
 import {
@@ -17,7 +17,7 @@ import { TxStatus } from "@/components/dapp/tx-status";
 import { useDeployInstance } from "@/hooks/use-deploy";
 import { useInstanceContext } from "@/components/instance-provider";
 import { shortenAddress } from "@/lib/format";
-import { MAX_POINTS } from "@/lib/constants";
+import { MAX_POINTS, DEPLOYER_V2 } from "@/lib/constants";
 
 export default function DeployPage() {
   return (
@@ -47,6 +47,11 @@ function DeployForm() {
   const [maxPoints, setMaxPoints] = useState(MAX_POINTS.toString());
   const [customSalt, setCustomSalt] = useState("");
 
+  // Democratic (V2-only): registry kind, founding recipients, proposal window.
+  const [registryKind, setRegistryKind] = useState<"admin" | "voting">("admin");
+  const [foundersText, setFoundersText] = useState("");
+  const [expiryDays, setExpiryDays] = useState("7");
+
   const ownerValue = (owner.trim() || address || "") as string;
   const cleanCycle = cycleLength.trim();
   const cleanPoints = maxPoints.trim();
@@ -54,12 +59,29 @@ function DeployForm() {
   const cycleValid = /^\d+$/.test(cleanCycle) && BigInt(cleanCycle || "0") > 0n;
   const pointsValid =
     /^\d+$/.test(cleanPoints) && BigInt(cleanPoints || "0") > 0n;
+
+  const democratic = DEPLOYER_V2 && registryKind === "voting";
+  const typedFounders = foundersText
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Default the founding cohort to the owner if none typed.
+  const founders =
+    typedFounders.length > 0 ? typedFounders : ownerValid ? [ownerValue] : [];
+  const foundersValid =
+    founders.length > 0 &&
+    founders.every((f) => isAddress(f) && f.toLowerCase() !== zeroAddress) &&
+    new Set(founders.map((f) => f.toLowerCase())).size === founders.length;
+  const cleanExpiry = expiryDays.trim();
+  const expiryValid = /^\d+$/.test(cleanExpiry) && Number(cleanExpiry) > 0;
+
   const canDeploy =
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
     cycleValid &&
     pointsValid &&
-    ownerValid;
+    ownerValid &&
+    (!democratic || (foundersValid && expiryValid));
 
   const onDeploy = () => {
     if (!canDeploy) return;
@@ -80,6 +102,9 @@ function DeployForm() {
       tokenSymbol: symbol.trim(),
       maxVotingPoints: BigInt(cleanPoints),
       salt,
+      registryKind: democratic ? 1 : 0,
+      initialRecipients: democratic ? (founders as Address[]) : [],
+      proposalExpiry: democratic ? BigInt(Number(cleanExpiry) * 86400) : 0n,
     });
   };
 
@@ -172,6 +197,65 @@ function DeployForm() {
           </Caption>
         )}
       </Field>
+
+      {DEPLOYER_V2 && (
+        <div className="mb-4">
+          <Caption className="text-surface-grey-2 mb-1.5 block">
+            Recipient governance
+          </Caption>
+          <div className="border-paper-2 inline-flex rounded-xl border p-1">
+            {(["admin", "voting"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setRegistryKind(k)}
+                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  registryKind === k
+                    ? "bg-core-orange text-white"
+                    : "text-surface-grey-2 hover:text-text-standard"
+                }`}
+              >
+                {k === "admin" ? "Admin-managed" : "Democratic"}
+              </button>
+            ))}
+          </div>
+          {democratic && (
+            <div className="mt-4 space-y-4">
+              <Field label="Founding recipients (one address per line)">
+                <textarea
+                  value={foundersText}
+                  onChange={(e) => setFoundersText(e.target.value)}
+                  placeholder={address ?? "0x…"}
+                  rows={3}
+                  className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none"
+                />
+                {foundersText.trim() !== "" && !foundersValid && (
+                  <Caption className="text-system-red mt-1 block">
+                    Enter unique, valid, non-zero addresses.
+                  </Caption>
+                )}
+                <Caption className="text-surface-grey mt-1 block">
+                  These members vote to add/remove future recipients (additions
+                  need everyone&apos;s vote). Blank defaults to you. The owner
+                  can&apos;t add recipients directly.
+                </Caption>
+              </Field>
+              <Field label="Proposal expiry (days)">
+                <Input
+                  value={expiryDays}
+                  onChange={setExpiryDays}
+                  placeholder="7"
+                />
+                {!expiryValid && expiryDays !== "" && (
+                  <Caption className="text-system-red mt-1 block">
+                    Must be a positive integer.
+                  </Caption>
+                )}
+              </Field>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         type="button"

@@ -57,11 +57,24 @@ export const ADDRESSES = {
   ),
 } as const;
 
-/** CrowdStakeDeployer — one-tx full-instance deployer (reuses the live factory + beacons). */
-export const DEPLOYER: Address = env(
-  "NEXT_PUBLIC_DEPLOYER_ADDRESS",
+/**
+ * CrowdStakeDeployer — one-tx full-instance deployer (reuses the live factory +
+ * beacons). Uses a *static* process.env reference (not the dynamic env() helper)
+ * so a NEXT_PUBLIC_DEPLOYER_ADDRESS override is actually inlined into the client
+ * bundle — e.g. to point at a V2 deployer.
+ */
+export const DEPLOYER: Address = envOr(
+  process.env.NEXT_PUBLIC_DEPLOYER_ADDRESS,
   "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
-);
+) as Address;
+
+/**
+ * Whether DEPLOYER is a V2 deployer (supports democratic, recipient-voted
+ * instances). Off by default so the live V1 deploy path is unchanged; set
+ * NEXT_PUBLIC_DEPLOYER_V2=true alongside a V2 NEXT_PUBLIC_DEPLOYER_ADDRESS.
+ */
+export const DEPLOYER_V2: boolean =
+  envOr(process.env.NEXT_PUBLIC_DEPLOYER_V2, "") === "true";
 
 /** Underlying Gnosis tokens used by the SexyDaiYield token. */
 export const WXDAI: Address = "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d";

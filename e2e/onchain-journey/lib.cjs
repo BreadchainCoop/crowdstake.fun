@@ -24,7 +24,10 @@ const A = {
   votingModule: "0xf921AF0C0fCd4A9dE0F6C58b34b05DBCCf0aAc42",
   recipientRegistry: "0x8e61175AbBC31A07237367e356833C83204945C2",
   votingPowerStrategy: "0x3F477A1FD83F56537BEE5cC05406fF4628e7A399",
-  deployer: "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
+  // Overridable so the harness can target a freshly deployed V2 deployer.
+  deployer:
+    process.env.TEST_DEPLOYER_ADDRESS ||
+    "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
   WXDAI: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
   SDAI: "0xaf204776c7245bF4147c2612BF6e5972Ee483701",
 };
@@ -63,6 +66,13 @@ const registryAbi = parseAbi([
   "function getQueuedRemovals() view returns (address[])",
   "function isRecipient(address) view returns (bool)",
   "function owner() view returns (address)",
+]);
+const votingRegAbi = parseAbi([
+  "function proposalExpiry() view returns (uint256)",
+  "function proposalCount() view returns (uint256)",
+  "function getProposal(uint256) view returns (address candidate, bool isAddition, uint256 voteCount, uint256 requiredVotes, bool executed, uint256 createdAt)",
+  "function getRecipients() view returns (address[])",
+  "function isRecipient(address) view returns (bool)",
 ]);
 const deployerAbi = parseAbi([
   "event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, (address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address votingModule) instance)",
@@ -114,6 +124,16 @@ function reads(inst) {
 
 // Default-instance reads (the common case).
 const R = reads(A);
+
+// Voting-registry reads for the democratic flow (bound to a registry address).
+const vreg = {
+  proposalExpiry: (reg) => read(reg, votingRegAbi, "proposalExpiry", []),
+  proposalCount: (reg) => read(reg, votingRegAbi, "proposalCount", []),
+  getProposal: (reg, id) =>
+    read(reg, votingRegAbi, "getProposal", [BigInt(id)]),
+  recipients: (reg) => read(reg, votingRegAbi, "getRecipients", []),
+  isRecipient: (reg, a) => read(reg, votingRegAbi, "isRecipient", [a]),
+};
 
 // Resolve a full instance from its distribution manager, the same way the app
 // does (src/lib/instance.ts).
@@ -259,6 +279,7 @@ module.exports = {
   A,
   R,
   reads,
+  vreg,
   resolveInstance,
   latestDeployedInstance,
   rpc,
