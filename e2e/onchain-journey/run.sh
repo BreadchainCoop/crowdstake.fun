@@ -31,18 +31,18 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "▸ deploying CrowdStakeDeployerV2 to the fork (enables democratic instances)"
-( cd "$APP/contracts" && forge script script/DeployDeployerV2.s.sol \
+echo "▸ deploying the canonical CrowdStakeDeployer (+ fresh factory/beacons) to the fork"
+( cd "$APP/contracts" && forge script script/DeployCrowdStakeDeployer.s.sol \
     --rpc-url "$TEST_RPC_URL" --broadcast --private-key "$TEST_PRIVATE_KEY" ) \
-  >/tmp/cs-v2-deploy.log 2>&1 \
-  || { echo "  V2 deploy failed — see /tmp/cs-v2-deploy.log"; exit 1; }
-export TEST_DEPLOYER_ADDRESS="$(python3 -c "import json;d=json.load(open('$APP/contracts/broadcast/DeployDeployerV2.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployerV2'][0])")"
-echo "  V2 deployer: ${TEST_DEPLOYER_ADDRESS}"
+  >/tmp/cs-deployer-deploy.log 2>&1 \
+  || { echo "  deployer deploy failed — see /tmp/cs-deployer-deploy.log"; exit 1; }
+export TEST_DEPLOYER_ADDRESS="$(python3 -c "import json;d=json.load(open('$APP/contracts/broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployer'][0])")"
+echo "  canonical deployer: ${TEST_DEPLOYER_ADDRESS}"
 
-echo "▸ building static export pointed at the fork + V2 deployer"
+echo "▸ building static export pointed at the fork + canonical deployer"
 ( cd "$APP" && NEXT_PUBLIC_RPC_URL="$TEST_RPC_URL" \
     NEXT_PUBLIC_DEPLOYER_ADDRESS="$TEST_DEPLOYER_ADDRESS" \
-    NEXT_PUBLIC_DEPLOYER_V2=true corepack pnpm@9.15.4 build ) \
+    corepack pnpm@9.15.4 build ) \
   >/tmp/cs-journey-build.log 2>&1 \
   || { echo "  build failed — see /tmp/cs-journey-build.log"; exit 1; }
 
@@ -57,6 +57,9 @@ CODE=$?
 
 echo "▸ running democratic journey (recipient-voted registry)"
 node "$HERE/journey-democratic.cjs" || CODE=1
+
+echo "▸ running metadata journey (instance artwork)"
+node "$HERE/journey-metadata.cjs" || CODE=1
 
 echo ""
 bash "$HERE/check-bundle.sh" "$APP/out" || CODE=1

@@ -81,6 +81,11 @@ const wxdaiAbi = parseAbi([
   "function deposit() payable",
   "function transfer(address,uint256) returns (bool)",
 ]);
+const metaAbi = parseAbi([
+  "function tokenImageURI() view returns (string)",
+  "function bannerImageURI() view returns (string)",
+  "function contractURI() view returns (string)",
+]);
 
 const pub = createPublicClient({ chain: gnosis, transport: http(RPC) });
 const account = PK ? privateKeyToAccount(PK) : null;
@@ -124,6 +129,13 @@ function reads(inst) {
 
 // Default-instance reads (the common case).
 const R = reads(A);
+
+// Instance metadata reads (bound to a distribution-manager address).
+const meta = {
+  tokenImageURI: (dm) => read(dm, metaAbi, "tokenImageURI", []),
+  bannerImageURI: (dm) => read(dm, metaAbi, "bannerImageURI", []),
+  contractURI: (dm) => read(dm, metaAbi, "contractURI", []),
+};
 
 // Voting-registry reads for the democratic flow (bound to a registry address).
 const vreg = {
@@ -280,6 +292,7 @@ module.exports = {
   R,
   reads,
   vreg,
+  meta,
   resolveInstance,
   latestDeployedInstance,
   rpc,
