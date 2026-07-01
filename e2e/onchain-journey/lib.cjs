@@ -27,7 +27,7 @@ const A = {
   // Overridable so the harness can target a freshly deployed V2 deployer.
   deployer:
     process.env.TEST_DEPLOYER_ADDRESS ||
-    "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
+    "0x4D6178572690B39D04d2E790E1D0c776f2cBBC95",
   WXDAI: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
   SDAI: "0xaf204776c7245bF4147c2612BF6e5972Ee483701",
 };

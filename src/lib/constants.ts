@@ -65,7 +65,7 @@ export const ADDRESSES = {
  */
 export const DEPLOYER: Address = envOr(
   process.env.NEXT_PUBLIC_DEPLOYER_ADDRESS,
-  "0x6193210E25aAc4f645D2a7e9420Cb57B0F193033",
+  "0x4D6178572690B39D04d2E790E1D0c776f2cBBC95",
 ) as Address;
 
 /** Optional ipfs:// gateway for resolving off-chain instance images. */

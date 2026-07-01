@@ -46,11 +46,9 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH || '/crowdstake.fun' }}
           NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ vars.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
           NEXT_PUBLIC_RPC_URL: ${{ vars.NEXT_PUBLIC_RPC_URL }}
-          # Instance deployer. Point NEXT_PUBLIC_DEPLOYER_ADDRESS at the V2
-          # deployer and set NEXT_PUBLIC_DEPLOYER_V2=true to enable
-          # democratic-instance creation in the deploy form.
+          # The canonical CrowdStakeDeployer (admin/democratic registry +
+          # instance artwork). See contracts/deployments/gnosis-factory.json.
           NEXT_PUBLIC_DEPLOYER_ADDRESS: ${{ vars.NEXT_PUBLIC_DEPLOYER_ADDRESS }}
-          NEXT_PUBLIC_DEPLOYER_V2: ${{ vars.NEXT_PUBLIC_DEPLOYER_V2 }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
