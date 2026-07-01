@@ -67,7 +67,7 @@ jobs:
         id: deploy
         env:
           PRIVATE_KEY: ${{ secrets.DEPLOY_PRIVATE_KEY }}
-          RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
+          RPC_URL: ${{ secrets.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com' }}
           OWNER: ${{ inputs.owner }}
           TOKEN_NAME: ${{ inputs.token_name }}
           TOKEN_SYMBOL: ${{ inputs.token_symbol }}
@@ -91,7 +91,7 @@ jobs:
       - name: Verify on Blockscout
         continue-on-error: true
         env:
-          RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
+          RPC_URL: ${{ secrets.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com' }}
           BLOCKSCOUT_URL: "https://gnosis.blockscout.com"
         run: |
           BROADCAST_FILE=$(ls "broadcast/${{ inputs.target }}.s.sol/100/run-latest.json" 2>/dev/null || true)
