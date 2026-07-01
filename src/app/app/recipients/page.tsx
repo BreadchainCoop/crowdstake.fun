@@ -507,54 +507,63 @@ function DemocraticRecipients() {
         {!isConnected && "Connect as a recipient to propose and vote."}
       </Caption>
 
-      {amRecipient && (
-        <Card>
-          <Caption className="text-surface-grey-2">
-            Propose a new recipient
-          </Caption>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              placeholder="0x… candidate address"
-              value={newAddr}
-              onChange={(e) => setNewAddr(e.target.value)}
-              className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none"
-            />
-            <Button
-              app="fund"
-              variant="primary"
-              leftIcon={<Plus weight="bold" />}
-              isLoading={propose.isBusy}
-              onClick={() =>
-                valid && !dup && propose.proposeAdd(newAddr as Address)
-              }
-              {...(!valid || dup ? { disabled: true } : {})}
-            >
-              Propose
-            </Button>
-          </div>
-          {newAddr && !valid && (
-            <Caption className="text-system-red mt-2 block">
-              Not a valid address.
-            </Caption>
-          )}
-          {dup && (
-            <Caption className="text-system-warning mt-2 block">
-              Already a recipient.
-            </Caption>
-          )}
-          <Caption className="text-surface-grey mt-2 block">
-            Needs all {recipients.length} current recipient
-            {recipients.length === 1 ? "" : "s"} to vote — you auto-vote for
-            your own proposal.
-          </Caption>
-          <TxStatus
-            status={propose.status}
-            hash={propose.hash}
-            error={propose.error}
-            successLabel="Proposal created"
+      <Card>
+        <Caption className="text-surface-grey-2">
+          Propose a new recipient
+        </Caption>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+          <input
+            placeholder="0x… candidate address"
+            value={newAddr}
+            disabled={!amRecipient}
+            onChange={(e) => setNewAddr(e.target.value)}
+            className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none disabled:opacity-50"
           />
-        </Card>
-      )}
+          <Button
+            app="fund"
+            variant="primary"
+            leftIcon={<Plus weight="bold" />}
+            isLoading={propose.isBusy}
+            onClick={() =>
+              amRecipient &&
+              valid &&
+              !dup &&
+              propose.proposeAdd(newAddr as Address)
+            }
+            {...(!amRecipient || !valid || dup ? { disabled: true } : {})}
+          >
+            Propose
+          </Button>
+        </div>
+        {!amRecipient && (
+          <Caption className="text-system-warning mt-2 block">
+            {isConnected
+              ? "Only current recipients can propose. You aren't a recipient of this instance yet."
+              : "Connect as a current recipient to propose new members."}
+          </Caption>
+        )}
+        {amRecipient && newAddr && !valid && (
+          <Caption className="text-system-red mt-2 block">
+            Not a valid address.
+          </Caption>
+        )}
+        {amRecipient && dup && (
+          <Caption className="text-system-warning mt-2 block">
+            Already a recipient.
+          </Caption>
+        )}
+        <Caption className="text-surface-grey mt-2 block">
+          Adding a recipient needs all {recipients.length} current recipient
+          {recipients.length === 1 ? "" : "s"} to vote — you auto-vote for your
+          own proposal, and it applies once everyone has voted.
+        </Caption>
+        <TxStatus
+          status={propose.status}
+          hash={propose.hash}
+          error={propose.error}
+          successLabel="Proposal created"
+        />
+      </Card>
 
       <div>
         <Caption className="text-surface-grey-2 mb-3 block">
