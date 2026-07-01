@@ -13,6 +13,12 @@ import { useCycle } from "@/hooks/use-cycle";
 import { useDelegate, useDelegateVotes } from "@/hooks/use-token";
 import { useRegistryOwner } from "@/hooks/use-recipients";
 import {
+  useInstanceMetadata,
+  useSetInstanceMetadata,
+} from "@/hooks/use-instance-metadata";
+import { isValidImageUri } from "@/lib/metadata";
+import { SafeImage } from "@/components/dapp/safe-image";
+import {
   useUpdateCycleLength,
   useYieldClaimer,
   useYieldClaimerAdmin,
@@ -116,6 +122,7 @@ function AdminOnly() {
   }
   return (
     <>
+      <InstanceMetadataCard />
       <CycleLength />
       <YieldClaimer />
       <Card>
@@ -135,6 +142,106 @@ function AdminOnly() {
         </Button>
       </Card>
     </>
+  );
+}
+
+function InstanceMetadataCard() {
+  const meta = useInstanceMetadata();
+  const { set, ...tx } = useSetInstanceMetadata();
+  const [tokenImg, setTokenImg] = useState("");
+  const [bannerImg, setBannerImg] = useState("");
+  const [dirty, setDirty] = useState(false);
+
+  // Seed the inputs from the current on-chain values until the user edits.
+  useEffect(() => {
+    if (!dirty) {
+      setTokenImg(meta.tokenImageURI ?? "");
+      setBannerImg(meta.bannerImageURI ?? "");
+    }
+  }, [meta.tokenImageURI, meta.bannerImageURI, dirty]);
+
+  useEffect(() => {
+    if (tx.isSuccess) {
+      meta.refetch();
+      setDirty(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.isSuccess]);
+
+  const tokenValid = tokenImg.trim() === "" || isValidImageUri(tokenImg.trim());
+  const bannerValid =
+    bannerImg.trim() === "" || isValidImageUri(bannerImg.trim());
+  const inputClass =
+    "border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none";
+
+  return (
+    <Card>
+      <Caption className="text-surface-grey-2">Instance artwork</Caption>
+      <Body className="text-surface-grey mt-1 text-sm">
+        Token + header images shown across the app for this instance.
+      </Body>
+      <div className="mt-3 flex items-start gap-3">
+        <SafeImage
+          uri={tokenImg}
+          alt="Token image"
+          className="border-paper-2 h-11 w-11 flex-none rounded-full border object-cover"
+          fallback={
+            <div className="border-paper-2 bg-paper-1 h-11 w-11 flex-none rounded-full border" />
+          }
+        />
+        <input
+          value={tokenImg}
+          onChange={(e) => {
+            setDirty(true);
+            setTokenImg(e.target.value);
+          }}
+          placeholder="Token image — https:// or ipfs://"
+          className={inputClass}
+        />
+      </div>
+      {!tokenValid && (
+        <Caption className="text-system-red mt-1 block">
+          Use an https:// or ipfs:// image URL.
+        </Caption>
+      )}
+      <input
+        value={bannerImg}
+        onChange={(e) => {
+          setDirty(true);
+          setBannerImg(e.target.value);
+        }}
+        placeholder="Header/banner image — https:// or ipfs://"
+        className={`${inputClass} mt-3`}
+      />
+      {!bannerValid && (
+        <Caption className="text-system-red mt-1 block">
+          Use an https:// or ipfs:// image URL.
+        </Caption>
+      )}
+      {bannerValid && bannerImg.trim() !== "" && (
+        <SafeImage
+          uri={bannerImg}
+          alt="Banner"
+          className="border-paper-2 mt-2 h-20 w-full rounded-xl border object-cover"
+        />
+      )}
+      <Button
+        app="fund"
+        variant="primary"
+        className="mt-4"
+        isLoading={tx.isBusy}
+        onClick={() => set(tokenImg.trim(), bannerImg.trim())}
+        {...(!tokenValid || !bannerValid ? { disabled: true } : {})}
+      >
+        Update images
+      </Button>
+      <TxStatus
+        status={tx.status}
+        hash={tx.hash}
+        error={tx.error}
+        successLabel="Artwork updated"
+      />
+    </Card>
   );
 }
 

@@ -1,167 +1,18 @@
-export const deployerAbi = [
-  {
-    type: "constructor",
-    inputs: [
-      { name: "factory", type: "address", internalType: "address" },
-      { name: "cycleBeacon", type: "address", internalType: "address" },
-      { name: "registryBeacon", type: "address", internalType: "address" },
-      { name: "tokenBeacon", type: "address", internalType: "address" },
-      { name: "distManagerBeacon", type: "address", internalType: "address" },
-      { name: "strategyBeacon", type: "address", internalType: "address" },
-      { name: "votingBeacon", type: "address", internalType: "address" },
-    ],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "CYCLE_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "DIST_MANAGER_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "FACTORY",
-    inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "contract ICrowdStakeFactory",
-      },
-    ],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "REGISTRY_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "STRATEGY_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "TOKEN_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "VOTING_BEACON",
-    inputs: [],
-    outputs: [{ name: "", type: "address", internalType: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "deploy",
-    inputs: [
-      {
-        name: "p",
-        type: "tuple",
-        internalType: "struct CrowdStakeDeployer.Params",
-        components: [
-          { name: "owner", type: "address", internalType: "address" },
-          { name: "cycleLength", type: "uint256", internalType: "uint256" },
-          { name: "tokenName", type: "string", internalType: "string" },
-          { name: "tokenSymbol", type: "string", internalType: "string" },
-          { name: "maxVotingPoints", type: "uint256", internalType: "uint256" },
-          { name: "salt", type: "bytes32", internalType: "bytes32" },
-        ],
-      },
-    ],
-    outputs: [
-      {
-        name: "inst",
-        type: "tuple",
-        internalType: "struct CrowdStakeDeployer.Instance",
-        components: [
-          { name: "cycleModule", type: "address", internalType: "address" },
-          { name: "registry", type: "address", internalType: "address" },
-          { name: "token", type: "address", internalType: "address" },
-          {
-            name: "votingPowerStrategy",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "distributionManager",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "distributionStrategy",
-            type: "address",
-            internalType: "address",
-          },
-          { name: "votingModule", type: "address", internalType: "address" },
-        ],
-      },
-    ],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "event",
-    name: "SystemDeployed",
-    inputs: [
-      {
-        name: "owner",
-        type: "address",
-        indexed: true,
-        internalType: "address",
-      },
-      {
-        name: "deployer",
-        type: "address",
-        indexed: true,
-        internalType: "address",
-      },
-      { name: "salt", type: "bytes32", indexed: true, internalType: "bytes32" },
-      {
-        name: "instance",
-        type: "tuple",
-        indexed: false,
-        internalType: "struct CrowdStakeDeployer.Instance",
-        components: [
-          { name: "cycleModule", type: "address", internalType: "address" },
-          { name: "registry", type: "address", internalType: "address" },
-          { name: "token", type: "address", internalType: "address" },
-          {
-            name: "votingPowerStrategy",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "distributionManager",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "distributionStrategy",
-            type: "address",
-            internalType: "address",
-          },
-          { name: "votingModule", type: "address", internalType: "address" },
-        ],
-      },
-    ],
-    anonymous: false,
-  },
-  { type: "error", name: "ZeroCycleLength", inputs: [] },
-  { type: "error", name: "ZeroOwner", inputs: [] },
-] as const;
+import { parseAbi } from "viem";
+
+/**
+ * CrowdStakeDeployer — the one canonical one-tx deployer. Params carries the
+ * recipient-registry kind (admin vs democratic), the democratic config, and two
+ * instance artwork URIs seeded onto the distribution manager at deploy.
+ * SystemDeployed's Instance tuple is unchanged (registry -> recipientRegistry
+ * is remapped in use-deploy).
+ */
+export const deployerAbi = parseAbi([
+  "function deploy((address owner, uint256 cycleLength, string tokenName, string tokenSymbol, uint256 maxVotingPoints, bytes32 salt, uint8 registryKind, address[] initialRecipients, uint256 proposalExpiry, string tokenImageURI, string bannerImageURI) p) returns ((address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address votingModule))",
+  "event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, (address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address votingModule) instance)",
+  "error ZeroOwner()",
+  "error ZeroCycleLength()",
+  "error InvalidRegistryKind()",
+  "error EmptyInitialRecipients()",
+  "error ZeroProposalExpiry()",
+]);

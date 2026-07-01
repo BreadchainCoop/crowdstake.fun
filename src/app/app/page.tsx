@@ -18,6 +18,7 @@ import { useDistributionReady } from "@/hooks/use-distribution";
 import { useIsRecipient, useRecipients } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
@@ -34,6 +35,12 @@ export default function PortfolioPage() {
 
   return (
     <div>
+      <div className="mb-4 flex items-center gap-3">
+        <InstanceTokenBadge className="h-11 w-11" />
+        <span className="font-breadDisplay text-text-standard text-lg font-bold">
+          {tokenSymbol}
+        </span>
+      </div>
       <PageHeader
         title="Portfolio"
         subtitle="Your position and the live state of the Crowdstaking protocol on Gnosis."

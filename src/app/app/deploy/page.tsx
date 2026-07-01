@@ -17,7 +17,9 @@ import { TxStatus } from "@/components/dapp/tx-status";
 import { useDeployInstance } from "@/hooks/use-deploy";
 import { useInstanceContext } from "@/components/instance-provider";
 import { shortenAddress } from "@/lib/format";
-import { MAX_POINTS, DEPLOYER_V2 } from "@/lib/constants";
+import { MAX_POINTS } from "@/lib/constants";
+import { isValidImageUri } from "@/lib/metadata";
+import { SafeImage } from "@/components/dapp/safe-image";
 
 export default function DeployPage() {
   return (
@@ -47,6 +49,13 @@ function DeployForm() {
   const [maxPoints, setMaxPoints] = useState(MAX_POINTS.toString());
   const [customSalt, setCustomSalt] = useState("");
 
+  const [tokenImg, setTokenImg] = useState("");
+  const [bannerImg, setBannerImg] = useState("");
+  const tokenImgValid =
+    tokenImg.trim() === "" || isValidImageUri(tokenImg.trim());
+  const bannerImgValid =
+    bannerImg.trim() === "" || isValidImageUri(bannerImg.trim());
+
   // Democratic (V2-only): registry kind, founding recipients, proposal window.
   const [registryKind, setRegistryKind] = useState<"admin" | "voting">("admin");
   const [foundersText, setFoundersText] = useState("");
@@ -60,7 +69,7 @@ function DeployForm() {
   const pointsValid =
     /^\d+$/.test(cleanPoints) && BigInt(cleanPoints || "0") > 0n;
 
-  const democratic = DEPLOYER_V2 && registryKind === "voting";
+  const democratic = registryKind === "voting";
   const typedFounders = foundersText
     .split(/[\s,]+/)
     .map((s) => s.trim())
@@ -81,6 +90,8 @@ function DeployForm() {
     cycleValid &&
     pointsValid &&
     ownerValid &&
+    tokenImgValid &&
+    bannerImgValid &&
     (!democratic || (foundersValid && expiryValid));
 
   const onDeploy = () => {
@@ -105,6 +116,8 @@ function DeployForm() {
       registryKind: democratic ? 1 : 0,
       initialRecipients: democratic ? (founders as Address[]) : [],
       proposalExpiry: democratic ? BigInt(Number(cleanExpiry) * 86400) : 0n,
+      tokenImageURI: tokenImg.trim(),
+      bannerImageURI: bannerImg.trim(),
     });
   };
 
@@ -198,64 +211,71 @@ function DeployForm() {
         )}
       </Field>
 
-      {DEPLOYER_V2 && (
-        <div className="mb-4">
-          <Caption className="text-surface-grey-2 mb-1.5 block">
-            Recipient governance
-          </Caption>
-          <div className="border-paper-2 inline-flex rounded-xl border p-1">
-            {(["admin", "voting"] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setRegistryKind(k)}
-                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
-                  registryKind === k
-                    ? "bg-core-orange text-white"
-                    : "text-surface-grey-2 hover:text-text-standard"
-                }`}
-              >
-                {k === "admin" ? "Admin-managed" : "Democratic"}
-              </button>
-            ))}
-          </div>
-          {democratic && (
-            <div className="mt-4 space-y-4">
-              <Field label="Founding recipients (one address per line)">
-                <textarea
-                  value={foundersText}
-                  onChange={(e) => setFoundersText(e.target.value)}
-                  placeholder={address ?? "0x…"}
-                  rows={3}
-                  className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none"
-                />
-                {foundersText.trim() !== "" && !foundersValid && (
-                  <Caption className="text-system-red mt-1 block">
-                    Enter unique, valid, non-zero addresses.
-                  </Caption>
-                )}
-                <Caption className="text-surface-grey mt-1 block">
-                  These members vote to add/remove future recipients (additions
-                  need everyone&apos;s vote). Blank defaults to you. The owner
-                  can&apos;t add recipients directly.
-                </Caption>
-              </Field>
-              <Field label="Proposal expiry (days)">
-                <Input
-                  value={expiryDays}
-                  onChange={setExpiryDays}
-                  placeholder="7"
-                />
-                {!expiryValid && expiryDays !== "" && (
-                  <Caption className="text-system-red mt-1 block">
-                    Must be a positive integer.
-                  </Caption>
-                )}
-              </Field>
-            </div>
-          )}
+      <div className="mb-4">
+        <Caption className="text-surface-grey-2 mb-1.5 block">
+          Recipient governance
+        </Caption>
+        <div className="border-paper-2 inline-flex rounded-xl border p-1">
+          {(["admin", "voting"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setRegistryKind(k)}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+                registryKind === k
+                  ? "bg-core-orange text-white"
+                  : "text-surface-grey-2 hover:text-text-standard"
+              }`}
+            >
+              {k === "admin" ? "Admin-managed" : "Democratic"}
+            </button>
+          ))}
         </div>
-      )}
+        {democratic && (
+          <div className="mt-4 space-y-4">
+            <Field label="Founding recipients (one address per line)">
+              <textarea
+                value={foundersText}
+                onChange={(e) => setFoundersText(e.target.value)}
+                placeholder={address ?? "0x…"}
+                rows={3}
+                className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none"
+              />
+              {foundersText.trim() !== "" && !foundersValid && (
+                <Caption className="text-system-red mt-1 block">
+                  Enter unique, valid, non-zero addresses.
+                </Caption>
+              )}
+              <Caption className="text-surface-grey mt-1 block">
+                These members vote to add/remove future recipients (additions
+                need everyone&apos;s vote). Blank defaults to you. The owner
+                can&apos;t add recipients directly.
+              </Caption>
+            </Field>
+            <Field label="Proposal expiry (days)">
+              <Input
+                value={expiryDays}
+                onChange={setExpiryDays}
+                placeholder="7"
+              />
+              {!expiryValid && expiryDays !== "" && (
+                <Caption className="text-system-red mt-1 block">
+                  Must be a positive integer.
+                </Caption>
+              )}
+            </Field>
+          </div>
+        )}
+      </div>
+
+      <ArtworkFields
+        tokenImg={tokenImg}
+        setTokenImg={setTokenImg}
+        bannerImg={bannerImg}
+        setBannerImg={setBannerImg}
+        tokenImgValid={tokenImgValid}
+        bannerImgValid={bannerImgValid}
+      />
 
       <button
         type="button"
@@ -324,6 +344,77 @@ function DeployForm() {
         owned by you. Yield is distributed proportionally to community votes.
       </Body>
     </Card>
+  );
+}
+
+function ArtworkFields({
+  tokenImg,
+  setTokenImg,
+  bannerImg,
+  setBannerImg,
+  tokenImgValid,
+  bannerImgValid,
+}: {
+  tokenImg: string;
+  setTokenImg: (v: string) => void;
+  bannerImg: string;
+  setBannerImg: (v: string) => void;
+  tokenImgValid: boolean;
+  bannerImgValid: boolean;
+}) {
+  return (
+    <div className="mb-4">
+      <Caption className="text-surface-grey-2 mb-1.5 block">
+        Instance artwork (optional)
+      </Caption>
+      <div className="flex items-start gap-3">
+        <SafeImage
+          uri={tokenImg}
+          alt="Token image preview"
+          className="border-paper-2 h-12 w-12 flex-none rounded-full border object-cover"
+          fallback={
+            <div className="border-paper-2 bg-paper-1 h-12 w-12 flex-none rounded-full border" />
+          }
+        />
+        <div className="flex-1">
+          <Input
+            value={tokenImg}
+            onChange={setTokenImg}
+            placeholder="Token image — https:// or ipfs://"
+            mono
+          />
+          {!tokenImgValid && (
+            <Caption className="text-system-red mt-1 block">
+              Use an https:// or ipfs:// image URL.
+            </Caption>
+          )}
+        </div>
+      </div>
+      <div className="mt-3">
+        <Input
+          value={bannerImg}
+          onChange={setBannerImg}
+          placeholder="Header/banner image — https:// or ipfs://"
+          mono
+        />
+        {!bannerImgValid && (
+          <Caption className="text-system-red mt-1 block">
+            Use an https:// or ipfs:// image URL.
+          </Caption>
+        )}
+        {bannerImgValid && bannerImg.trim() !== "" && (
+          <SafeImage
+            uri={bannerImg}
+            alt="Banner preview"
+            className="border-paper-2 mt-2 h-20 w-full rounded-xl border object-cover"
+          />
+        )}
+      </div>
+      <Caption className="text-surface-grey mt-2 block">
+        Shown across the app for this instance. You can change these later from
+        the Admin page.
+      </Caption>
+    </div>
   );
 }
 

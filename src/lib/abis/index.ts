@@ -7,5 +7,5 @@ export { votingRecipientRegistryAbi } from "./voting-recipient-registry";
 export { distributionStrategyAbi } from "./distribution-strategy";
 export { votingPowerAbi } from "./voting-power";
 export { deployerAbi } from "./crowdstake-deployer";
-export { deployerV2Abi } from "./crowdstake-deployer-v2";
+export { instanceMetadataAbi } from "./instance-metadata";
 export { factoryAbi } from "./factory";

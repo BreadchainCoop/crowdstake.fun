@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DappNav } from "@/components/dapp/dapp-nav";
+import { InstanceHeaderBanner } from "@/components/dapp/instance-branding";
 
 export const metadata: Metadata = {
   title: "Crowdstaking — App",
@@ -11,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-paper-main min-h-screen">
       <DappNav />
+      <InstanceHeaderBanner />
       <main className="section-container py-10">{children}</main>
     </div>
   );

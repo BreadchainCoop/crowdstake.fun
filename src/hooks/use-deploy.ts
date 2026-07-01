@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { decodeEventLog, type Address, type Hex } from "viem";
 import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { deployerAbi, deployerV2Abi } from "@/lib/abis";
-import { DEPLOYER, DEPLOYER_V2 } from "@/lib/constants";
+import { deployerAbi } from "@/lib/abis";
+import { DEPLOYER } from "@/lib/constants";
 import { parseTxError } from "@/hooks/use-tx";
 import type { InstanceAddresses } from "@/lib/instance";
 
@@ -15,10 +15,13 @@ export interface DeployParams {
   tokenSymbol: string;
   maxVotingPoints: bigint;
   salt: Hex;
-  // V2 only (ignored by the V1 deployer): 0 = admin registry, 1 = democratic.
+  // 0 = admin registry, 1 = democratic (recipient-voted).
   registryKind?: number;
   initialRecipients?: Address[];
   proposalExpiry?: bigint;
+  // Instance artwork (off-chain URIs). Empty string = none.
+  tokenImageURI?: string;
+  bannerImageURI?: string;
 }
 
 /**
@@ -45,7 +48,7 @@ export function useDeployInstance() {
     for (const log of receipt.logs) {
       try {
         const ev = decodeEventLog({
-          abi: DEPLOYER_V2 ? deployerV2Abi : deployerAbi,
+          abi: deployerAbi,
           data: log.data,
           topics: log.topics,
         });
@@ -80,34 +83,25 @@ export function useDeployInstance() {
 
   const deploy = async (p: DeployParams) => {
     try {
-      const base = {
-        owner: p.owner,
-        cycleLength: p.cycleLength,
-        tokenName: p.tokenName,
-        tokenSymbol: p.tokenSymbol,
-        maxVotingPoints: p.maxVotingPoints,
-        salt: p.salt,
-      };
-      if (DEPLOYER_V2) {
-        return await writeContractAsync({
-          address: DEPLOYER,
-          abi: deployerV2Abi,
-          functionName: "deploy",
-          args: [
-            {
-              ...base,
-              registryKind: p.registryKind ?? 0,
-              initialRecipients: p.initialRecipients ?? [],
-              proposalExpiry: p.proposalExpiry ?? 0n,
-            },
-          ],
-        });
-      }
       return await writeContractAsync({
         address: DEPLOYER,
         abi: deployerAbi,
         functionName: "deploy",
-        args: [base],
+        args: [
+          {
+            owner: p.owner,
+            cycleLength: p.cycleLength,
+            tokenName: p.tokenName,
+            tokenSymbol: p.tokenSymbol,
+            maxVotingPoints: p.maxVotingPoints,
+            salt: p.salt,
+            registryKind: p.registryKind ?? 0,
+            initialRecipients: p.initialRecipients ?? [],
+            proposalExpiry: p.proposalExpiry ?? 0n,
+            tokenImageURI: p.tokenImageURI ?? "",
+            bannerImageURI: p.bannerImageURI ?? "",
+          },
+        ],
       });
     } catch (e) {
       throw new Error(parseTxError(e));
