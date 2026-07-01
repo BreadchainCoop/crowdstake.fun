@@ -7,7 +7,8 @@ import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
-import { formatAmount, parseAmount } from "@/lib/format";
+import { parseAmount } from "@/lib/format";
+import { useAmountFormatter } from "@/components/demo-mode-provider";
 import {
   useApproveWxdai,
   useDeposit,
@@ -35,6 +36,7 @@ function DepositForm() {
   const [amount, setAmount] = useState("");
 
   const { symbol } = useInstanceToken();
+  const fmt = useAmountFormatter();
   const native = useNativeBalance();
   const wxdai = useWxdai();
   const stake = useTokenBalance();
@@ -104,7 +106,7 @@ function DepositForm() {
       <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
         <Caption className="text-surface-grey-2">You receive</Caption>
         <span className="font-breadDisplay text-text-standard font-bold">
-          {parsed ? formatAmount(parsed) : "0"} {symbol}
+          {parsed ? fmt(parsed) : "0"} {symbol}
         </span>
       </div>
 
@@ -138,7 +140,7 @@ function DepositForm() {
       <Body className="text-surface-grey mt-6 text-sm">
         Your {symbol} balance:{" "}
         <span className="text-text-standard font-semibold">
-          {formatAmount(stake.data)} {symbol}
+          {fmt(stake.data)} {symbol}
         </span>
       </Body>
     </Card>

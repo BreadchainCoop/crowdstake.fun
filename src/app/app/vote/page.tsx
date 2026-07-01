@@ -15,8 +15,9 @@ import { TxStatus } from "@/components/dapp/tx-status";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useVote, useVotingState } from "@/hooks/use-voting";
 import { useCycle } from "@/hooks/use-cycle";
-import { formatAmount, shortenAddress } from "@/lib/format";
+import { shortenAddress } from "@/lib/format";
 import { addressUrl } from "@/lib/constants";
+import { useAmountFormatter } from "@/components/demo-mode-provider";
 
 export default function VotePage() {
   return (
@@ -31,6 +32,7 @@ export default function VotePage() {
 }
 
 function VoteForm() {
+  const fmt = useAmountFormatter();
   const { recipients } = useRecipients();
   const voting = useVotingState();
   const cycle = useCycle();
@@ -84,7 +86,7 @@ function VoteForm() {
             Cycle #{cycle.cycleNumber?.toString() ?? "—"} · your voting power
           </Caption>
           <span className="font-breadDisplay text-text-standard font-bold">
-            {formatAmount(voting.votingPower)}
+            {fmt(voting.votingPower)}
           </span>
         </div>
         {voting.hasVoted && (

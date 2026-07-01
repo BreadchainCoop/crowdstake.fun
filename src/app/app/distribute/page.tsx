@@ -11,7 +11,7 @@ import { useCycle } from "@/hooks/use-cycle";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useVotingState } from "@/hooks/use-voting";
 import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
-import { formatAmount } from "@/lib/format";
+import { useAmountFormatter } from "@/components/demo-mode-provider";
 
 export default function DistributePage() {
   return (
@@ -34,6 +34,7 @@ function Distribute() {
   const tokenStats = useTokenStats();
   const { yieldAccrued } = tokenStats;
   const { symbol } = useInstanceToken();
+  const fmt = useAmountFormatter();
 
   const totalVotes = useMemo(
     () => voting.distribution.reduce((a, b) => a + b, 0n),
@@ -69,7 +70,7 @@ function Distribute() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Accrued yield"
-          value={`${formatAmount(yieldAccrued)} ${symbol}`}
+          value={`${fmt(yieldAccrued)} ${symbol}`}
           sub="To be distributed"
           accent
         />

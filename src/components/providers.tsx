@@ -7,6 +7,7 @@ import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { wagmiConfig } from "@/lib/wagmi";
 import { InstanceProvider } from "@/components/instance-provider";
+import { DemoModeProvider } from "@/components/demo-mode-provider";
 
 export function Providers({ children }: { children: ReactNode }) {
   // One QueryClient per browser session; hashFn keeps bigint query keys stable.
@@ -29,7 +30,9 @@ export function Providers({ children }: { children: ReactNode }) {
             borderRadius: "medium",
           })}
         >
-          <InstanceProvider>{children}</InstanceProvider>
+          <InstanceProvider>
+            <DemoModeProvider>{children}</DemoModeProvider>
+          </InstanceProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

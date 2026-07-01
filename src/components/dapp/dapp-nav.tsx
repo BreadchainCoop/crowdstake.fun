@@ -7,6 +7,26 @@ import { Logo } from "@breadcoop/ui";
 import { cn } from "@/lib/utils";
 import { useRegistryOwner } from "@/hooks/use-recipients";
 import { InstanceSwitcher } from "@/components/dapp/instance-switcher";
+import { useDemoMode } from "@/components/demo-mode-provider";
+
+/** Display-only ×1000 toggle for demos (never changes real transaction amounts). */
+function DemoToggle() {
+  const { demo, setDemo } = useDemoMode();
+  return (
+    <button
+      onClick={() => setDemo(!demo)}
+      title="Demo mode: multiply displayed amounts ×1000 (does not change real amounts)"
+      className={cn(
+        "hidden shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors sm:block",
+        demo
+          ? "border-core-orange bg-core-orange text-white"
+          : "border-paper-2 text-surface-grey-2 hover:text-text-standard",
+      )}
+    >
+      Demo ×1000{demo ? " ●" : ""}
+    </button>
+  );
+}
 
 const LINKS = [
   { href: "/app", label: "Portfolio" },
@@ -62,6 +82,7 @@ export function DappNav() {
         </div>
 
         <div className="flex items-center gap-2">
+          <DemoToggle />
           <InstanceSwitcher />
           <ConnectButton
             showBalance={false}
