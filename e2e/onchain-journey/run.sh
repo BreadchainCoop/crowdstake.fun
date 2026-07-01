@@ -31,8 +31,18 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "▸ building static export pointed at the fork"
-( cd "$APP" && NEXT_PUBLIC_RPC_URL="$TEST_RPC_URL" corepack pnpm@9.15.4 build ) \
+echo "▸ deploying CrowdStakeDeployerV2 to the fork (enables democratic instances)"
+( cd "$APP/contracts" && forge script script/DeployDeployerV2.s.sol \
+    --rpc-url "$TEST_RPC_URL" --broadcast --private-key "$TEST_PRIVATE_KEY" ) \
+  >/tmp/cs-v2-deploy.log 2>&1 \
+  || { echo "  V2 deploy failed — see /tmp/cs-v2-deploy.log"; exit 1; }
+export TEST_DEPLOYER_ADDRESS="$(python3 -c "import json;d=json.load(open('$APP/contracts/broadcast/DeployDeployerV2.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployerV2'][0])")"
+echo "  V2 deployer: ${TEST_DEPLOYER_ADDRESS}"
+
+echo "▸ building static export pointed at the fork + V2 deployer"
+( cd "$APP" && NEXT_PUBLIC_RPC_URL="$TEST_RPC_URL" \
+    NEXT_PUBLIC_DEPLOYER_ADDRESS="$TEST_DEPLOYER_ADDRESS" \
+    NEXT_PUBLIC_DEPLOYER_V2=true corepack pnpm@9.15.4 build ) \
   >/tmp/cs-journey-build.log 2>&1 \
   || { echo "  build failed — see /tmp/cs-journey-build.log"; exit 1; }
 
@@ -41,9 +51,12 @@ echo "▸ serving out/ on :${WEB_PORT}"
 WEB_PID=$!
 sleep 2
 
-echo "▸ running journey"
+echo "▸ running journey (admin path + full lifecycle)"
 node "$HERE/journey.cjs"
 CODE=$?
+
+echo "▸ running democratic journey (recipient-voted registry)"
+node "$HERE/journey-democratic.cjs" || CODE=1
 
 echo ""
 bash "$HERE/check-bundle.sh" "$APP/out" || CODE=1

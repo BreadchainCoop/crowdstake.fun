@@ -22,6 +22,11 @@ the app's wiring produced the transaction, not the test script:
 6. **Deploy** a fresh instance in one tx → `SystemDeployed` resolves to 7
    non-zero contracts owned by the signer.
 
+`run.sh` also deploys a **CrowdStakeDeployerV2** to the fork and runs
+`journey-democratic.cjs`, which drives the democratic (recipient-voted) path:
+deploy a `VotingRecipientRegistry`-backed instance, then propose → execute →
+process a new recipient through the voting UI, asserting each step on-chain.
+
 ## How it works (and why no key reaches the app)
 
 The app ships **zero** test affordances. The harness injects an
