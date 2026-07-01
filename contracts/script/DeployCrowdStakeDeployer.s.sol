@@ -25,8 +25,9 @@ contract DeployCrowdStakeDeployer is Script {
     address constant SXDAI = 0xaf204776c7245bF4147c2612BF6e5972Ee483701;
 
     function run() external {
-        vm.startBroadcast();
-        address me = msg.sender;
+        uint256 pk = vm.envUint("PRIVATE_KEY");
+        address me = vm.addr(pk);
+        vm.startBroadcast(pk);
 
         CrowdStakeFactory factory = new CrowdStakeFactory(me);
 
