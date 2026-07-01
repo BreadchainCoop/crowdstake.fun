@@ -1,18 +1,29 @@
 name: Deploy contracts (Gnosis)
 
-# Manual deploy of a fresh CrowdStake instance to Gnosis, with Blockscout
-# verification. Reuses etherform's verify-blockscout.sh (sparse-checkout) for
-# the verify step — etherform's reusable *workflow* assumes a root Foundry
-# layout, so the deploy itself runs forge from ./contracts here.
+# Manual deploy to Gnosis via etherform's helper scripts (prepare-env.sh +
+# verify-blockscout.sh, sparse-checked-out), with Blockscout verification.
+# Two targets:
+#   - DeployGnosis           → a fresh, fully-wired CrowdStake instance
+#   - DeployCrowdStakeDeployer → the ONE canonical one-tx deployer (+ its own
+#                                factory/beacons). After it runs, set the printed
+#                                address as the NEXT_PUBLIC_DEPLOYER_ADDRESS repo
+#                                variable and redeploy the frontend.
 #
 # Requires repo secrets: DEPLOY_PRIVATE_KEY (funded Gnosis key), GNOSIS_RPC_URL.
 
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: "What to deploy"
+        type: choice
+        default: DeployGnosis
+        options:
+          - DeployGnosis
+          - DeployCrowdStakeDeployer
       owner:
-        description: "System owner address (receives admin of all modules)"
-        required: true
+        description: "System owner (DeployGnosis only — ignored for the deployer)"
+        required: false
       token_name:
         description: "ERC20 token name"
         default: "Crowdstaking Stake"
@@ -67,8 +78,15 @@ jobs:
           SXDAI: "0xaf204776c7245bF4147c2612BF6e5972Ee483701"
         run: |
           source ../.etherform/scripts/deploy/prepare-env.sh
-          forge script script/DeployGnosis.s.sol:DeployGnosis \
+          forge script "script/${{ inputs.target }}.s.sol:${{ inputs.target }}" \
             --rpc-url "$RPC_URL" --broadcast --slow -vvvv
+          if [ "${{ inputs.target }}" = "DeployCrowdStakeDeployer" ]; then
+            ADDR=$(python3 -c "import json;d=json.load(open('broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployer'][0])")
+            echo "### Canonical CrowdStakeDeployer deployed" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`$ADDR\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Set repo variable **NEXT_PUBLIC_DEPLOYER_ADDRESS** to this address, then redeploy the frontend." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Verify on Blockscout
         continue-on-error: true
@@ -76,7 +94,7 @@ jobs:
           RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
           BLOCKSCOUT_URL: "https://gnosis.blockscout.com"
         run: |
-          BROADCAST_FILE=$(ls broadcast/DeployGnosis.s.sol/100/run-latest.json 2>/dev/null || true)
+          BROADCAST_FILE=$(ls "broadcast/${{ inputs.target }}.s.sol/100/run-latest.json" 2>/dev/null || true)
           if [ -n "$BROADCAST_FILE" ]; then
             BROADCAST_FILE="$BROADCAST_FILE" bash ../.etherform/scripts/deploy/verify-blockscout.sh || true
           fi
@@ -84,6 +102,8 @@ jobs:
       - name: Upload deployment manifest
         uses: actions/upload-artifact@v4
         with:
-          name: gnosis-deployment
-          path: contracts/deployments/gnosis.json
+          name: ${{ inputs.target }}-deployment
+          path: |
+            contracts/deployments/gnosis.json
+            contracts/broadcast/${{ inputs.target }}.s.sol/100/run-latest.json
           if-no-files-found: warn
