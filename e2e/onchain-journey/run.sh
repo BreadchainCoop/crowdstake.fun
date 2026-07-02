@@ -32,8 +32,11 @@ for _ in $(seq 1 30); do
 done
 
 echo "▸ deploying the canonical CrowdStakeDeployer (+ fresh factory/beacons) to the fork"
-( cd "$APP/contracts" && forge script script/DeployCrowdStakeDeployer.s.sol \
-    --rpc-url "$TEST_RPC_URL" --broadcast --private-key "$TEST_PRIVATE_KEY" ) \
+# The deploy script broadcasts with vm.envUint("PRIVATE_KEY") (same contract the
+# CI workflow honours), so provide it via env — the --private-key flag alone
+# doesn't populate that variable.
+( cd "$APP/contracts" && PRIVATE_KEY="$TEST_PRIVATE_KEY" forge script script/DeployCrowdStakeDeployer.s.sol \
+    --rpc-url "$TEST_RPC_URL" --broadcast ) \
   >/tmp/cs-deployer-deploy.log 2>&1 \
   || { echo "  deployer deploy failed — see /tmp/cs-deployer-deploy.log"; exit 1; }
 export TEST_DEPLOYER_ADDRESS="$(python3 -c "import json;d=json.load(open('$APP/contracts/broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployer'][0])")"

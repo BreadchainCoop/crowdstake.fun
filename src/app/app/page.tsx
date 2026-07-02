@@ -5,47 +5,36 @@ import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Body, Button, Caption, Heading4 } from "@breadcoop/ui";
 import { ArrowRight, CheckCircle, Circle } from "@phosphor-icons/react";
-import { Card, PageHeader, ProgressBar, StatCard } from "@/components/dapp/ui";
+import { Card, ProgressBar, StatCard } from "@/components/dapp/ui";
+import { InstanceHeader } from "@/components/dapp/instance-header";
+import { OnboardingBanner } from "@/components/dapp/onboarding-banner";
 import {
   useTokenBalance,
   useVotes,
   useNativeBalance,
-  useTokenStats,
   useInstanceToken,
 } from "@/hooks/use-token";
 import { useCycle } from "@/hooks/use-cycle";
 import { useDistributionReady } from "@/hooks/use-distribution";
-import { useIsRecipient, useRecipients } from "@/hooks/use-recipients";
+import { useIsRecipient } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
-import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
-import { LiveYield } from "@/components/dapp/live-yield";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
   const balance = useTokenBalance();
   const votes = useVotes();
   const native = useNativeBalance();
-  const { totalSupply } = useTokenStats();
   const cycle = useCycle();
   const { isReady } = useDistributionReady();
   const isRecipient = useIsRecipient();
-  const { recipients } = useRecipients();
   const { symbol: tokenSymbol } = useInstanceToken();
   const fmt = useAmountFormatter();
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <InstanceTokenBadge className="h-11 w-11" />
-        <span className="font-breadDisplay text-text-standard text-lg font-bold">
-          {tokenSymbol}
-        </span>
-      </div>
-      <PageHeader
-        title="Portfolio"
-        subtitle="Your position and the live state of the Crowdstaking protocol on Gnosis."
-      />
+      {/* Instance identity + live stats — this instance's own page. */}
+      <InstanceHeader />
 
       {!isConnected && (
         <Card className="mb-8 flex flex-col items-center gap-3 py-8 text-center">
@@ -57,8 +46,11 @@ export default function PortfolioPage() {
         </Card>
       )}
 
+      {isConnected && <OnboardingBanner />}
+
       {/* Your position */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Heading4 className="text-text-standard">Your position</Heading4>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label={`Your ${tokenSymbol}`}
           value={`${fmt(balance.data)} ${tokenSymbol}`}
@@ -75,21 +67,6 @@ export default function PortfolioPage() {
           value={`${formatAmount(native.data?.value)} xDAI`}
           sub="Available to deposit"
         />
-      </div>
-
-      {/* Protocol */}
-      <Heading4 className="text-text-standard mt-10">Protocol</Heading4>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Total staked"
-          value={`${fmt(totalSupply)} ${tokenSymbol}`}
-        />
-        <StatCard
-          label="Accrued yield"
-          value={<LiveYield symbol={tokenSymbol} />}
-          sub="Accruing live · claimable on next distribution"
-        />
-        <StatCard label="Active recipients" value={`${recipients.length}`} />
       </div>
 
       {/* Cycle */}

@@ -14,6 +14,7 @@ import {
 import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
+import { InstanceShareCard } from "@/components/dapp/instance-share-card";
 import { useDeployInstance } from "@/hooks/use-deploy";
 import { useInstanceContext } from "@/components/instance-provider";
 import { shortenAddress } from "@/lib/format";
@@ -128,47 +129,71 @@ function DeployForm() {
         <p className="text-system-green flex items-center gap-2">
           <CheckCircle size={22} weight="fill" />
           <span className="font-breadDisplay text-lg font-bold">
-            Instance deployed!
+            Your instance is live!
           </span>
         </p>
-        <dl className="mt-4 space-y-2">
-          {(
-            [
-              ["Token", instance.token],
-              ["Distribution Manager", instance.distributionManager],
-              ["Cycle Module", instance.cycleModule],
-              ["Voting Module", instance.votingModule],
-              ["Recipient Registry", instance.recipientRegistry],
-              ["Distribution Strategy", instance.distributionStrategy],
-              ["Voting Power Strategy", instance.votingPowerStrategy],
-            ] as const
-          ).map(([label, addr]) => (
-            <div
-              key={label}
-              className="border-paper-2 flex items-center justify-between border-t pt-2"
-            >
-              <Caption className="text-surface-grey">{label}</Caption>
-              <span className="text-text-standard font-mono text-sm">
-                {shortenAddress(addr, 6)}
-              </span>
-            </div>
-          ))}
-        </dl>
+        <Body className="text-surface-grey-2 mt-1 text-sm">
+          Send the link below to your community — it opens straight into this
+          instance, ready to deposit, vote, and watch the yield grow.
+        </Body>
+
+        {/* The whole point: a standalone, shareable page for this instance. */}
+        <div className="mt-4">
+          <InstanceShareCard
+            distributionManager={instance.distributionManager}
+          />
+        </div>
+
         <Button
           app="fund"
           variant="primary"
-          className="mt-6 w-full"
+          className="mt-4 w-full"
           rightIcon={<ArrowRight weight="bold" />}
           onClick={() => {
             addInstance({
               label: symbol.trim() || "New instance",
               addresses: instance,
             });
-            router.push("/app");
+            router.push(`/app/?i=${instance.distributionManager}`);
           }}
         >
           Use this instance
         </Button>
+
+        {/* Contract addresses — secondary, tucked away behind a disclosure. */}
+        <details className="group mt-6">
+          <summary className="text-surface-grey-2 hover:text-text-standard flex cursor-pointer items-center gap-1 text-sm font-medium select-none">
+            <CaretRight
+              size={14}
+              weight="bold"
+              className="transition-transform group-open:rotate-90"
+            />
+            Contract addresses
+          </summary>
+          <dl className="mt-3 space-y-2">
+            {(
+              [
+                ["Token", instance.token],
+                ["Distribution Manager", instance.distributionManager],
+                ["Cycle Module", instance.cycleModule],
+                ["Voting Module", instance.votingModule],
+                ["Recipient Registry", instance.recipientRegistry],
+                ["Distribution Strategy", instance.distributionStrategy],
+                ["Voting Power Strategy", instance.votingPowerStrategy],
+              ] as const
+            ).map(([label, addr]) => (
+              <div
+                key={label}
+                className="border-paper-2 flex items-center justify-between border-t pt-2"
+              >
+                <Caption className="text-surface-grey">{label}</Caption>
+                <span className="text-text-standard font-mono text-sm">
+                  {shortenAddress(addr, 6)}
+                </span>
+              </div>
+            ))}
+          </dl>
+        </details>
       </Card>
     );
   }

@@ -1,23 +1,58 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { isAddress, type Address } from "viem";
-import { CaretDown, Check, Plus, SpinnerGap, X } from "@phosphor-icons/react";
+import {
+  CaretDown,
+  Check,
+  Copy,
+  Plus,
+  PlusCircle,
+  SpinnerGap,
+  X,
+} from "@phosphor-icons/react";
 import { useInstanceContext } from "@/components/instance-provider";
-import { DEFAULT_INSTANCE, resolveInstance } from "@/lib/instance";
+import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
+import {
+  DEFAULT_INSTANCE,
+  instanceShareUrl,
+  resolveInstance,
+} from "@/lib/instance";
 import { shortenAddress } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 
-/** Pick the active CrowdStake instance, or add one by its distribution-manager address. */
+/** A small colored disc showing an instance label's initial (list rows). */
+function InitialDisc({ label }: { label: string }) {
+  return (
+    <div className="bg-core-orange/15 text-core-orange flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+      {label.slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
+/**
+ * The active-instance selector — the app's "which community am I in" control.
+ * Switch between known instances, add one by address, copy a shareable link for
+ * any instance, or deploy a new one.
+ */
 export function InstanceSwitcher() {
-  const { label, known, addresses, setActive, addInstance, removeInstance } =
-    useInstanceContext();
+  const {
+    label,
+    known,
+    addresses,
+    setActive,
+    addInstance,
+    removeInstance,
+    resolving,
+  } = useInstanceContext();
   const defaultDm =
     DEFAULT_INSTANCE.addresses.distributionManager.toLowerCase();
   const [open, setOpen] = useState(false);
   const [addr, setAddr] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const onAdd = async () => {
     if (!isAddress(addr)) {
@@ -38,22 +73,36 @@ export function InstanceSwitcher() {
     }
   };
 
+  const onCopy = async (dm: Address) => {
+    if (await copyToClipboard(instanceShareUrl(dm))) {
+      setCopied(dm.toLowerCase());
+      setTimeout(() => setCopied(null), 1600);
+    }
+  };
+
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="border-paper-2 text-text-standard hover:border-core-orange flex max-w-[10rem] items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm font-medium"
+        className="border-paper-2 text-text-standard hover:border-core-orange flex max-w-[13rem] items-center gap-2 rounded-lg border py-1 pr-2 pl-1 text-sm font-medium"
       >
-        <span className="truncate">{label}</span>
+        {resolving ? (
+          <SpinnerGap size={22} className="text-core-orange animate-spin" />
+        ) : (
+          <InstanceTokenBadge className="h-7 w-7" />
+        )}
+        <span className="min-w-0 truncate">
+          {resolving ? "Loading…" : label}
+        </span>
         <CaretDown size={14} className="text-surface-grey flex-none" />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="border-paper-2 bg-paper-0 absolute right-0 z-50 mt-2 w-72 rounded-xl border p-2 shadow-xl">
+          <div className="border-paper-2 bg-paper-0 absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border p-2 shadow-xl">
             <p className="text-surface-grey px-2 py-1 text-xs font-semibold">
-              Instances
+              Your instances
             </p>
             {known.map((inst) => {
               const dm = inst.addresses.distributionManager;
@@ -61,20 +110,62 @@ export function InstanceSwitcher() {
                 dm.toLowerCase() ===
                 addresses.distributionManager.toLowerCase();
               const isDefault = dm.toLowerCase() === defaultDm;
+              const isCopied = copied === dm.toLowerCase();
               return (
-                <div key={dm} className="flex items-center gap-1">
+                <div
+                  key={dm}
+                  className={cn(
+                    "group hover:bg-paper-1 flex items-center gap-1 rounded-lg px-1.5 py-1.5",
+                    isActive && "bg-paper-1",
+                  )}
+                >
                   <button
                     onClick={() => {
                       setActive(dm);
                       setOpen(false);
                     }}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <InitialDisc label={inst.label} />
+                    <span className="min-w-0">
+                      <span
+                        className={cn(
+                          "block truncate text-sm",
+                          isActive
+                            ? "text-core-orange font-semibold"
+                            : "text-text-standard",
+                        )}
+                      >
+                        {inst.label}
+                      </span>
+                      <span className="text-surface-grey block truncate font-mono text-[11px]">
+                        {shortenAddress(dm, 4)}
+                      </span>
+                    </span>
+                    {isActive && (
+                      <Check
+                        size={16}
+                        weight="bold"
+                        className="text-core-orange flex-none"
+                      />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => onCopy(dm)}
+                    aria-label="Copy shareable link"
+                    title="Copy shareable link"
                     className={cn(
-                      "hover:bg-paper-1 flex flex-1 items-center justify-between rounded-lg px-2 py-2 text-left text-sm",
-                      isActive && "text-core-orange",
+                      "flex-none rounded p-1.5",
+                      isCopied
+                        ? "text-system-green"
+                        : "text-surface-grey hover:text-text-standard",
                     )}
                   >
-                    <span className="truncate">{inst.label}</span>
-                    {isActive && <Check size={16} weight="bold" />}
+                    {isCopied ? (
+                      <Check size={14} weight="bold" />
+                    ) : (
+                      <Copy size={14} />
+                    )}
                   </button>
                   {!isDefault && (
                     <button
@@ -88,6 +179,15 @@ export function InstanceSwitcher() {
                 </div>
               );
             })}
+
+            <Link
+              href="/app/deploy"
+              onClick={() => setOpen(false)}
+              className="text-core-orange hover:bg-paper-1 mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold"
+            >
+              <PlusCircle size={18} weight="bold" />
+              Deploy a new instance
+            </Link>
 
             <div className="border-paper-2 mt-2 border-t pt-2">
               <p className="text-surface-grey px-2 pb-1 text-xs font-semibold">

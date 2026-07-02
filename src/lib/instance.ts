@@ -1,4 +1,10 @@
-import { createPublicClient, getAddress, http, type Address } from "viem";
+import {
+  createPublicClient,
+  getAddress,
+  http,
+  isAddress,
+  type Address,
+} from "viem";
 import { gnosis } from "viem/chains";
 import { ADDRESSES, RPC_URL, TOKEN_SYMBOL } from "@/lib/constants";
 import { distributionManagerAbi, votingModuleAbi } from "@/lib/abis";
@@ -27,6 +33,48 @@ export const DEFAULT_INSTANCE: KnownInstance = {
 
 const STORAGE_KEY = "crowdstake.instances.v1";
 const ACTIVE_KEY = "crowdstake.activeInstance.v1";
+
+/**
+ * URL query key that pins the active instance, e.g. `/app/?i=0x…`. It makes
+ * every deployed instance a standalone, shareable link: open it and the app
+ * resolves + activates that instance, even if you've never seen it before.
+ */
+export const INSTANCE_PARAM = "i";
+
+/** Read a valid distribution-manager address out of a URL query string. */
+export function instanceParam(search: string): Address | null {
+  try {
+    const raw = new URLSearchParams(search).get(INSTANCE_PARAM);
+    return raw && isAddress(raw) ? (getAddress(raw) as Address) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Absolute, shareable link that opens the app pointed at a specific instance.
+ * Includes the deploy-time base path (e.g. `/crowdstake.fun` on GitHub Pages),
+ * so the link works verbatim on whatever host the app is served from.
+ */
+export function instanceShareUrl(distributionManager: Address): string {
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}${base}/app/?${INSTANCE_PARAM}=${distributionManager}`;
+}
+
+/**
+ * Censorship-resistant eth.limo link for an instance — the app served from IPFS
+ * via an ENS `contenthash`, addressed by the instance's distribution manager.
+ * Returns null unless a NEXT_PUBLIC_ENS_HOST (e.g. "crowdstake.eth") is set at
+ * build time, so the GitHub Pages build simply omits it.
+ */
+export function instanceEthLimoUrl(
+  distributionManager: Address,
+): string | null {
+  const host = process.env.NEXT_PUBLIC_ENS_HOST;
+  if (!host) return null;
+  return `https://${host}.limo/app/?${INSTANCE_PARAM}=${distributionManager}`;
+}
 
 const client = createPublicClient({ chain: gnosis, transport: http(RPC_URL) });
 

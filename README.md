@@ -46,6 +46,47 @@ default in `src/lib/constants.ts` (override with `NEXT_PUBLIC_*` env vars):
 Deploy your own instance with `contracts/script/DeployGnosis.s.sol` (see the env
 vars documented at the top of that script).
 
+## Every instance gets its own page
+
+The dapp is one static bundle that resolves any instance client-side, so every
+deployed instance has a standalone shareable link:
+
+```
+https://<host>/app/?i=<distributionManager>
+```
+
+Opening it resolves the instance on-chain (wiring + artwork + governance kind)
+and boots straight into it — no registry, no backend. The deploy-success screen
+shows the link plus a QR code.
+
+### Decentralized hosting (IPFS + ENS / eth.limo)
+
+The **Publish to IPFS** workflow (`deploy-ipfs.yml`, manual dispatch) builds the
+root-served bundle (`pnpm build:ipfs`, empty base path) and pins it via
+[Storacha](https://storacha.network) (repo secrets `STORACHA_PRINCIPAL` +
+`STORACHA_PROOF`). The run summary prints the CID and gateway URLs:
+
+```
+https://<CID>.ipfs.dweb.link/app/?i=<distributionManager>
+```
+
+Point an ENS name's contenthash at `ipfs://<CID>` (manual mainnet tx — no keys
+in CI) and the app is live at `https://<name>.eth.limo/…`. From there, two ways
+to a fully decentralized per-instance page:
+
+1. **Query link** — `https://<name>.eth.limo/app/?i=<dm>`; works immediately.
+2. **Branded ENS subdomain** — give an instance its own name (e.g.
+   `acme.crowdstake.eth`): set its text record `crowdstake.instance` to the
+   instance's distribution-manager address and its contenthash to the same CID.
+   The app detects the ENS host at load (`src/lib/ens.ts`, resolved via an
+   Ethereum-mainnet RPC, `NEXT_PUBLIC_ENS_RPC_URL`) and boots that instance at
+   `https://acme.crowdstake.eth.limo` — a memorable, fully on-chain page.
+
+Only origin-isolated hosts are supported (eth.limo, `<CID>.ipfs.dweb.link`);
+path gateways (`/ipfs/<CID>/…`) break absolute asset paths and share origins.
+Set the repo var `NEXT_PUBLIC_ENS_HOST` (e.g. `crowdstake.eth`) to surface the
+eth.limo link in the share card.
+
 ## Releases
 
 Contracts are released independently — see [GitHub Releases](https://github.com/BreadchainCoop/crowdstake.fun/releases) (latest: `v0.0.2`).
