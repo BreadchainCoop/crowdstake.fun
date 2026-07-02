@@ -62,9 +62,13 @@ shows the link plus a QR code.
 ### Decentralized hosting (IPFS + ENS / eth.limo)
 
 Publish to IPFS **from the browser** — no CI, no repo secrets. Open
-`/app/publish`, sign in to [Storacha](https://storacha.network) by email (free
-tier, magic link — nothing to paste), and the running app pins itself; you get a
-CID + gateway URLs + the `ipfs://` URI for an ENS contenthash.
+`/app/publish`, pick a provider, and the running app pins itself; you get a CID,
+gateway URLs, and the `ipfs://` URI for an ENS contenthash.
+
+- **Pinata** — paste a free API key scoped to `pinFileToIPFS` (stays in the tab).
+- **Storacha** — email magic-link sign-in (IPFS + Filecoin, nothing to paste).
+  Note: its upload endpoint `up.storacha.network` can be down in DNS; use Pinata
+  when it is.
 
 Try it locally (serves the root build so self-pin works exactly as on IPFS):
 

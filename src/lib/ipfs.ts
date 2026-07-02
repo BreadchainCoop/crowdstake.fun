@@ -84,6 +84,43 @@ export function filesFromFolderInput(list: FileList | null): File[] {
     );
 }
 
+/**
+ * Pin a directory to IPFS via Pinata's REST API using a user-supplied (ideally
+ * scoped) JWT. Returns the directory CID. Every file is placed under a common
+ * root folder whose CID Pinata returns, so the site sits at the CID root —
+ * `<cid>/app/index.html`, `<cid>/_next/…` — exactly where a gateway expects it.
+ *
+ * An independent alternative to Storacha's email flow (useful when Storacha's
+ * upload endpoint is unreachable). The JWT stays in memory and is sent only to
+ * api.pinata.cloud.
+ */
+export async function pinToPinata(
+  files: File[],
+  jwt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const form = new FormData();
+  for (const f of files) form.append("file", f, `crowdstake/${f.name}`);
+  form.append("pinataMetadata", JSON.stringify({ name: "crowdstake-app" }));
+  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jwt.trim()}` },
+    body: form,
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      res.status === 401 || res.status === 403
+        ? "Pinata rejected the key (needs the pinFileToIPFS permission)."
+        : `Pinata error ${res.status}: ${body.slice(0, 200)}`,
+    );
+  }
+  const json = (await res.json()) as { IpfsHash?: string };
+  if (!json.IpfsHash) throw new Error("Pinata returned no CID.");
+  return json.IpfsHash;
+}
+
 /** Gateway + ENS URLs for a freshly pinned directory CID. */
 export function ipfsUrls(cid: string) {
   return {

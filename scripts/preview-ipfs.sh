@@ -37,14 +37,15 @@ cat <<EOF
   Test the IPFS publish flow:
     1. Open  ${URL}/app/publish/
     2. Leave "What to publish" on "This running app" (self-pin).
-    3. Enter your email → Publish to IPFS.
-    4. Click the Storacha link in your inbox (pick the FREE plan if prompted).
-    5. It uploads, then shows a CID + gateway URLs.
-    6. Verify it: open  https://<CID>.ipfs.dweb.link/app/
+    3. Pin with "Pinata" (works today): paste a free API key scoped to
+       pinFileToIPFS from https://app.pinata.cloud/developers/api-keys
+       → Publish to IPFS.
+    4. It uploads, then shows a CID + gateway URLs.
+    5. Verify it: open  https://<CID>.ipfs.dweb.link/app/
        and a specific instance:  https://<CID>.ipfs.dweb.link/app/?i=<distributionManager>
 
-  (First run needs a free Storacha account — the email step creates it.
-   No account? Sign up at https://console.storacha.network first.)
+  (Storacha is the other provider, but its upload endpoint up.storacha.network
+   is currently unreachable in DNS — use Pinata until it's back.)
 
   Ctrl-C to stop.
 

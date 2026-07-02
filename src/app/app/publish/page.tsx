@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+// Type-only — erased at build, so @storacha/client stays a lazy runtime import.
+import type { create as storachaCreate } from "@storacha/client";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { Body, Button, Caption } from "@breadcoop/ui";
@@ -20,6 +22,7 @@ import {
   collectSelfFiles,
   filesFromFolderInput,
   ipfsUrls,
+  pinToPinata,
 } from "@/lib/ipfs";
 import { copyToClipboard, cn } from "@/lib/utils";
 import { ENS_HOST } from "@/lib/constants";
@@ -117,7 +120,9 @@ function Publish() {
     canSelfPin ? "self" : "folder",
   );
   const [folder, setFolder] = useState<File[]>([]);
+  const [provider, setProvider] = useState<"pinata" | "storacha">("pinata");
   const [email, setEmail] = useState("");
+  const [pinataJwt, setPinataJwt] = useState("");
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [cid, setCid] = useState<string | null>(null);
@@ -155,17 +160,27 @@ function Publish() {
         throw new Error("Choose your out/ folder first.");
       }
 
-      // 1. Storacha browser client — lazy-loaded so it never bloats other pages.
-      //    Creating it is local (no network), so we can decide up front whether
-      //    a sign-in is even needed.
-      phase = "Starting the uploader";
-      setStep("starting");
-      const Client = await import("@storacha/client");
-      const client = await Client.create();
-      let spaceDid = client.spaces()[0]?.did();
-      const needsLogin = !spaceDid;
-      if (needsLogin && !email.includes("@")) {
-        throw new Error("Enter your email to sign in to Storacha (free).");
+      if (provider === "pinata" && !pinataJwt.trim()) {
+        throw new Error("Paste your Pinata API key (JWT) first.");
+      }
+
+      // 1. Prepare the uploader. For Storacha, create the (local, no-network)
+      //    client up front so we can decide whether a sign-in is even needed
+      //    and fail fast on a missing email before the file gather.
+      let storacha: {
+        client: Awaited<ReturnType<typeof storachaCreate>>;
+        needsLogin: boolean;
+      } | null = null;
+      if (provider === "storacha") {
+        phase = "Starting the uploader";
+        setStep("starting");
+        const Client = await import("@storacha/client");
+        const client = await Client.create();
+        const needsLogin = !client.spaces()[0];
+        if (needsLogin && !email.includes("@")) {
+          throw new Error("Enter your email to sign in to Storacha (free).");
+        }
+        storacha = { client, needsLogin };
       }
 
       // 2. Gather the files to pin.
@@ -183,8 +198,20 @@ function Publish() {
       // The gather loop doesn't take the abort signal — honor a cancel here.
       if (abort.signal.aborted) throw new Error("Cancelled");
 
-      // 3. Sign in + create a space if we don't already have one.
-      if (needsLogin) {
+      // 3a. Pinata — one authenticated REST call with the user's key.
+      if (provider === "pinata") {
+        phase = "Uploading to Pinata";
+        setStep("uploading");
+        const root = await pinToPinata(files, pinataJwt, abort.signal);
+        setCid(root);
+        setStep("done");
+        return;
+      }
+
+      // 3b. Storacha — sign in + create a space if we don't already have one.
+      const client = storacha!.client;
+      let spaceDid = client.spaces()[0]?.did();
+      if (storacha!.needsLogin) {
         phase = "Signing in";
         setStep("awaiting-email");
         const account = await client.login(email as `${string}@${string}`, {
@@ -399,26 +426,97 @@ function Publish() {
         </div>
       )}
 
-      {/* Email (Storacha sign-in) */}
+      {/* Pinning provider */}
       <div className="mt-5">
         <Caption className="text-surface-grey-2 font-semibold">
-          Storacha email
+          Pin with
         </Caption>
-        <Body className="text-surface-grey-2 mt-1 text-sm">
-          Needed the first time on this device — we email you a link to confirm;
-          no password, no token to paste. Already published here before?
-          You&apos;re signed in and can leave this empty. Storacha stores the
-          bytes on IPFS + Filecoin (free tier).
-        </Body>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          disabled={busy}
-          className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:opacity-60"
-        />
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button
+            disabled={busy}
+            onClick={() => setProvider("pinata")}
+            className={cn(
+              "rounded-xl border p-3 text-left",
+              provider === "pinata"
+                ? "border-core-orange bg-core-orange/5"
+                : "border-paper-2 hover:border-core-orange/50",
+            )}
+          >
+            <span className="text-text-standard block text-sm font-semibold">
+              Pinata
+            </span>
+            <Caption className="text-surface-grey-2">
+              Paste a scoped API key. Works today.
+            </Caption>
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => setProvider("storacha")}
+            className={cn(
+              "rounded-xl border p-3 text-left",
+              provider === "storacha"
+                ? "border-core-orange bg-core-orange/5"
+                : "border-paper-2 hover:border-core-orange/50",
+            )}
+          >
+            <span className="text-text-standard block text-sm font-semibold">
+              Storacha
+            </span>
+            <Caption className="text-surface-grey-2">
+              Email sign-in · IPFS + Filecoin.
+            </Caption>
+          </button>
+        </div>
       </div>
+
+      {provider === "pinata" ? (
+        <div className="mt-4">
+          <Caption className="text-surface-grey-2 font-semibold">
+            Pinata API key (JWT)
+          </Caption>
+          <Body className="text-surface-grey-2 mt-1 text-sm">
+            Free account at{" "}
+            <a
+              href="https://app.pinata.cloud/developers/api-keys"
+              target="_blank"
+              rel="noreferrer"
+              className="text-core-orange underline"
+            >
+              app.pinata.cloud
+            </a>{" "}
+            → New Key, scoped to <code>pinFileToIPFS</code> only. It stays in
+            this tab (never stored) and is sent only to Pinata.
+          </Body>
+          <input
+            type="password"
+            autoComplete="off"
+            value={pinataJwt}
+            onChange={(e) => setPinataJwt(e.target.value)}
+            placeholder="eyJhbGciOi…"
+            disabled={busy}
+            className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange mt-2 w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+      ) : (
+        <div className="mt-4">
+          <Caption className="text-surface-grey-2 font-semibold">
+            Storacha email
+          </Caption>
+          <Body className="text-surface-grey-2 mt-1 text-sm">
+            Needed the first time on this device — we email you a link to
+            confirm; no password, no token to paste. Already published here
+            before? You&apos;re signed in and can leave this empty.
+          </Body>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            disabled={busy}
+            className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+      )}
 
       <div className="mt-6">
         <Button
