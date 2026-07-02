@@ -61,10 +61,20 @@ shows the link plus a QR code.
 
 ### Decentralized hosting (IPFS + ENS / eth.limo)
 
-The **Publish to IPFS** workflow (`deploy-ipfs.yml`, manual dispatch) builds the
-root-served bundle (`pnpm build:ipfs`, empty base path) and pins it via
-[Storacha](https://storacha.network) (repo secrets `STORACHA_PRINCIPAL` +
-`STORACHA_PROOF`). The run summary prints the CID and gateway URLs:
+Publish to IPFS **from the browser** — no CI, no repo secrets. Open
+`/app/publish`, sign in to [Storacha](https://storacha.network) by email (free
+tier, magic link — nothing to paste), and the running app pins itself; you get a
+CID + gateway URLs + the `ipfs://` URI for an ENS contenthash.
+
+Try it locally (serves the root build so self-pin works exactly as on IPFS):
+
+```
+pnpm preview:ipfs        # builds, serves, prints the steps → open /app/publish/
+```
+
+Prefer CI? The **Publish to IPFS** workflow (`deploy-ipfs.yml`, manual dispatch)
+does the same pin non-interactively with repo secrets `STORACHA_PRINCIPAL` +
+`STORACHA_PROOF`. Either way you get:
 
 ```
 https://<CID>.ipfs.dweb.link/app/?i=<distributionManager>

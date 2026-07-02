@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "find-deadcode": "ts-prune | grep -v '(used in module)'",
-    "prepare": "husky"
+    "prepare": "husky",
+    "preview:ipfs": "bash scripts/preview-ipfs.sh"
   },
   "dependencies": {
     "@breadcoop/ui": "^2.0.1",
