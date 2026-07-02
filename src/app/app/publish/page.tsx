@@ -26,6 +26,7 @@ import { ENS_HOST } from "@/lib/constants";
 
 type Step =
   | "idle"
+  | "starting"
   | "collecting"
   | "awaiting-email"
   | "provisioning"
@@ -125,6 +126,7 @@ function Publish() {
   const abortRef = useRef<AbortController | null>(null);
 
   const busy =
+    step === "starting" ||
     step === "collecting" ||
     step === "awaiting-email" ||
     step === "provisioning" ||
@@ -147,7 +149,26 @@ function Publish() {
     const abort = new AbortController();
     abortRef.current = abort;
     try {
-      // 1. Gather the files to pin.
+      // Cheapest checks first, so a missing folder/email fails instantly —
+      // before the (potentially slow, over-a-gateway) file gather.
+      if (source === "folder" && folder.length === 0) {
+        throw new Error("Choose your out/ folder first.");
+      }
+
+      // 1. Storacha browser client — lazy-loaded so it never bloats other pages.
+      //    Creating it is local (no network), so we can decide up front whether
+      //    a sign-in is even needed.
+      phase = "Starting the uploader";
+      setStep("starting");
+      const Client = await import("@storacha/client");
+      const client = await Client.create();
+      let spaceDid = client.spaces()[0]?.did();
+      const needsLogin = !spaceDid;
+      if (needsLogin && !email.includes("@")) {
+        throw new Error("Enter your email to sign in to Storacha (free).");
+      }
+
+      // 2. Gather the files to pin.
       phase = "Gathering files";
       setStep("collecting");
       const files =
@@ -157,26 +178,13 @@ function Publish() {
             )
           : folder;
       if (files.length === 0) {
-        throw new Error(
-          source === "folder"
-            ? "Choose your out/ folder first."
-            : "No files to publish.",
-        );
+        throw new Error("No files to publish.");
       }
       // The gather loop doesn't take the abort signal — honor a cancel here.
       if (abort.signal.aborted) throw new Error("Cancelled");
 
-      // 2. Storacha browser client — lazy-loaded so it never bloats other pages.
-      phase = "Starting the uploader";
-      const Client = await import("@storacha/client");
-      const client = await Client.create();
-
-      // 3. Reuse an existing space, else sign in by email and create one.
-      let spaceDid = client.spaces()[0]?.did();
-      if (!spaceDid) {
-        if (!email.includes("@")) {
-          throw new Error("Enter your email to sign in to Storacha.");
-        }
+      // 3. Sign in + create a space if we don't already have one.
+      if (needsLogin) {
         phase = "Signing in";
         setStep("awaiting-email");
         const account = await client.login(email as `${string}@${string}`, {
@@ -195,6 +203,7 @@ function Publish() {
         spaceDid = space.did();
       }
       phase = "Selecting your storage space";
+      if (!spaceDid) throw new Error("Could not resolve a storage space.");
       await client.setCurrentSpace(spaceDid);
 
       // 4. Upload the directory → root CID.
@@ -433,6 +442,7 @@ function Publish() {
       {busy && (
         <div className="mt-3 flex items-center justify-between gap-3">
           <Caption className="text-surface-grey-2 block">
+            {step === "starting" && "Starting the uploader…"}
             {step === "collecting" &&
               `Gathering the app files… ${progress.done}/${progress.total}`}
             {step === "awaiting-email" &&
