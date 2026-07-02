@@ -248,7 +248,19 @@ function Publish() {
         return;
       }
       const msg = e instanceof Error ? e.message : String(e);
-      setError(`${phase} failed: ${msg}`);
+      // Storacha's upload endpoint (up.storacha.network) has periods of being
+      // unreachable in DNS; a bare "Failed to fetch" is unhelpful, so point the
+      // user at the provider that works.
+      if (
+        provider === "storacha" &&
+        /failed to fetch|networkerror/i.test(msg)
+      ) {
+        setError(
+          "Storacha's upload service looks unreachable right now. Switch the provider to Pinata above and try again.",
+        );
+      } else {
+        setError(`${phase} failed: ${msg}`);
+      }
       setStep("error");
     } finally {
       abortRef.current = null;
