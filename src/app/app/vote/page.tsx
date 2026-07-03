@@ -16,7 +16,8 @@ import { useRecipients } from "@/hooks/use-recipients";
 import { useVote, useVotingState } from "@/hooks/use-voting";
 import { useCycle } from "@/hooks/use-cycle";
 import { shortenAddress } from "@/lib/format";
-import { addressUrl } from "@/lib/constants";
+import { addressUrl } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 
 export default function VotePage() {
@@ -33,6 +34,7 @@ export default function VotePage() {
 
 function VoteForm() {
   const fmt = useAmountFormatter();
+  const chainId = useActiveChainId();
   const { recipients } = useRecipients();
   const voting = useVotingState();
   const cycle = useCycle();
@@ -129,7 +131,7 @@ function VoteForm() {
             <Card key={r}>
               <div className="flex items-center justify-between">
                 <a
-                  href={addressUrl(r)}
+                  href={addressUrl(r, chainId)}
                   target="_blank"
                   rel="noreferrer"
                   className="font-breadDisplay text-text-standard hover:text-core-orange font-bold"

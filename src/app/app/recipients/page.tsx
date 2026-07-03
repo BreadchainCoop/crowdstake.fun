@@ -40,7 +40,8 @@ import {
   type Proposal,
 } from "@/hooks/use-recipient-voting";
 import { shortenAddress } from "@/lib/format";
-import { addressUrl } from "@/lib/constants";
+import { addressUrl } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
 
 export default function RecipientsPage() {
   return (
@@ -78,6 +79,7 @@ const sortAsc = (arr: Address[]) =>
   );
 
 function AdminRecipients() {
+  const chainId = useActiveChainId();
   const { isConnected } = useAccount();
   const { isAdmin } = useRegistryOwner();
   const { recipients, queuedAdditions, queuedRemovals, refetch } =
@@ -254,7 +256,7 @@ function AdminRecipients() {
                   className="flex items-center justify-between py-3"
                 >
                   <a
-                    href={addressUrl(r)}
+                    href={addressUrl(r, chainId)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-text-standard hover:text-core-orange font-mono text-sm"
@@ -437,6 +439,7 @@ function TransferAdmin({
 /* ===================== Democratic (vote-controlled) ===================== */
 
 function DemocraticRecipients() {
+  const chainId = useActiveChainId();
   const { isConnected, address } = useAccount();
   const {
     recipients,
@@ -576,7 +579,7 @@ function DemocraticRecipients() {
             {recipients.map((r) => (
               <Card key={r} className="flex items-center justify-between py-3">
                 <a
-                  href={addressUrl(r)}
+                  href={addressUrl(r, chainId)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-text-standard hover:text-core-orange font-mono text-sm"
@@ -687,7 +690,7 @@ function DemocraticRecipients() {
                 className="flex items-center justify-between py-2.5"
               >
                 <a
-                  href={addressUrl(p.candidate)}
+                  href={addressUrl(p.candidate, chainId)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-surface-grey-2 font-mono text-sm"
@@ -735,6 +738,7 @@ function ProposalCard({
   voteTx: ReturnType<typeof useVoteOnProposal>;
   execTx: ReturnType<typeof useExecuteProposal>;
 }) {
+  const chainId = useActiveChainId();
   const pct =
     p.requiredVotes > 0n
       ? Number((p.voteCount * 1000n) / p.requiredVotes) / 1000
@@ -747,7 +751,7 @@ function ProposalCard({
     <Card>
       <div className="flex items-center justify-between">
         <a
-          href={addressUrl(p.candidate)}
+          href={addressUrl(p.candidate, chainId)}
           target="_blank"
           rel="noreferrer"
           className="font-breadDisplay text-text-standard hover:text-core-orange font-bold"

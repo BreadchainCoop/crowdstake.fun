@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Logo } from "@breadcoop/ui";
 import { cn } from "@/lib/utils";
 import { useRegistryOwner } from "@/hooks/use-recipients";
 import { InstanceSwitcher } from "@/components/dapp/instance-switcher";
@@ -59,21 +58,8 @@ export function DappNav() {
   return (
     <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
       <nav className="section-container flex h-16 items-center gap-3">
-        {/* Left: brand + the active-instance selector */}
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="flex items-center gap-2"
-            aria-label="Crowdstaking home"
-          >
-            <Logo variant="square" color="orange" size={28} />
-            <span className="font-breadDisplay text-text-standard hidden text-lg font-bold xl:block">
-              Crowdstaking
-            </span>
-          </Link>
-          <span className="bg-paper-2 hidden h-6 w-px sm:block" aria-hidden />
-          <InstanceSwitcher />
-        </div>
+        {/* Left: the instance IS the brand (white-label) — its badge + name. */}
+        <InstanceSwitcher />
 
         {/* Center: page navigation (lg+) */}
         <div className="hidden flex-1 items-center justify-center gap-1 lg:flex">

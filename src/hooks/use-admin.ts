@@ -3,8 +3,7 @@
 import type { Address } from "viem";
 import { useReadContract } from "wagmi";
 import { cycleModuleAbi, tokenAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 /** Update the cycle length (blocks) for future cycles — registry/cycle owner only. */
@@ -24,23 +23,24 @@ export function useUpdateCycleLength() {
 /** Read the token's yield-claimer state (current + pending two-phase transfer). */
 export function useYieldClaimer() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const current = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "yieldClaimer",
-    chainId: CHAIN_ID,
+    chainId,
   });
   const pending = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "pendingYieldClaimer",
-    chainId: CHAIN_ID,
+    chainId,
   });
   const finishedAt = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "pendingFinishedAt",
-    chainId: CHAIN_ID,
+    chainId,
   });
   return {
     current: current.data as Address | undefined,

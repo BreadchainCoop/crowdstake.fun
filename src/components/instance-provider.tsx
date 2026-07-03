@@ -13,8 +13,10 @@ import {
 import { usePathname } from "next/navigation";
 import type { Address } from "viem";
 import {
+  CHAIN_PARAM,
   DEFAULT_INSTANCE,
   INSTANCE_PARAM,
+  chainParam,
   instanceParam,
   loadActiveManager,
   loadKnownInstances,
@@ -24,11 +26,14 @@ import {
   type InstanceAddresses,
   type KnownInstance,
 } from "@/lib/instance";
+import { DEFAULT_CHAIN_ID } from "@/lib/chains";
 import { shortenAddress } from "@/lib/format";
 
 interface InstanceContextValue {
   /** Active instance's contract addresses (what every hook reads from). */
   addresses: InstanceAddresses;
+  /** The chain the active instance lives on (what every read hook targets). */
+  chainId: number;
   /** Human label for the active instance. */
   label: string;
   /** All known instances (default + saved). */
@@ -39,7 +44,7 @@ interface InstanceContextValue {
   addInstance: (instance: KnownInstance) => void;
   /** Remove a custom instance (the built-in default can't be removed). */
   removeInstance: (distributionManager: Address) => void;
-  /** True while a shared `?i=` link or ENS host is being resolved on-chain. */
+  /** True while a shared `?i=` link is being resolved on-chain. */
   resolving: boolean;
 }
 
@@ -75,17 +80,17 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
       );
 
     // Switch to a distribution manager: activate if known, else resolve its
-    // full instance on-chain, remember it, then activate.
-    const activate = async (dm: Address) => {
+    // full instance on-chain (on `chainId`), remember it, then activate.
+    const activate = async (dm: Address, chainId: number) => {
       if (inList(dm)) {
         if (cancelled) return;
         setActiveManager(dm);
         saveActiveManager(dm);
         return;
       }
-      const addresses = await resolveInstance(dm); // may throw
+      const addresses = await resolveInstance(dm, chainId); // may throw
       if (cancelled) return;
-      const inst = { label: shortenAddress(dm, 4), addresses };
+      const inst = { label: shortenAddress(dm, 4), chainId, addresses };
       setKnown((prev) => {
         const next = [...prev, inst];
         saveKnownInstances(next);
@@ -99,7 +104,7 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
       typeof window !== "undefined" && (pathname?.startsWith("/app") ?? false);
 
     void (async () => {
-      // 1. Shared ?i= deep link.
+      // 1. Shared ?i= (&c=<chainId>) deep link.
       const shared = onApp ? instanceParam(window.location.search) : null;
       if (shared) {
         if (inList(shared)) {
@@ -109,9 +114,10 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
           }
           return;
         }
+        const cid = chainParam(window.location.search) ?? DEFAULT_CHAIN_ID;
         setResolving(true);
         try {
-          await activate(shared);
+          await activate(shared, cid);
         } catch {
           /* unresolvable link — keep whatever's active */
         } finally {
@@ -154,11 +160,18 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
     const current = url.searchParams.get(INSTANCE_PARAM);
     const dm = active.addresses.distributionManager;
     if (isDefaultManager(dm)) {
-      if (current === null) return;
+      if (current === null && !url.searchParams.has(CHAIN_PARAM)) return;
       url.searchParams.delete(INSTANCE_PARAM);
+      url.searchParams.delete(CHAIN_PARAM);
     } else {
       if (current && current.toLowerCase() === dm.toLowerCase()) return;
       url.searchParams.set(INSTANCE_PARAM, dm);
+      // Non-default chains carry &c=; the home chain stays clean.
+      if (active.chainId !== DEFAULT_CHAIN_ID) {
+        url.searchParams.set(CHAIN_PARAM, String(active.chainId));
+      } else {
+        url.searchParams.delete(CHAIN_PARAM);
+      }
     }
     window.history.replaceState(null, "", url);
   }, [active, pathname, resolving]);
@@ -208,6 +221,7 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       addresses: active.addresses,
+      chainId: active.chainId,
       label: active.label,
       known,
       setActive,
@@ -236,4 +250,9 @@ export function useInstanceContext(): InstanceContextValue {
 /** Active instance addresses — the common case used by data hooks. */
 export function useInstance(): InstanceAddresses {
   return useInstanceContext().addresses;
+}
+
+/** The chain id every read hook should target (the active instance's chain). */
+export function useActiveChainId(): number {
+  return useInstanceContext().chainId;
 }

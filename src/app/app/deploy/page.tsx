@@ -15,9 +15,12 @@ import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { InstanceShareCard } from "@/components/dapp/instance-share-card";
+import { DurationInput } from "@/components/dapp/duration-input";
 import { useDeployInstance } from "@/hooks/use-deploy";
 import { useInstanceContext } from "@/components/instance-provider";
-import { shortenAddress } from "@/lib/format";
+import { durationToBlocks, shortenAddress } from "@/lib/format";
+import { instanceShareUrl } from "@/lib/instance";
+import { chainConfig } from "@/lib/chains";
 import { MAX_POINTS } from "@/lib/constants";
 import { isValidImageUri } from "@/lib/metadata";
 import { SafeImage } from "@/components/dapp/safe-image";
@@ -38,12 +41,22 @@ function DeployForm() {
   const { address } = useAccount();
   const router = useRouter();
   const { addInstance } = useInstanceContext();
-  const { deploy, instance, status, isBusy, isSuccess, error, hash } =
-    useDeployInstance();
+  const {
+    deploy,
+    instance,
+    chainId,
+    canDeploy: deployerAvailable,
+    status,
+    isBusy,
+    isSuccess,
+    error,
+    hash,
+  } = useDeployInstance();
+  const chain = chainConfig(chainId);
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
-  const [cycleLength, setCycleLength] = useState("17280");
+  const [cycleSeconds, setCycleSeconds] = useState(0);
   const [owner, setOwner] = useState("");
 
   const [advanced, setAdvanced] = useState(false);
@@ -63,10 +76,10 @@ function DeployForm() {
   const [expiryDays, setExpiryDays] = useState("7");
 
   const ownerValue = (owner.trim() || address || "") as string;
-  const cleanCycle = cycleLength.trim();
+  const cycleBlocks = durationToBlocks(cycleSeconds, chain.blockTimeSeconds);
   const cleanPoints = maxPoints.trim();
   const ownerValid = isAddress(ownerValue);
-  const cycleValid = /^\d+$/.test(cleanCycle) && BigInt(cleanCycle || "0") > 0n;
+  const cycleValid = cycleBlocks > 0n;
   const pointsValid =
     /^\d+$/.test(cleanPoints) && BigInt(cleanPoints || "0") > 0n;
 
@@ -86,6 +99,7 @@ function DeployForm() {
   const expiryValid = /^\d+$/.test(cleanExpiry) && Number(cleanExpiry) > 0;
 
   const canDeploy =
+    deployerAvailable &&
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
     cycleValid &&
@@ -104,12 +118,12 @@ function DeployForm() {
       ? keccak256(toHex(customSalt.trim()))
       : keccak256(
           toHex(
-            `${name.trim()}|${symbol.trim()}|${cleanCycle}|${ownerValue}|${crypto.randomUUID()}`,
+            `${name.trim()}|${symbol.trim()}|${cycleBlocks}|${ownerValue}|${crypto.randomUUID()}`,
           ),
         );
     void deploy({
       owner: ownerValue as Address,
-      cycleLength: BigInt(cleanCycle),
+      cycleLength: cycleBlocks,
       tokenName: name.trim(),
       tokenSymbol: symbol.trim(),
       maxVotingPoints: BigInt(cleanPoints),
@@ -141,6 +155,7 @@ function DeployForm() {
         <div className="mt-4">
           <InstanceShareCard
             distributionManager={instance.distributionManager}
+            chainId={chainId}
           />
         </div>
 
@@ -152,9 +167,12 @@ function DeployForm() {
           onClick={() => {
             addInstance({
               label: symbol.trim() || "New instance",
+              chainId,
               addresses: instance,
             });
-            router.push(`/app/?i=${instance.distributionManager}`);
+            router.push(
+              instanceShareUrl(instance.distributionManager, chainId),
+            );
           }}
         >
           Use this instance
@@ -210,16 +228,19 @@ function DeployForm() {
       <Field label="Token symbol">
         <Input value={symbol} onChange={setSymbol} placeholder="ACME" />
       </Field>
-      <Field label="Cycle length (blocks, ~5s each on Gnosis)">
-        <Input
-          value={cycleLength}
-          onChange={setCycleLength}
-          placeholder="17280"
-        />
-        {!cycleValid && cycleLength !== "" && (
-          <Caption className="text-system-red mt-1 block">
-            Must be a positive integer.
+      <Field label="Cycle length">
+        <DurationInput onChange={setCycleSeconds} />
+        {cycleValid ? (
+          <Caption className="text-surface-grey mt-1 block">
+            ≈ {cycleBlocks.toString()} blocks on {chain.chain.name} (
+            {chain.blockTimeSeconds}s/block).
           </Caption>
+        ) : (
+          cycleSeconds > 0 && (
+            <Caption className="text-system-red mt-1 block">
+              Enter a positive duration.
+            </Caption>
+          )
         )}
       </Field>
       <Field label="Owner / admin (defaults to you)">

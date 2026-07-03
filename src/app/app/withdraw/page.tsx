@@ -7,6 +7,7 @@ import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { formatAmount, parseAmount } from "@/lib/format";
+import { useNativeSymbol } from "@/hooks/use-chain";
 import {
   useInstanceToken,
   useTokenBalance,
@@ -15,11 +16,12 @@ import {
 
 export default function WithdrawPage() {
   const { symbol } = useInstanceToken();
+  const nativeSym = useNativeSymbol();
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Withdraw"
-        subtitle={`Burn ${symbol} to redeem your xDAI principal 1:1. Your stake is always fully withdrawable.`}
+        subtitle={`Burn ${symbol} to redeem your ${nativeSym} principal 1:1. Your stake is always fully withdrawable.`}
       />
       <WithdrawForm />
     </div>
@@ -29,6 +31,7 @@ export default function WithdrawPage() {
 function WithdrawForm() {
   const [amount, setAmount] = useState("");
   const { symbol } = useInstanceToken();
+  const nativeSym = useNativeSymbol();
   const balance = useTokenBalance();
   const { withdraw, ...tx } = useWithdraw();
 
@@ -58,7 +61,7 @@ function WithdrawForm() {
       <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
         <Caption className="text-surface-grey-2">You receive</Caption>
         <span className="font-breadDisplay text-text-standard font-bold">
-          {parsed ? formatAmount(parsed) : "0"} xDAI
+          {parsed ? formatAmount(parsed) : "0"} {nativeSym}
         </span>
       </div>
 
@@ -74,7 +77,7 @@ function WithdrawForm() {
           disabled={disabled}
           onClick={() => parsed && withdraw(parsed)}
         >
-          Withdraw to xDAI
+          Withdraw to {nativeSym}
         </ActionButton>
       </div>
 

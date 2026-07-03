@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { useNativeBalance, useTokenBalance } from "@/hooks/use-token";
 import { useVotingState } from "@/hooks/use-voting";
+import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 import { cn } from "@/lib/utils";
 
 type Nudge = {
@@ -32,29 +33,29 @@ export function OnboardingBanner() {
   const balance = useTokenBalance();
   const native = useNativeBalance();
   const { hasVoted } = useVotingState();
+  const nativeSym = useNativeSymbol();
+  const chainName = useActiveChain().chain.name;
 
   if (!isConnected) return null;
   const bal = balance.data;
-  const xdai = native.data?.value;
+  const nativeBal = native.data?.value;
   if (bal === undefined) return null; // still loading — don't flash a wrong nudge
 
   let nudge: Nudge;
   if (bal === 0n) {
     nudge =
-      xdai && xdai > 0n
+      nativeBal && nativeBal > 0n
         ? {
             tone: "action",
             icon: HandCoins,
-            message:
-              "You have xDAI ready. Deposit to start earning yield and get voting power.",
+            message: `You have ${nativeSym} ready. Deposit to start earning yield and get voting power.`,
             href: "/app/deposit",
             cta: "Deposit",
           }
         : {
             tone: "action",
             icon: Sparkle,
-            message:
-              "Add some xDAI on Gnosis, then deposit to join this instance.",
+            message: `Add some ${nativeSym} on ${chainName}, then deposit to join this instance.`,
           };
   } else if (!hasVoted) {
     nudge = {

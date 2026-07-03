@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Button } from "@breadcoop/ui";
-import { CHAIN, CHAIN_ID } from "@/lib/constants";
+import { useActiveChain } from "@/hooks/use-chain";
 
 type Variant = "primary" | "secondary" | "destructive";
 
@@ -31,6 +31,7 @@ export function ActionButton({
   const { isConnected, chainId } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { switchChain, isPending } = useSwitchChain();
+  const target = useActiveChain().chain;
 
   if (!isConnected) {
     return (
@@ -45,16 +46,16 @@ export function ActionButton({
     );
   }
 
-  if (chainId !== CHAIN_ID) {
+  if (chainId !== target.id) {
     return (
       <Button
         app="fund"
         variant="primary"
         className={className}
         isLoading={isPending}
-        onClick={() => switchChain({ chainId: CHAIN_ID })}
+        onClick={() => switchChain({ chainId: target.id })}
       >
-        Switch to {CHAIN.name}
+        Switch to {target.name}
       </Button>
     );
   }

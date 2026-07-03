@@ -19,6 +19,7 @@ import { useDistributionReady } from "@/hooks/use-distribution";
 import { useIsRecipient } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
@@ -30,6 +31,8 @@ export default function PortfolioPage() {
   const isRecipient = useIsRecipient();
   const { symbol: tokenSymbol } = useInstanceToken();
   const fmt = useAmountFormatter();
+  const nativeSym = useNativeSymbol();
+  const { blockTimeSeconds } = useActiveChain();
 
   return (
     <div>
@@ -54,7 +57,7 @@ export default function PortfolioPage() {
         <StatCard
           label={`Your ${tokenSymbol}`}
           value={`${fmt(balance.data)} ${tokenSymbol}`}
-          sub="Redeemable 1:1 for xDAI"
+          sub={`Redeemable 1:1 for ${nativeSym}`}
           accent
         />
         <StatCard
@@ -63,8 +66,8 @@ export default function PortfolioPage() {
           sub="Delegated automatically on deposit"
         />
         <StatCard
-          label="Wallet xDAI"
-          value={`${formatAmount(native.data?.value)} xDAI`}
+          label={`Wallet ${nativeSym}`}
+          value={`${formatAmount(native.data?.value)} ${nativeSym}`}
           sub="Available to deposit"
         />
       </div>
@@ -78,7 +81,7 @@ export default function PortfolioPage() {
           <Caption className="text-surface-grey-2">
             {cycle.isComplete
               ? "Cycle complete — distribution can run"
-              : `${cycle.blocksUntilNext.toString()} blocks left (${blocksToDuration(cycle.blocksUntilNext)})`}
+              : `${blocksToDuration(cycle.blocksUntilNext, blockTimeSeconds)} left`}
           </Caption>
         </div>
         <div className="mt-3">

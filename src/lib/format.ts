@@ -45,15 +45,33 @@ export function formatPercent(fraction: number, frac = 1): string {
   })}%`;
 }
 
-/** ~human duration for a number of Gnosis blocks (≈5s each). */
-export function blocksToDuration(blocks: bigint | number): string {
+/** ~human string for a duration in seconds (e.g. "~3h", "~2 days"). */
+export function formatDuration(seconds: number): string {
+  if (seconds <= 0) return "ready";
+  if (seconds < 60) return `~${Math.round(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `~${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  if (hours < 48) return `~${Math.round(hours)}h`;
+  const days = hours / 24;
+  return `~${Math.round(days)} day${Math.round(days) === 1 ? "" : "s"}`;
+}
+
+/** ~human duration for a number of blocks, given the chain's block time. */
+export function blocksToDuration(
+  blocks: bigint | number,
+  blockTimeSeconds: number,
+): string {
   const b = Number(blocks);
   if (b <= 0) return "ready";
-  const seconds = b * 5;
-  if (seconds < 60) return `~${seconds}s`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `~${minutes} min`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `~${hours}h`;
-  return `~${Math.round(hours / 24)}d`;
+  return formatDuration(b * blockTimeSeconds);
+}
+
+/** Convert a human duration (seconds) to a whole number of blocks. */
+export function durationToBlocks(
+  seconds: number,
+  blockTimeSeconds: number,
+): bigint {
+  if (!(seconds > 0) || !(blockTimeSeconds > 0)) return 0n;
+  return BigInt(Math.max(1, Math.round(seconds / blockTimeSeconds)));
 }

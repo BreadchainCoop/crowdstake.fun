@@ -2,8 +2,7 @@
 
 import { useAccount, useReadContract } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
@@ -15,34 +14,35 @@ const LIVE = { refetchInterval: 12_000 } as const;
  */
 export function useVotingState() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
 
   const distribution = useReadContract({
     address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "getCurrentVotingDistribution",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const expectedPointsLength = useReadContract({
     address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "getExpectedPointsLength",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const maxPoints = useReadContract({
     address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "maxPoints",
-    chainId: CHAIN_ID,
+    chainId,
   });
   const hasVoted = useReadContract({
     address: a.votingModule,
     abi: votingModuleAbi,
     functionName: "hasVotedInCurrentCycle",
     args: address ? [address] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(address), ...LIVE },
   });
   const power = useReadContract({
@@ -50,7 +50,7 @@ export function useVotingState() {
     abi: votingPowerAbi,
     functionName: "getCurrentVotingPower",
     args: address ? [address] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(address), ...LIVE },
   });
 

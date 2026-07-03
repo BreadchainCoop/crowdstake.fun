@@ -3,8 +3,7 @@
 import type { Address } from "viem";
 import { useAccount, useReadContract } from "wagmi";
 import { recipientRegistryAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 15_000 } as const;
@@ -12,25 +11,26 @@ const LIVE = { refetchInterval: 15_000 } as const;
 /** Active recipients + pending queue (additions/removals). */
 export function useRecipients() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const recipients = useReadContract({
     address: a.recipientRegistry,
     abi: recipientRegistryAbi,
     functionName: "getRecipients",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const queuedAdditions = useReadContract({
     address: a.recipientRegistry,
     abi: recipientRegistryAbi,
     functionName: "getQueuedAdditions",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const queuedRemovals = useReadContract({
     address: a.recipientRegistry,
     abi: recipientRegistryAbi,
     functionName: "getQueuedRemovals",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   return {
@@ -48,6 +48,7 @@ export function useRecipients() {
 
 export function useIsRecipient(account?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const who = account ?? address;
   return useReadContract({
@@ -55,7 +56,7 @@ export function useIsRecipient(account?: Address) {
     abi: recipientRegistryAbi,
     functionName: "isRecipient",
     args: who ? [who] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(who) },
   });
 }
@@ -63,12 +64,13 @@ export function useIsRecipient(account?: Address) {
 /** Registry admin (owner) — used to gate the admin UI. */
 export function useRegistryOwner() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const owner = useReadContract({
     address: a.recipientRegistry,
     abi: recipientRegistryAbi,
     functionName: "owner",
-    chainId: CHAIN_ID,
+    chainId,
   });
   return {
     owner: owner.data as Address | undefined,

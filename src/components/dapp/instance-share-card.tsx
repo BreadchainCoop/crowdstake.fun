@@ -68,10 +68,12 @@ function LinkRow({
  */
 export function InstanceShareCard({
   distributionManager,
+  chainId,
 }: {
   distributionManager: Address;
+  chainId?: number;
 }) {
-  const shareUrl = instanceShareUrl(distributionManager);
+  const shareUrl = instanceShareUrl(distributionManager, chainId);
 
   return (
     <div className="border-core-orange/30 bg-core-orange/5 rounded-xl border p-4">

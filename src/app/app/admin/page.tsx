@@ -23,7 +23,13 @@ import {
   useYieldClaimer,
   useYieldClaimerAdmin,
 } from "@/hooks/use-admin";
-import { shortenAddress, blocksToDuration } from "@/lib/format";
+import {
+  shortenAddress,
+  blocksToDuration,
+  durationToBlocks,
+} from "@/lib/format";
+import { DurationInput } from "@/components/dapp/duration-input";
+import { useActiveChain } from "@/hooks/use-chain";
 
 export default function AdminPage() {
   return (
@@ -247,16 +253,14 @@ function InstanceMetadataCard() {
 
 function CycleLength() {
   const cycle = useCycle();
+  const { blockTimeSeconds } = useActiveChain();
   const { update, ...tx } = useUpdateCycleLength();
-  const [blocks, setBlocks] = useState("");
-  const valid =
-    /^\d+$/.test(blocks.trim()) && BigInt(blocks.trim() || "0") > 0n;
+  const [seconds, setSeconds] = useState(0);
+  const blocks = durationToBlocks(seconds, blockTimeSeconds);
+  const valid = blocks > 0n;
 
   useEffect(() => {
-    if (tx.isSuccess) {
-      cycle.refetch();
-      setBlocks("");
-    }
+    if (tx.isSuccess) cycle.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tx.isSuccess]);
 
@@ -266,27 +270,29 @@ function CycleLength() {
       <Body className="text-surface-grey-2 mt-1">
         Current:{" "}
         <span className="text-text-standard font-semibold">
-          {cycle.cycleLength?.toString() ?? "—"} blocks
-        </span>{" "}
-        ({cycle.cycleLength ? blocksToDuration(cycle.cycleLength) : "—"})
+          {cycle.cycleLength
+            ? blocksToDuration(cycle.cycleLength, blockTimeSeconds)
+            : "—"}
+        </span>
       </Body>
-      <div className="mt-3 flex gap-2">
-        <input
-          value={blocks}
-          onChange={(e) => setBlocks(e.target.value)}
-          placeholder="new length in blocks"
-          className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 outline-none"
-        />
-        <Button
-          app="fund"
-          variant="primary"
-          isLoading={tx.isBusy}
-          onClick={() => valid && update(BigInt(blocks.trim()))}
-          {...(!valid ? { disabled: true } : {})}
-        >
-          Update
-        </Button>
+      <div className="mt-3">
+        <DurationInput onChange={setSeconds} disabled={tx.isBusy} />
       </div>
+      {valid && (
+        <Caption className="text-surface-grey mt-1 block">
+          ≈ {blocks.toString()} blocks at {blockTimeSeconds}s/block.
+        </Caption>
+      )}
+      <Button
+        app="fund"
+        variant="primary"
+        className="mt-3"
+        isLoading={tx.isBusy}
+        onClick={() => valid && update(blocks)}
+        {...(!valid ? { disabled: true } : {})}
+      >
+        Update
+      </Button>
       <Caption className="text-surface-grey mt-1 block">
         Applies immediately — it changes when the current cycle ends.
       </Caption>

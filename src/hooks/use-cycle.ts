@@ -2,16 +2,16 @@
 
 import { useBlockNumber, useReadContract } from "wagmi";
 import { cycleModuleAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 
 const LIVE = { refetchInterval: 12_000 } as const;
 
 /** Current cycle status: number, length, progress, blocks remaining. */
 export function useCycle() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { data: blockNumber } = useBlockNumber({
-    chainId: CHAIN_ID,
+    chainId,
     watch: true,
   });
 
@@ -19,34 +19,34 @@ export function useCycle() {
     address: a.cycleModule,
     abi: cycleModuleAbi,
     functionName: "getCurrentCycle",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const length = useReadContract({
     address: a.cycleModule,
     abi: cycleModuleAbi,
     functionName: "cycleLength",
-    chainId: CHAIN_ID,
+    chainId,
   });
   const lastStart = useReadContract({
     address: a.cycleModule,
     abi: cycleModuleAbi,
     functionName: "lastCycleStartBlock",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const complete = useReadContract({
     address: a.cycleModule,
     abi: cycleModuleAbi,
     functionName: "isCycleComplete",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const blocksLeft = useReadContract({
     address: a.cycleModule,
     abi: cycleModuleAbi,
     functionName: "getBlocksUntilNextCycle",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
 

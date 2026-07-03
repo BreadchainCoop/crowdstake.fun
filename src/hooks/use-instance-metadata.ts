@@ -2,8 +2,7 @@
 
 import { useReadContract } from "wagmi";
 import { instanceMetadataAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 /**
@@ -13,7 +12,8 @@ import { useTx } from "@/hooks/use-tx";
  */
 export function useInstanceMetadata() {
   const a = useInstance();
-  const query = { chainId: CHAIN_ID, query: { retry: false } } as const;
+  const chainId = useActiveChainId();
+  const query = { chainId, query: { retry: false } } as const;
   const tokenImage = useReadContract({
     address: a.distributionManager,
     abi: instanceMetadataAbi,

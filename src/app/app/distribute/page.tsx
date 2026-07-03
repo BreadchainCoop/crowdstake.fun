@@ -134,9 +134,9 @@ function Distribute() {
       </Card>
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Distribution claims the protocol&apos;s accrued sDAI yield as freshly
-        minted {symbol}, splits it across recipients proportionally to their
-        votes, and starts a new cycle — all in one transaction.
+        Distribution claims the protocol&apos;s accrued yield as freshly minted{" "}
+        {symbol}, splits it across recipients proportionally to their votes, and
+        starts a new cycle — all in one transaction.
       </Body>
     </div>
   );

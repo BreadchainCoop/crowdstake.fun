@@ -2,18 +2,18 @@
 
 import { useReadContract } from "wagmi";
 import { distributionManagerAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 /** Whether the protocol can run a distribution right now (all gates satisfied). */
 export function useDistributionReady() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const ready = useReadContract({
     address: a.distributionManager,
     abi: distributionManagerAbi,
     functionName: "isDistributionReady",
-    chainId: CHAIN_ID,
+    chainId,
     query: { refetchInterval: 12_000 },
   });
   return {

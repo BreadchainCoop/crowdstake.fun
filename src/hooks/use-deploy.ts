@@ -2,9 +2,13 @@
 
 import { useMemo } from "react";
 import { decodeEventLog, type Address, type Hex } from "viem";
-import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import {
+  useChainId,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { deployerAbi } from "@/lib/abis";
-import { DEPLOYER } from "@/lib/constants";
+import { chainConfig } from "@/lib/chains";
 import { parseTxError } from "@/hooks/use-tx";
 import type { InstanceAddresses } from "@/lib/instance";
 
@@ -29,6 +33,9 @@ export interface DeployParams {
  * then surface the resulting seven addresses (decoded from SystemDeployed).
  */
 export function useDeployInstance() {
+  // Deploying is a write on the wallet's CURRENT chain — use its deployer.
+  const chainId = useChainId();
+  const deployer = chainConfig(chainId).deployer;
   const {
     writeContractAsync,
     data: hash,
@@ -41,7 +48,7 @@ export function useDeployInstance() {
     isLoading: isConfirming,
     isSuccess,
     error: receiptError,
-  } = useWaitForTransactionReceipt({ hash });
+  } = useWaitForTransactionReceipt({ hash, chainId });
 
   const instance = useMemo<InstanceAddresses | null>(() => {
     if (!receipt) return null;
@@ -82,9 +89,15 @@ export function useDeployInstance() {
   }, [receipt]);
 
   const deploy = async (p: DeployParams) => {
+    if (!deployer) {
+      throw new Error(
+        `${chainConfig(chainId).chain.name} isn't supported for deploys yet — switch to a supported chain.`,
+      );
+    }
     try {
       return await writeContractAsync({
-        address: DEPLOYER,
+        chainId,
+        address: deployer,
         abi: deployerAbi,
         functionName: "deploy",
         args: [
@@ -123,6 +136,10 @@ export function useDeployInstance() {
     deploy,
     hash,
     instance,
+    /** The chain the instance is being deployed on (the wallet's chain). */
+    chainId,
+    /** Whether this chain has a deployer (else deploys are unavailable). */
+    canDeploy: Boolean(deployer),
     status,
     isBusy: isSigning || isConfirming,
     isSuccess,

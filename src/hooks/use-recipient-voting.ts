@@ -4,8 +4,7 @@ import { useMemo } from "react";
 import { type Address } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import { votingRecipientRegistryAbi } from "@/lib/abis";
-import { CHAIN_ID } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
@@ -34,12 +33,13 @@ const kindCache = new Map<string, "admin" | "voting">();
  */
 export function useRegistryKind(): { kind: RegistryKind; isLoading: boolean } {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const key = a.recipientRegistry.toLowerCase();
   const probe = useReadContract({
     address: a.recipientRegistry,
     abi: votingRecipientRegistryAbi,
     functionName: "proposalExpiry",
-    chainId: CHAIN_ID,
+    chainId,
     query: { retry: 1, staleTime: Infinity },
   });
 
@@ -67,11 +67,12 @@ export function useRegistryKind(): { kind: RegistryKind; isLoading: boolean } {
 /** The democratic registry's proposal-expiry window (seconds). */
 export function useProposalExpiry() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const r = useReadContract({
     address: a.recipientRegistry,
     abi: votingRecipientRegistryAbi,
     functionName: "proposalExpiry",
-    chainId: CHAIN_ID,
+    chainId,
   });
   return r.data as bigint | undefined;
 }
@@ -79,11 +80,12 @@ export function useProposalExpiry() {
 /** All proposals (newest first), read via proposalCount + batched getProposal. */
 export function useProposals() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const count = useReadContract({
     address: a.recipientRegistry,
     abi: votingRecipientRegistryAbi,
     functionName: "proposalCount",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const n = count.data ? Number(count.data) : 0;
@@ -95,9 +97,9 @@ export function useProposals() {
         abi: votingRecipientRegistryAbi,
         functionName: "getProposal" as const,
         args: [BigInt(i)] as const,
-        chainId: CHAIN_ID,
+        chainId,
       })),
-    [a.recipientRegistry, n],
+    [a.recipientRegistry, chainId, n],
   );
   const reads = useReadContracts({
     contracts,
@@ -150,6 +152,7 @@ export function useProposals() {
 /** Per-proposal voter state for the connected account (batched). */
 export function useProposalsMeta(proposals: Proposal[], voter?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const contracts = useMemo(() => {
     if (!voter) return [];
     return proposals.flatMap((p) => [
@@ -158,17 +161,17 @@ export function useProposalsMeta(proposals: Proposal[], voter?: Address) {
         abi: votingRecipientRegistryAbi,
         functionName: "hasVoted" as const,
         args: [BigInt(p.id), voter] as const,
-        chainId: CHAIN_ID,
+        chainId,
       },
       {
         address: a.recipientRegistry,
         abi: votingRecipientRegistryAbi,
         functionName: "isEligibleVoter" as const,
         args: [BigInt(p.id), voter] as const,
-        chainId: CHAIN_ID,
+        chainId,
       },
     ]);
-  }, [a.recipientRegistry, proposals, voter]);
+  }, [a.recipientRegistry, chainId, proposals, voter]);
 
   const reads = useReadContracts({
     contracts,

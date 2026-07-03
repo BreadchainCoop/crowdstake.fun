@@ -6,7 +6,8 @@ import {
   SpinnerGap,
   ArrowSquareOut,
 } from "@phosphor-icons/react";
-import { txUrl } from "@/lib/constants";
+import { txUrl } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
 import type { TxStatus as TxStatusValue } from "@/hooks/use-tx";
 
 /** Inline feedback line for a transaction (signing → confirming → success/error). */
@@ -21,6 +22,7 @@ export function TxStatus({
   error?: string | null;
   successLabel?: string;
 }) {
+  const chainId = useActiveChainId();
   if (status === "idle") return null;
 
   if (status === "error") {
@@ -39,7 +41,7 @@ export function TxStatus({
         {successLabel}
         {hash && (
           <a
-            href={txUrl(hash)}
+            href={txUrl(hash, chainId)}
             target="_blank"
             rel="noreferrer"
             className="text-core-orange inline-flex items-center gap-1 hover:underline"

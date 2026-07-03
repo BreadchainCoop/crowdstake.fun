@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useChainId } from "wagmi";
 import { isAddress, type Address } from "viem";
 import {
   CaretDown,
@@ -19,6 +20,7 @@ import {
   instanceShareUrl,
   resolveInstance,
 } from "@/lib/instance";
+import { DEFAULT_CHAIN_ID, isSupportedChain } from "@/lib/chains";
 import { shortenAddress } from "@/lib/format";
 import { cn, copyToClipboard } from "@/lib/utils";
 
@@ -48,6 +50,11 @@ export function InstanceSwitcher() {
   } = useInstanceContext();
   const defaultDm =
     DEFAULT_INSTANCE.addresses.distributionManager.toLowerCase();
+  // Add "by address" resolves on the wallet's connected chain (else home chain).
+  const walletChainId = useChainId();
+  const addChainId = isSupportedChain(walletChainId)
+    ? walletChainId
+    : DEFAULT_CHAIN_ID;
   const [open, setOpen] = useState(false);
   const [addr, setAddr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,8 +69,12 @@ export function InstanceSwitcher() {
     setBusy(true);
     setErr(null);
     try {
-      const resolved = await resolveInstance(addr as Address);
-      addInstance({ label: shortenAddress(addr, 4), addresses: resolved });
+      const resolved = await resolveInstance(addr as Address, addChainId);
+      addInstance({
+        label: shortenAddress(addr, 4),
+        chainId: addChainId,
+        addresses: resolved,
+      });
       setAddr("");
       setOpen(false);
     } catch {
@@ -73,8 +84,8 @@ export function InstanceSwitcher() {
     }
   };
 
-  const onCopy = async (dm: Address) => {
-    if (await copyToClipboard(instanceShareUrl(dm))) {
+  const onCopy = async (dm: Address, chainId: number) => {
+    if (await copyToClipboard(instanceShareUrl(dm, chainId))) {
       setCopied(dm.toLowerCase());
       setTimeout(() => setCopied(null), 1600);
     }
@@ -151,7 +162,7 @@ export function InstanceSwitcher() {
                     )}
                   </button>
                   <button
-                    onClick={() => onCopy(dm)}
+                    onClick={() => onCopy(dm, inst.chainId)}
                     aria-label="Copy shareable link"
                     title="Copy shareable link"
                     className={cn(

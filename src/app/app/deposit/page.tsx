@@ -9,22 +9,24 @@ import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
 import { parseAmount } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 import {
-  useApproveWxdai,
+  useApproveWrapped,
   useDeposit,
   useInstanceToken,
   useNativeBalance,
   useTokenBalance,
-  useWxdai,
+  useWrapped,
 } from "@/hooks/use-token";
 
 export default function DepositPage() {
   const { symbol } = useInstanceToken();
+  const native = useNativeSymbol();
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Deposit"
-        subtitle={`Stake xDAI to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
+        subtitle={`Stake ${native} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
       />
       <DepositForm />
     </div>
@@ -32,22 +34,25 @@ export default function DepositPage() {
 }
 
 function DepositForm() {
-  const [mode, setMode] = useState<"native" | "wxdai">("native");
+  const [mode, setMode] = useState<"native" | "wrapped">("native");
   const [amount, setAmount] = useState("");
 
   const { symbol } = useInstanceToken();
+  const nativeSym = useNativeSymbol();
+  const { wrappedToken, wrappedSymbol } = useActiveChain();
+  const hasWrapped = Boolean(wrappedToken);
   const fmt = useAmountFormatter();
   const native = useNativeBalance();
-  const wxdai = useWxdai();
+  const wrapped = useWrapped();
   const stake = useTokenBalance();
   const { deposit, ...depositTx } = useDeposit();
-  const { approve, ...approveTx } = useApproveWxdai();
+  const { approve, ...approveTx } = useApproveWrapped();
 
   const parsed = parseAmount(amount);
-  // Native deposits pay gas in xDAI too, so reserve a little for gas — otherwise
-  // a MAX deposit sends the whole balance as value and can't fund the tx.
-  const GAS_RESERVE = 10n ** 16n; // ~0.01 xDAI
-  const rawBalance = mode === "native" ? native.data?.value : wxdai.balance;
+  // Native deposits pay gas in the native token too, so reserve a little for
+  // gas — otherwise a MAX deposit sends the whole balance and can't fund the tx.
+  const GAS_RESERVE = 10n ** 16n; // ~0.01 of the native token
+  const rawBalance = mode === "native" ? native.data?.value : wrapped.balance;
   const balance =
     mode === "native" && rawBalance !== undefined
       ? rawBalance > GAS_RESERVE
@@ -57,12 +62,12 @@ function DepositForm() {
   const overBalance =
     parsed !== null && balance !== undefined && parsed > balance;
   const needsApproval =
-    mode === "wxdai" && parsed !== null && (wxdai.allowance ?? 0n) < parsed;
+    mode === "wrapped" && parsed !== null && (wrapped.allowance ?? 0n) < parsed;
 
   useEffect(() => {
     if (depositTx.isSuccess) {
       void native.refetch();
-      wxdai.refetch();
+      wrapped.refetch();
       void stake.refetch();
       setAmount("");
     }
@@ -70,7 +75,7 @@ function DepositForm() {
   }, [depositTx.isSuccess]);
 
   useEffect(() => {
-    if (approveTx.isSuccess) wxdai.refetch();
+    if (approveTx.isSuccess) wrapped.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveTx.isSuccess]);
 
@@ -78,29 +83,31 @@ function DepositForm() {
 
   return (
     <Card>
-      <div className="border-paper-2 mb-5 inline-flex rounded-xl border p-1">
-        {(["native", "wxdai"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={cn(
-              "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
-              mode === m
-                ? "bg-core-orange text-white"
-                : "text-surface-grey-2 hover:text-text-standard",
-            )}
-          >
-            {m === "native" ? "xDAI (native)" : "WXDAI"}
-          </button>
-        ))}
-      </div>
+      {hasWrapped && (
+        <div className="border-paper-2 mb-5 inline-flex rounded-xl border p-1">
+          {(["native", "wrapped"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
+                mode === m
+                  ? "bg-core-orange text-white"
+                  : "text-surface-grey-2 hover:text-text-standard",
+              )}
+            >
+              {m === "native" ? `${nativeSym} (native)` : wrappedSymbol}
+            </button>
+          ))}
+        </div>
+      )}
 
       <AmountField
         label="Amount to deposit"
         value={amount}
         onChange={setAmount}
         balance={balance}
-        symbol={mode === "native" ? "xDAI" : "WXDAI"}
+        symbol={mode === "native" ? nativeSym : wrappedSymbol}
       />
 
       <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
@@ -126,7 +133,7 @@ function DepositForm() {
             else deposit({ amount: parsed, mode });
           }}
         >
-          {needsApproval ? "Approve WXDAI" : "Deposit"}
+          {needsApproval ? `Approve ${wrappedSymbol}` : "Deposit"}
         </ActionButton>
       </div>
 

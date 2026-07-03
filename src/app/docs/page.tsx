@@ -16,7 +16,11 @@ import {
   Wallet,
   ChartBar,
 } from "@phosphor-icons/react";
-import { ADDRESSES, DEPLOYER, addressUrl } from "@/lib/constants";
+import { CHAINS, DEFAULT_CHAIN_ID, addressUrl } from "@/lib/chains";
+
+const HOME = CHAINS[DEFAULT_CHAIN_ID];
+const ADDRESSES = HOME.defaultInstance!;
+const DEPLOYER = HOME.deployer!;
 
 // Static export honours NEXT_PUBLIC_BASE_PATH (e.g. /crowdstake.fun on Pages).
 // Plain <img> tags don't get it prepended automatically, so do it here.
@@ -264,7 +268,7 @@ export default function DocsPage() {
             {SYSTEM.map(([label, addr]) => (
               <a
                 key={label}
-                href={addressUrl(addr)}
+                href={addressUrl(addr, DEFAULT_CHAIN_ID)}
                 target="_blank"
                 rel="noreferrer"
                 className="hover:bg-paper-1 flex items-center justify-between gap-4 px-5 py-3.5 transition-colors"

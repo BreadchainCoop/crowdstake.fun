@@ -3,8 +3,9 @@
 import { erc20Abi, maxUint256, zeroAddress, type Address } from "viem";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { tokenAbi } from "@/lib/abis";
-import { CHAIN_ID, TOKEN_SYMBOL, WXDAI } from "@/lib/constants";
-import { useInstance } from "@/components/instance-provider";
+import { TOKEN_SYMBOL } from "@/lib/constants";
+import { chainConfig } from "@/lib/chains";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const LIVE = { refetchInterval: 12_000 } as const;
@@ -16,17 +17,18 @@ const LIVE = { refetchInterval: 12_000 } as const;
  */
 export function useInstanceToken() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const symbol = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "symbol",
-    chainId: CHAIN_ID,
+    chainId,
   });
   const name = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "name",
-    chainId: CHAIN_ID,
+    chainId,
   });
   return {
     symbol: (symbol.data as string | undefined) || TOKEN_SYMBOL,
@@ -36,6 +38,7 @@ export function useInstanceToken() {
 
 export function useTokenBalance(account?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
@@ -43,7 +46,7 @@ export function useTokenBalance(account?: Address) {
     abi: tokenAbi,
     functionName: "balanceOf",
     args: owner ? [owner] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(owner), ...LIVE },
   });
 }
@@ -51,18 +54,19 @@ export function useTokenBalance(account?: Address) {
 /** Protocol-wide token stats: total supply + accrued (claimable) yield. */
 export function useTokenStats() {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const totalSupply = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "totalSupply",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   const yieldAccrued = useReadContract({
     address: a.token,
     abi: tokenAbi,
     functionName: "yieldAccrued",
-    chainId: CHAIN_ID,
+    chainId,
     query: LIVE,
   });
   return {
@@ -78,6 +82,7 @@ export function useTokenStats() {
 
 export function useVotes(account?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
@@ -85,13 +90,14 @@ export function useVotes(account?: Address) {
     abi: tokenAbi,
     functionName: "getVotes",
     args: owner ? [owner] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(owner), ...LIVE },
   });
 }
 
 export function useDelegate(account?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const owner = account ?? address;
   return useReadContract({
@@ -99,41 +105,45 @@ export function useDelegate(account?: Address) {
     abi: tokenAbi,
     functionName: "delegates",
     args: owner ? [owner] : undefined,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(owner) },
   });
 }
 
 export function useNativeBalance(account?: Address) {
+  const chainId = useActiveChainId();
   const { address } = useAccount();
   const owner = account ?? address;
   return useBalance({
     address: owner,
-    chainId: CHAIN_ID,
+    chainId,
     query: { enabled: Boolean(owner), ...LIVE },
   });
 }
 
-/** wxDAI balance + current allowance granted to the token contract. */
-export function useWxdai(account?: Address) {
+/** Wrapped-native balance + allowance granted to the token contract. */
+export function useWrapped(account?: Address) {
   const a = useInstance();
+  const chainId = useActiveChainId();
+  const wrapped = chainConfig(chainId).wrappedToken;
   const { address } = useAccount();
   const owner = account ?? address;
+  const enabled = Boolean(owner) && Boolean(wrapped);
   const balance = useReadContract({
-    address: WXDAI,
+    address: wrapped ?? zeroAddress,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: owner ? [owner] : undefined,
-    chainId: CHAIN_ID,
-    query: { enabled: Boolean(owner), ...LIVE },
+    chainId,
+    query: { enabled, ...LIVE },
   });
   const allowance = useReadContract({
-    address: WXDAI,
+    address: wrapped ?? zeroAddress,
     abi: erc20Abi,
     functionName: "allowance",
     args: owner ? [owner, a.token] : undefined,
-    chainId: CHAIN_ID,
-    query: { enabled: Boolean(owner), ...LIVE },
+    chainId,
+    query: { enabled, ...LIVE },
   });
   return {
     balance: balance.data,
@@ -147,12 +157,14 @@ export function useWxdai(account?: Address) {
 
 /* ----------------------------- Write actions ----------------------------- */
 
-export function useApproveWxdai() {
+export function useApproveWrapped() {
   const a = useInstance();
+  const chainId = useActiveChainId();
+  const wrapped = chainConfig(chainId).wrappedToken;
   const tx = useTx();
   const approve = (amount: bigint = maxUint256) =>
     tx.run({
-      address: WXDAI,
+      address: wrapped ?? zeroAddress,
       abi: erc20Abi,
       functionName: "approve",
       args: [a.token, amount],
@@ -160,14 +172,14 @@ export function useApproveWxdai() {
   return { approve, ...tx };
 }
 
-/** Deposit: native xDAI (`mint(receiver){value}`) or wxDAI (`mint(receiver, amount)`). */
+/** Deposit: native (`mint(receiver){value}`) or wrapped (`mint(receiver, amount)`). */
 export function useDeposit() {
   const a = useInstance();
   const { address } = useAccount();
   const tx = useTx();
   const deposit = (opts: {
     amount: bigint;
-    mode: "native" | "wxdai";
+    mode: "native" | "wrapped";
     receiver?: Address;
   }) => {
     const receiver = opts.receiver ?? address ?? zeroAddress;
@@ -190,7 +202,7 @@ export function useDeposit() {
   return { deposit, ...tx };
 }
 
-/** Withdraw: burn the token and remit native xDAI to `receiver`. */
+/** Withdraw: burn the token and remit native to `receiver`. */
 export function useWithdraw() {
   const a = useInstance();
   const { address } = useAccount();
