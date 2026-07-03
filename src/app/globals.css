@@ -33,3 +33,48 @@ body {
     @apply mx-auto w-full max-w-6xl px-6;
   }
 }
+
+/* --- Yield-slice explainer animations (respect reduced-motion via JS) --- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+/* The yield layer lifting off the top when it gets sliced. */
+@keyframes slice-lift {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.animate-slice-lift {
+  animation: slice-lift 1.8s ease-in-out infinite;
+}
+
+/* Subtle forward nudge for an active flow arrow. */
+@keyframes nudge {
+  0%,
+  100% {
+    transform: rotate(var(--tw-rotate, 0)) translateX(0);
+  }
+  50% {
+    transform: rotate(var(--tw-rotate, 0)) translateX(3px);
+  }
+}
+.animate-nudge {
+  animation: nudge 1.4s ease-in-out infinite;
+}

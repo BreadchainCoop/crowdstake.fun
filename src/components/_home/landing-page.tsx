@@ -19,6 +19,7 @@ import {
   TrendUp,
 } from "@phosphor-icons/react/dist/ssr";
 import { InterestCalculator } from "@/components/_home/interest-calculator";
+import { YieldSliceExplainer } from "@/components/_home/yield-slice-explainer";
 
 const DOCS_URL = "/docs"; // in-app documentation & walkthroughs
 const GITHUB_URL = "https://github.com/BreadchainCoop/crowdstake.fun";
@@ -32,6 +33,7 @@ export function LandingPage() {
         <KeyConcepts />
         <Features />
         <UnderTheHood />
+        <YieldSliceExplainer />
         <HowItWorks />
         <GetStarted />
         <CtaBand />

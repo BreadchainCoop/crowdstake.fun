@@ -1,44 +1,73 @@
-name: Deploy contracts (Gnosis)
+name: Deploy contracts (multi-chain)
 
-# Manual deploy to Gnosis via etherform's helper scripts (prepare-env.sh +
-# verify-blockscout.sh, sparse-checked-out), with Blockscout verification.
-# Two targets:
-#   - DeployGnosis           → a fresh, fully-wired CrowdStake instance
+# Manual deploy via etherform's helper scripts (prepare-env.sh +
+# verify-blockscout.sh, sparse-checked-out), keeping the key in a secret.
+#
+# Targets:
 #   - DeployCrowdStakeDeployer → the ONE canonical one-tx deployer (+ its own
-#                                factory/beacons).
+#       factory/beacons) on the chosen chain.
+#   - DeployGnosis            → a fresh, fully-wired Gnosis instance (Gnosis only).
 #
 # After either target, the run publishes/updates the rolling `contract-addresses`
-# GitHub release with an addresses.json manifest. The static frontend fetches
-# that manifest at runtime (src/lib/remote-addresses.ts), so NO frontend
+# GitHub release with a per-chain addresses.json manifest. The static frontend
+# fetches that manifest at runtime (src/lib/remote-addresses.ts), so NO frontend
 # rebuild/redeploy is needed to pick up new addresses.
 #
-# Requires repo secrets: DEPLOY_PRIVATE_KEY (funded Gnosis key), GNOSIS_RPC_URL.
+# Chains: gnosis (native xDAI → sDAI) · arbitrum / optimism (stablecoin USDC →
+# Morpho vaults). Per-chain yield config comes from the yield_kind/asset/
+# yield_vault inputs — see contracts/deployments/yield-assets.md.
+#
+# Requires repo secrets: DEPLOY_PRIVATE_KEY (funded on the target chain), and
+# optionally GNOSIS_RPC_URL / ARBITRUM_RPC_URL / OPTIMISM_RPC_URL (else public).
 
 on:
   workflow_dispatch:
     inputs:
+      chain:
+        description: "Target chain"
+        type: choice
+        default: gnosis
+        options:
+          - gnosis
+          - arbitrum
+          - optimism
       target:
         description: "What to deploy"
         type: choice
-        default: DeployGnosis
+        default: DeployCrowdStakeDeployer
         options:
-          - DeployGnosis
           - DeployCrowdStakeDeployer
+          - DeployGnosis
+      yield_kind:
+        description: "Yield token kind (native = SexyDaiYield, stable = StableYield/USDC)"
+        type: choice
+        default: native
+        options:
+          - native
+          - stable
+      asset:
+        description: "Deposit token — wrapped-native for native, stablecoin (USDC) for stable. Blank = Gnosis WXDAI."
+        required: false
+        default: ""
+      yield_vault:
+        description: "ERC-4626 vault (asset() must == asset). Blank = Gnosis sDAI."
+        required: false
+        default: ""
       owner:
         description: "System owner (DeployGnosis only — ignored for the deployer)"
         required: false
       token_name:
-        description: "ERC20 token name"
+        description: "ERC20 token name (DeployGnosis only)"
         default: "Crowdstaking Stake"
       token_symbol:
-        description: "ERC20 token symbol"
+        description: "ERC20 token symbol (DeployGnosis only)"
         default: "CSTAKE"
       cycle_length:
-        description: "Cycle length in blocks (~5s each on Gnosis)"
+        description: "Cycle length in blocks (DeployGnosis only)"
         default: "17280"
       salt:
         description: "CREATE2 salt (change for a fresh instance)"
-        default: "crowdstake.fun-gnosis"
+        default: "crowdstake.fun"
 
 permissions:
   # write: the publish step creates/updates the rolling contract-addresses release.
@@ -67,38 +96,80 @@ jobs:
         with:
           version: "1.4.4"
 
+      - name: Resolve chain (id + RPC + explorer)
+        id: chain
+        run: |
+          case "${{ inputs.chain }}" in
+            gnosis)
+              ID=100
+              RPC="${{ secrets.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com' }}"
+              BS="https://gnosis.blockscout.com" ;;
+            arbitrum)
+              ID=42161
+              RPC="${{ secrets.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc' }}"
+              BS="https://arbitrum.blockscout.com" ;;
+            optimism)
+              ID=10
+              RPC="${{ secrets.OPTIMISM_RPC_URL || 'https://mainnet.optimism.io' }}"
+              BS="https://optimism.blockscout.com" ;;
+          esac
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "rpc=$RPC" >> "$GITHUB_OUTPUT"
+          echo "blockscout=$BS" >> "$GITHUB_OUTPUT"
+
+      - name: Guard — DeployGnosis is Gnosis-only
+        if: inputs.target == 'DeployGnosis' && inputs.chain != 'gnosis'
+        run: |
+          echo "::error::DeployGnosis only supports the gnosis chain. Use DeployCrowdStakeDeployer for L2s."
+          exit 1
+
       - name: Deploy
         id: deploy
         env:
           PRIVATE_KEY: ${{ secrets.DEPLOY_PRIVATE_KEY }}
-          RPC_URL: ${{ secrets.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com' }}
+          RPC_URL: ${{ steps.chain.outputs.rpc }}
           OWNER: ${{ inputs.owner }}
           TOKEN_NAME: ${{ inputs.token_name }}
           TOKEN_SYMBOL: ${{ inputs.token_symbol }}
           CYCLE_LENGTH: ${{ inputs.cycle_length }}
           MAX_VOTING_POINTS: "10000"
           SALT: ${{ inputs.salt }}
+          YIELD_KIND: ${{ inputs.yield_kind }}
+          # DeployGnosis reads WXDAI/SXDAI; the canonical deployer reads ASSET/YIELD_VAULT.
           WXDAI: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d"
           SXDAI: "0xaf204776c7245bF4147c2612BF6e5972Ee483701"
+          CHAIN_ID: ${{ steps.chain.outputs.id }}
+          ASSET_IN: ${{ inputs.asset }}
+          VAULT_IN: ${{ inputs.yield_vault }}
         run: |
           source ../.etherform/scripts/deploy/prepare-env.sh
+          # Only export ASSET/YIELD_VAULT when provided, so the script keeps its
+          # Gnosis defaults otherwise (an empty env var would fail address parse).
+          [ -n "$ASSET_IN" ] && export ASSET="$ASSET_IN"
+          [ -n "$VAULT_IN" ] && export YIELD_VAULT="$VAULT_IN"
           forge script "script/${{ inputs.target }}.s.sol:${{ inputs.target }}" \
             --rpc-url "$RPC_URL" --broadcast --slow -vvvv
           if [ "${{ inputs.target }}" = "DeployCrowdStakeDeployer" ]; then
-            ADDR=$(python3 -c "import json;d=json.load(open('broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployer'][0])")
-            echo "### Canonical CrowdStakeDeployer deployed" >> "$GITHUB_STEP_SUMMARY"
-            echo "\`$ADDR\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Published to the \`contract-addresses\` release — the live frontend picks it up on next page load (no rebuild needed)." >> "$GITHUB_STEP_SUMMARY"
+            ADDR=$(python3 -c "import json;d=json.load(open('broadcast/DeployCrowdStakeDeployer.s.sol/${CHAIN_ID}/run-latest.json'));print([t['contractAddress'] for t in d['transactions'] if t.get('contractName')=='CrowdStakeDeployer'][0])")
+            {
+              echo "### Canonical CrowdStakeDeployer deployed on ${{ inputs.chain }} (chain $CHAIN_ID)"
+              echo "\`$ADDR\`"
+              echo ""
+              echo "- Yield: **${{ inputs.yield_kind }}** · asset \`${ASSET_IN:-WXDAI (default)}\` · vault \`${VAULT_IN:-sDAI (default)}\`"
+              echo "- Published to the \`contract-addresses\` release — the live frontend picks it up on next page load (no rebuild needed)."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Verify on Blockscout
         continue-on-error: true
+        # Bounded: L2 Blockscout verification can hang the etherform script.
+        # The deploy already succeeded by here — verification is best-effort.
+        timeout-minutes: 5
         env:
-          RPC_URL: ${{ secrets.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com' }}
-          BLOCKSCOUT_URL: "https://gnosis.blockscout.com"
+          RPC_URL: ${{ steps.chain.outputs.rpc }}
+          BLOCKSCOUT_URL: ${{ steps.chain.outputs.blockscout }}
         run: |
-          BROADCAST_FILE=$(ls "broadcast/${{ inputs.target }}.s.sol/100/run-latest.json" 2>/dev/null || true)
+          BROADCAST_FILE=$(ls "broadcast/${{ inputs.target }}.s.sol/${{ steps.chain.outputs.id }}/run-latest.json" 2>/dev/null || true)
           if [ -n "$BROADCAST_FILE" ]; then
             BROADCAST_FILE="$BROADCAST_FILE" bash ../.etherform/scripts/deploy/verify-blockscout.sh || true
           fi
@@ -106,21 +177,22 @@ jobs:
       - name: Upload deployment manifest
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.target }}-deployment
+          name: ${{ inputs.target }}-${{ inputs.chain }}-deployment
           path: |
             contracts/deployments/gnosis.json
-            contracts/broadcast/${{ inputs.target }}.s.sol/100/run-latest.json
+            contracts/broadcast/${{ inputs.target }}.s.sol/${{ steps.chain.outputs.id }}/run-latest.json
           if-no-files-found: warn
 
       # Publish the merged address manifest to the rolling `contract-addresses`
       # release. The static frontend fetches addresses.json from this release at
       # runtime, so deploys go live without a frontend rebuild. The manifest is
-      # merged with the previous one so a deployer redeploy never drops the
-      # default-instance addresses (or another chain's entry), and vice versa.
+      # merged per chain with the previous one, so a deployer redeploy never
+      # drops the default-instance addresses (or another chain's entry).
       - name: Publish address manifest (rolling release)
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET: ${{ inputs.target }}
+          CHAIN_ID: ${{ steps.chain.outputs.id }}
         run: |
           set -euo pipefail
           gh release download contract-addresses -p addresses.json -O prev.json -R "$GITHUB_REPOSITORY" \
@@ -129,7 +201,7 @@ jobs:
           import json, os, time
 
           target = os.environ["TARGET"]
-          chain = "100"  # this workflow deploys to Gnosis
+          chain = os.environ["CHAIN_ID"]
           try:
               prev = json.load(open("prev.json"))
           except Exception:
@@ -138,7 +210,7 @@ jobs:
           entry = chains.get(chain, {})
 
           if target == "DeployCrowdStakeDeployer":
-              b = json.load(open("broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json"))
+              b = json.load(open(f"broadcast/DeployCrowdStakeDeployer.s.sol/{chain}/run-latest.json"))
               created = {
                   t.get("contractName"): t.get("contractAddress")
                   for t in b["transactions"]
@@ -146,7 +218,7 @@ jobs:
               }
               entry["deployer"] = created["CrowdStakeDeployer"]
               entry["factory"] = created.get("CrowdStakeFactory", entry.get("factory"))
-          else:  # DeployGnosis → a fresh default instance
+          else:  # DeployGnosis → a fresh default instance (Gnosis-only, guarded above)
               d = json.load(open("deployments/gnosis.json"))
               entry["factory"] = d.get("factory", entry.get("factory"))
               entry["defaultInstance"] = {
@@ -169,4 +241,4 @@ jobs:
                  --notes "Rolling manifest of live contract addresses. The static frontend fetches addresses.json from this release at runtime."
           gh release upload contract-addresses addresses.json --clobber -R "$GITHUB_REPOSITORY"
           gh release edit contract-addresses -R "$GITHUB_REPOSITORY" \
-            --notes "Rolling manifest of live contract addresses (last update: $TARGET @ ${GITHUB_SHA::7}, $(date -u +%Y-%m-%dT%H:%MZ)). The static frontend fetches addresses.json from this release at runtime."
+            --notes "Rolling manifest of live contract addresses (last update: $TARGET on chain $CHAIN_ID @ ${GITHUB_SHA::7}, $(date -u +%Y-%m-%dT%H:%MZ)). The static frontend fetches addresses.json from this release at runtime."

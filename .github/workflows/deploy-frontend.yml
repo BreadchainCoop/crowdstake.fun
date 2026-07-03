@@ -46,12 +46,16 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH || '/crowdstake.fun' }}
           NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ vars.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
           NEXT_PUBLIC_RPC_URL: ${{ vars.NEXT_PUBLIC_RPC_URL }}
+          NEXT_PUBLIC_RPC_URL_42161: ${{ vars.NEXT_PUBLIC_RPC_URL_42161 }}
+          NEXT_PUBLIC_RPC_URL_10: ${{ vars.NEXT_PUBLIC_RPC_URL_10 }}
+          NEXT_PUBLIC_RPC_URL_1: ${{ vars.NEXT_PUBLIC_RPC_URL_1 }}
           # Contract addresses are NOT baked in here anymore: the app fetches
           # the latest addresses.json from the rolling `contract-addresses`
           # GitHub release at runtime (published by contracts-deploy.yml), with
-          # the chains.ts defaults as offline fallback. A build-time
-          # NEXT_PUBLIC_DEPLOYER_ADDRESS pin would take precedence over the
-          # manifest (see ENV_PINNED) — only the e2e fork harness does that.
+          # the chains.ts defaults (Gnosis + the l2-deployers.json addresses) as
+          # offline fallback. A build-time NEXT_PUBLIC_DEPLOYER_* pin would take
+          # precedence over the manifest (see ENV_PINNED in src/lib/chains.ts) —
+          # only the e2e fork harness does that.
           # Optional override for where the manifest is fetched from
           # ("off" disables runtime hydration entirely).
           NEXT_PUBLIC_ADDRESSES_URL: ${{ vars.NEXT_PUBLIC_ADDRESSES_URL }}
