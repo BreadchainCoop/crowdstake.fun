@@ -30,7 +30,7 @@ export default function DeployPage() {
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Deploy your instance"
-        subtitle="Launch a complete, self-owned Crowdstaking instance on Gnosis in one transaction. You become the admin of every contract."
+        subtitle="Launch a complete, self-owned staking instance in one transaction — on whichever supported chain your wallet is connected to. You become the admin of every contract."
       />
       <DeployForm />
     </div>

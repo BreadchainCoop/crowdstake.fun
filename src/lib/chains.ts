@@ -38,10 +38,15 @@ export interface ChainConfig {
   deployable: boolean;
 }
 
-const env = (key: string) => {
-  const v = process.env[key];
-  return v && v.length > 0 ? v : undefined;
-};
+// Treat empty-string env vars (e.g. an unset CI repo var) as absent.
+const or = (v: string | undefined, fallback: string) =>
+  v && v.length > 0 ? v : fallback;
+// A nullable variant for optional per-chain overrides.
+const orNull = (v: string | undefined) => (v && v.length > 0 ? v : null);
+
+// IMPORTANT: every NEXT_PUBLIC_* below is referenced STATICALLY. Next only
+// inlines `process.env.NEXT_PUBLIC_X` literals into the client bundle — a
+// dynamic `process.env[key]` lookup is NOT inlined and silently no-ops.
 
 // Gnosis's native token is branded "xDAI"; viem labels it "XDAI". Use the
 // branded casing for display (RPC/wallet key on chain id, not the symbol).
@@ -52,20 +57,34 @@ const gnosisChain: Chain = {
 
 /** The Gnosis instance that ships with the app (see contracts/deployments). */
 const GNOSIS_INSTANCE: InstanceAddresses = {
-  token: (env("NEXT_PUBLIC_TOKEN_ADDRESS") ??
-    "0x7E94a840143E3D5C78f367bBe45e6fB6e55098ec") as Address,
-  distributionManager: (env("NEXT_PUBLIC_DISTRIBUTION_MANAGER_ADDRESS") ??
-    "0xB38B15ad418202D3FdC1A139cEc51A8c13f59CB6") as Address,
-  cycleModule: (env("NEXT_PUBLIC_CYCLE_MODULE_ADDRESS") ??
-    "0xDfBDa0C7061276C3B8a08aC38fEdeE63c0B63827") as Address,
-  votingModule: (env("NEXT_PUBLIC_VOTING_MODULE_ADDRESS") ??
-    "0xf921AF0C0fCd4A9dE0F6C58b34b05DBCCf0aAc42") as Address,
-  recipientRegistry: (env("NEXT_PUBLIC_RECIPIENT_REGISTRY_ADDRESS") ??
-    "0x8e61175AbBC31A07237367e356833C83204945C2") as Address,
-  distributionStrategy: (env("NEXT_PUBLIC_DISTRIBUTION_STRATEGY_ADDRESS") ??
-    "0x91c71E49212137e750192a3dbf78878a810ACe1D") as Address,
-  votingPowerStrategy: (env("NEXT_PUBLIC_VOTING_POWER_STRATEGY_ADDRESS") ??
-    "0x3F477A1FD83F56537BEE5cC05406fF4628e7A399") as Address,
+  token: or(
+    process.env.NEXT_PUBLIC_TOKEN_ADDRESS,
+    "0x7E94a840143E3D5C78f367bBe45e6fB6e55098ec",
+  ) as Address,
+  distributionManager: or(
+    process.env.NEXT_PUBLIC_DISTRIBUTION_MANAGER_ADDRESS,
+    "0xB38B15ad418202D3FdC1A139cEc51A8c13f59CB6",
+  ) as Address,
+  cycleModule: or(
+    process.env.NEXT_PUBLIC_CYCLE_MODULE_ADDRESS,
+    "0xDfBDa0C7061276C3B8a08aC38fEdeE63c0B63827",
+  ) as Address,
+  votingModule: or(
+    process.env.NEXT_PUBLIC_VOTING_MODULE_ADDRESS,
+    "0xf921AF0C0fCd4A9dE0F6C58b34b05DBCCf0aAc42",
+  ) as Address,
+  recipientRegistry: or(
+    process.env.NEXT_PUBLIC_RECIPIENT_REGISTRY_ADDRESS,
+    "0x8e61175AbBC31A07237367e356833C83204945C2",
+  ) as Address,
+  distributionStrategy: or(
+    process.env.NEXT_PUBLIC_DISTRIBUTION_STRATEGY_ADDRESS,
+    "0x91c71E49212137e750192a3dbf78878a810ACe1D",
+  ) as Address,
+  votingPowerStrategy: or(
+    process.env.NEXT_PUBLIC_VOTING_POWER_STRATEGY_ADDRESS,
+    "0x3F477A1FD83F56537BEE5cC05406fF4628e7A399",
+  ) as Address,
 };
 
 /**
@@ -77,9 +96,11 @@ const GNOSIS_INSTANCE: InstanceAddresses = {
 export const CHAINS: Record<number, ChainConfig> = {
   [gnosis.id]: {
     chain: gnosisChain,
-    rpcUrl: env("NEXT_PUBLIC_RPC_URL") ?? "https://rpc.gnosischain.com",
-    deployer: (env("NEXT_PUBLIC_DEPLOYER_ADDRESS") ??
-      "0x4D6178572690B39D04d2E790E1D0c776f2cBBC95") as Address,
+    rpcUrl: or(process.env.NEXT_PUBLIC_RPC_URL, "https://rpc.gnosischain.com"),
+    deployer: or(
+      process.env.NEXT_PUBLIC_DEPLOYER_ADDRESS,
+      "0x4D6178572690B39D04d2E790E1D0c776f2cBBC95",
+    ) as Address,
     defaultInstance: GNOSIS_INSTANCE,
     wrappedToken: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d" as Address, // WXDAI
     wrappedSymbol: "WXDAI",
@@ -89,37 +110,45 @@ export const CHAINS: Record<number, ChainConfig> = {
   },
   [arbitrum.id]: {
     chain: arbitrum,
-    rpcUrl: env("NEXT_PUBLIC_RPC_URL_42161") ?? "https://arb1.arbitrum.io/rpc",
-    deployer: (env("NEXT_PUBLIC_DEPLOYER_42161") ?? null) as Address | null,
+    rpcUrl: or(
+      process.env.NEXT_PUBLIC_RPC_URL_42161,
+      "https://arb1.arbitrum.io/rpc",
+    ),
+    deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_42161) as Address | null,
     defaultInstance: null,
     wrappedToken: null,
     wrappedSymbol: "WETH",
     blockTimeSeconds: 12, // block.number follows the L1 cadence on Arbitrum
     explorer: "https://arbiscan.io",
-    deployable: !!env("NEXT_PUBLIC_DEPLOYER_42161"),
+    deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_42161,
   },
   [optimism.id]: {
     chain: optimism,
-    rpcUrl: env("NEXT_PUBLIC_RPC_URL_10") ?? "https://mainnet.optimism.io",
-    deployer: (env("NEXT_PUBLIC_DEPLOYER_10") ?? null) as Address | null,
+    rpcUrl: or(
+      process.env.NEXT_PUBLIC_RPC_URL_10,
+      "https://mainnet.optimism.io",
+    ),
+    deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_10) as Address | null,
     defaultInstance: null,
     wrappedToken: null,
     wrappedSymbol: "WETH",
     blockTimeSeconds: 2,
     explorer: "https://optimistic.etherscan.io",
-    deployable: !!env("NEXT_PUBLIC_DEPLOYER_10"),
+    deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_10,
   },
   [mainnet.id]: {
     chain: mainnet,
-    rpcUrl:
-      env("NEXT_PUBLIC_RPC_URL_1") ?? "https://ethereum-rpc.publicnode.com",
-    deployer: (env("NEXT_PUBLIC_DEPLOYER_1") ?? null) as Address | null,
+    rpcUrl: or(
+      process.env.NEXT_PUBLIC_RPC_URL_1,
+      "https://ethereum-rpc.publicnode.com",
+    ),
+    deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_1) as Address | null,
     defaultInstance: null,
     wrappedToken: null,
     wrappedSymbol: "WETH",
     blockTimeSeconds: 12,
     explorer: "https://etherscan.io",
-    deployable: !!env("NEXT_PUBLIC_DEPLOYER_1"),
+    deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_1,
   },
 };
 

@@ -254,7 +254,9 @@ const wxBalance = (a) =>
   await goto("/app/deploy");
   await page.getByPlaceholder("Acme Community Stake").fill("Riverside Mutual");
   await page.getByPlaceholder("ACME", { exact: true }).fill("RVR");
-  await page.getByPlaceholder("17280").fill("50"); // short cycle for the fork
+  // Cycle length is now a duration; 5 min ≈ 60 blocks @5s — short for the fork.
+  await page.getByPlaceholder("e.g. 24").fill("5");
+  await page.getByRole("combobox").selectOption("minutes");
   await page.waitForTimeout(400);
   await click("Deploy instance");
   const deployed = await waitFor(
@@ -338,16 +340,18 @@ const wxBalance = (a) =>
   /* ===================== D. ADMIN SETTINGS ====================== */
   head("D. ADMIN SETTINGS (self-owned instance)");
   await goto("/app/admin", 2000);
-  await page.getByPlaceholder("new length in blocks").fill("40");
+  // Duration input: 2 min = 24 blocks @5s.
+  await page.getByPlaceholder("e.g. 24").fill("2");
+  await page.getByRole("combobox").selectOption("minutes");
   await page.waitForTimeout(300);
   await click("Update");
   ok(
     (await waitFor(
       () => N.cycleLength(),
-      (v) => v === 40n,
+      (v) => v === 24n,
       45000,
-    )) === 40n,
-    "cycle length updated to 40",
+    )) === 24n,
+    "cycle length updated to 24 (2 min @5s)",
   );
 
   head("D2) prepare yield-claimer rotation (timelock; prepare only)");

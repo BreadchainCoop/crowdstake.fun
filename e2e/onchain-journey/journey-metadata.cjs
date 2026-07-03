@@ -99,7 +99,8 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   await page.waitForTimeout(1500);
   await page.getByPlaceholder("Acme Community Stake").fill("Art Co");
   await page.getByPlaceholder("ACME", { exact: true }).fill("ART");
-  await page.getByPlaceholder("17280").fill("50");
+  await page.getByPlaceholder("e.g. 24").fill("5");
+  await page.getByRole("combobox").selectOption("minutes");
   await page
     .getByPlaceholder("Token image — https:// or ipfs://")
     .fill(TOKEN_IMG);

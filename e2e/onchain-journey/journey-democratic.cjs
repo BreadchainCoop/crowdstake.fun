@@ -95,7 +95,8 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   await page.waitForTimeout(1500);
   await page.getByPlaceholder("Acme Community Stake").fill("Co-op Fund");
   await page.getByPlaceholder("ACME", { exact: true }).fill("COOP");
-  await page.getByPlaceholder("17280").fill("50");
+  await page.getByPlaceholder("e.g. 24").fill("5");
+  await page.getByRole("combobox").selectOption("minutes");
   await click("Democratic"); // registry-kind toggle
   await page.waitForTimeout(500);
   await click("Deploy instance");
