@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { keccak256, toHex, isAddress, zeroAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
@@ -11,7 +10,6 @@ import {
   CaretDown,
   CaretRight,
   CheckCircle,
-  CloudArrowUp,
 } from "@phosphor-icons/react";
 import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
@@ -161,14 +159,6 @@ function DeployForm() {
         >
           Use this instance
         </Button>
-
-        <Link
-          href="/app/publish"
-          className="text-core-orange hover:bg-paper-1 mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold"
-        >
-          <CloudArrowUp size={16} weight="bold" />
-          Give it a decentralized home (IPFS)
-        </Link>
 
         {/* Contract addresses — secondary, tucked away behind a disclosure. */}
         <details className="group mt-6">

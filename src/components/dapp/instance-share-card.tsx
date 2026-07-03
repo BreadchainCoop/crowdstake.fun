@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Check, Copy } from "@phosphor-icons/react";
 import type { Address } from "viem";
 import { Body, Caption } from "@breadcoop/ui";
-import { instanceEthLimoUrl, instanceShareUrl } from "@/lib/instance";
+import { instanceShareUrl } from "@/lib/instance";
 import { cn, copyToClipboard } from "@/lib/utils";
 
 function LinkRow({
@@ -62,9 +62,9 @@ function LinkRow({
 }
 
 /**
- * The instance's shareable identity: a web link, an optional decentralized
- * eth.limo link (IPFS + ENS), and a QR that encodes the most-decentralized of
- * the two. This is how a deployer hands their community its own page.
+ * The instance's shareable page link (the `?i=<distributionManager>` deep link)
+ * with a copy button and a QR. This is how a deployer hands their community its
+ * own standalone page.
  */
 export function InstanceShareCard({
   distributionManager,
@@ -72,8 +72,6 @@ export function InstanceShareCard({
   distributionManager: Address;
 }) {
   const shareUrl = instanceShareUrl(distributionManager);
-  const ethLimo = instanceEthLimoUrl(distributionManager);
-  const primary = ethLimo ?? shareUrl; // QR encodes the most-decentralized link
 
   return (
     <div className="border-core-orange/30 bg-core-orange/5 rounded-xl border p-4">
@@ -86,13 +84,10 @@ export function InstanceShareCard({
             Anyone who opens this link lands on this instance — no setup needed.
           </Body>
           <LinkRow label="Link" url={shareUrl} />
-          {ethLimo && (
-            <LinkRow label="Decentralized" url={ethLimo} hint="IPFS · ENS" />
-          )}
         </div>
         <div className="hidden shrink-0 flex-col items-center sm:flex">
           <div className="border-paper-2 rounded-lg border bg-white p-2">
-            <QRCodeSVG value={primary} size={112} marginSize={2} />
+            <QRCodeSVG value={shareUrl} size={112} marginSize={2} />
           </div>
           <Caption className="text-surface-grey mt-1 block text-center text-[11px]">
             Scan to open

@@ -62,20 +62,6 @@ export function instanceShareUrl(distributionManager: Address): string {
   return `${origin}${base}/app/?${INSTANCE_PARAM}=${distributionManager}`;
 }
 
-/**
- * Censorship-resistant eth.limo link for an instance — the app served from IPFS
- * via an ENS `contenthash`, addressed by the instance's distribution manager.
- * Returns null unless a NEXT_PUBLIC_ENS_HOST (e.g. "crowdstake.eth") is set at
- * build time, so the GitHub Pages build simply omits it.
- */
-export function instanceEthLimoUrl(
-  distributionManager: Address,
-): string | null {
-  const host = process.env.NEXT_PUBLIC_ENS_HOST;
-  if (!host) return null;
-  return `https://${host}.limo/app/?${INSTANCE_PARAM}=${distributionManager}`;
-}
-
 const client = createPublicClient({ chain: gnosis, transport: http(RPC_URL) });
 
 /**

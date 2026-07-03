@@ -74,25 +74,6 @@ export const IPFS_GATEWAY = envOr(
   "https://ipfs.io/ipfs/",
 );
 
-/**
- * Ethereum-mainnet RPC used ONLY for ENS resolution (ENS lives on L1, not
- * Gnosis). Reads an instance's `crowdstake.instance` text record so a name like
- * `acme.crowdstake.eth.limo` resolves to its distribution manager. Static
- * process.env ref so a NEXT_PUBLIC_ENS_RPC_URL override is inlined into the
- * client bundle. Resolution failures degrade gracefully (fall back to ?i=).
- */
-export const ENS_RPC_URL = envOr(
-  process.env.NEXT_PUBLIC_ENS_RPC_URL,
-  "https://ethereum-rpc.publicnode.com",
-);
-
-/**
- * The ENS name the app is served under on IPFS (e.g. "crowdstake.eth"), if any.
- * When set, the app renders a censorship-resistant eth.limo share link for each
- * instance. Empty on the GitHub Pages build, which hides that link.
- */
-export const ENS_HOST = envOr(process.env.NEXT_PUBLIC_ENS_HOST, "");
-
 /** Underlying Gnosis tokens used by the SexyDaiYield token. */
 export const WXDAI: Address = "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d";
 export const SDAI: Address = "0xaf204776c7245bF4147c2612BF6e5972Ee483701";

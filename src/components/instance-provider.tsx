@@ -24,7 +24,6 @@ import {
   type InstanceAddresses,
   type KnownInstance,
 } from "@/lib/instance";
-import { ensHostFromLocation, resolveInstanceFromEns } from "@/lib/ens";
 import { shortenAddress } from "@/lib/format";
 
 interface InstanceContextValue {
@@ -60,15 +59,10 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
   // Only start syncing the URL after the initial param/localStorage hydration,
   // so the mount pass doesn't strip a shared `?i=` before we've honored it.
   const hydrated = useRef(false);
-  // True when the active instance came from the ENS host (e.g. a branded
-  // acme.crowdstake.eth.limo page). The host itself pins the instance, so the
-  // URL-sync effect must not append a redundant `?i=`. Cleared on a manual switch.
-  const ensPinned = useRef(false);
 
-  // Hydrate on mount. Precedence: ENS host > ?i= link > localStorage > default.
-  // Unknown instances (from either an ENS record or a shared link) are resolved
-  // on-chain and added transparently. All host/window access lives in this
-  // effect (static export prerenders the component, so never at module/render).
+  // Hydrate on mount. Precedence: ?i= link > localStorage > default. An unknown
+  // shared instance is resolved on-chain and added transparently. All window
+  // access lives in this effect (static export prerenders this component).
   useEffect(() => {
     let cancelled = false;
     const loaded = loadKnownInstances();
@@ -105,27 +99,7 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
       typeof window !== "undefined" && (pathname?.startsWith("/app") ?? false);
 
     void (async () => {
-      // 1. ENS host wins — a branded per-instance page (acme.crowdstake.eth.limo).
-      //    ensHostFromLocation() is null on github.io / localhost, so this whole
-      //    branch is a strict no-op off ENS hosts (keeps Pages + e2e untouched).
-      const host = onApp ? ensHostFromLocation() : null;
-      if (host) {
-        setResolving(true);
-        try {
-          const dm = await resolveInstanceFromEns(host);
-          if (dm && !cancelled) {
-            await activate(dm);
-            ensPinned.current = true;
-            return;
-          }
-        } catch {
-          /* fall through to ?i= / localStorage */
-        } finally {
-          if (!cancelled) setResolving(false);
-        }
-      }
-
-      // 2. Shared ?i= deep link.
+      // 1. Shared ?i= deep link.
       const shared = onApp ? instanceParam(window.location.search) : null;
       if (shared) {
         if (inList(shared)) {
@@ -146,7 +120,7 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 3. localStorage, else the built-in default.
+      // 2. localStorage, else the built-in default.
       const saved = loadActiveManager();
       if (saved && inList(saved) && !cancelled) setActiveManager(saved);
     })().finally(() => {
@@ -156,7 +130,7 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-    // Runs once on mount; pathname is read only to gate the initial host/param read.
+    // Runs once on mount; pathname is read only to gate the initial ?i= read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -171,12 +145,10 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
   );
 
   // Keep the address bar in sync with the active instance so the current URL is
-  // always a shareable deep link. The default instance uses the clean URL. On an
-  // ENS-pinned page the host already identifies the instance, so we leave the URL
-  // alone (no redundant ?i=).
+  // always a shareable deep link. The default instance uses the clean URL.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!hydrated.current || resolving || ensPinned.current) return;
+    if (!hydrated.current || resolving) return;
     if (!pathname?.startsWith("/app")) return;
     const url = new URL(window.location.href);
     const current = url.searchParams.get(INSTANCE_PARAM);
@@ -192,13 +164,11 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
   }, [active, pathname, resolving]);
 
   const setActive = useCallback((distributionManager: Address) => {
-    ensPinned.current = false; // a manual switch re-enables ?i= URL sync
     setActiveManager(distributionManager);
     saveActiveManager(distributionManager);
   }, []);
 
   const addInstance = useCallback((instance: KnownInstance) => {
-    ensPinned.current = false;
     setKnown((prev) => {
       const exists = prev.some(
         (i) =>

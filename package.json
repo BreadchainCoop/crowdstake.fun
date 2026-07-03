@@ -5,15 +5,13 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3001",
     "build": "next build",
-    "build:ipfs": "NEXT_PUBLIC_BASE_PATH= next build && node scripts/gen-ipfs-manifest.mjs",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "find-deadcode": "ts-prune | grep -v '(used in module)'",
-    "prepare": "husky",
-    "preview:ipfs": "bash scripts/preview-ipfs.sh"
+    "prepare": "husky"
   },
   "dependencies": {
     "@breadcoop/ui": "^2.0.1",
@@ -21,7 +19,6 @@
     "@privy-io/react-auth": "^3.13.1",
     "@privy-io/wagmi": "^4.0.1",
     "@rainbow-me/rainbowkit": "^2.2.8",
-    "@storacha/client": "^2",
     "@tanstack/react-query": "^5.85.6",
     "@wagmi/core": "2.x.x",
     "clsx": "^2.1.1",

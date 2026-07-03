@@ -56,55 +56,9 @@ https://<host>/app/?i=<distributionManager>
 ```
 
 Opening it resolves the instance on-chain (wiring + artwork + governance kind)
-and boots straight into it — no registry, no backend. The deploy-success screen
-shows the link plus a QR code.
-
-### Decentralized hosting (IPFS + ENS / eth.limo)
-
-Publish to IPFS **from the browser** — no CI, no repo secrets. Open
-`/app/publish`, pick a provider, and the running app pins itself; you get a CID,
-gateway URLs, and the `ipfs://` URI for an ENS contenthash.
-
-- **Your IPFS node** — fully account-free: a local [Kubo/IPFS Desktop](https://docs.ipfs.tech/install/ipfs-desktop/)
-  node pins and hosts the app itself (one-time CORS config, shown in the UI).
-  Keep the node online for gateways to fetch it; fresh content can take a few
-  minutes to become fetchable through public gateways.
-- **Pinata** — paste a free API key scoped to `pinFileToIPFS` (stays in the tab);
-  always-on pinning without running anything.
-- **Storacha** — email magic-link sign-in (IPFS + Filecoin, nothing to paste).
-  Note: its upload endpoint `up.storacha.network` can be down in DNS; use one of
-  the others when it is.
-
-Try it locally (serves the root build so self-pin works exactly as on IPFS):
-
-```
-pnpm preview:ipfs        # builds, serves, prints the steps → open /app/publish/
-```
-
-Prefer CI? The **Publish to IPFS** workflow (`deploy-ipfs.yml`, manual dispatch)
-does the same pin non-interactively with repo secrets `STORACHA_PRINCIPAL` +
-`STORACHA_PROOF`. Either way you get:
-
-```
-https://<CID>.ipfs.dweb.link/app/?i=<distributionManager>
-```
-
-Point an ENS name's contenthash at `ipfs://<CID>` (manual mainnet tx — no keys
-in CI) and the app is live at `https://<name>.eth.limo/…`. From there, two ways
-to a fully decentralized per-instance page:
-
-1. **Query link** — `https://<name>.eth.limo/app/?i=<dm>`; works immediately.
-2. **Branded ENS subdomain** — give an instance its own name (e.g.
-   `acme.crowdstake.eth`): set its text record `crowdstake.instance` to the
-   instance's distribution-manager address and its contenthash to the same CID.
-   The app detects the ENS host at load (`src/lib/ens.ts`, resolved via an
-   Ethereum-mainnet RPC, `NEXT_PUBLIC_ENS_RPC_URL`) and boots that instance at
-   `https://acme.crowdstake.eth.limo` — a memorable, fully on-chain page.
-
-Only origin-isolated hosts are supported (eth.limo, `<CID>.ipfs.dweb.link`);
-path gateways (`/ipfs/<CID>/…`) break absolute asset paths and share origins.
-Set the repo var `NEXT_PUBLIC_ENS_HOST` (e.g. `crowdstake.eth`) to surface the
-eth.limo link in the share card.
+and boots straight into it — no registry, no backend. The page white-labels to
+that instance (its banner + ticker), and the deploy-success screen shows a
+copyable link plus a QR code.
 
 ## Releases
 

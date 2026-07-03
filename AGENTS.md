@@ -31,8 +31,6 @@ App (run from repo root):
 - `pnpm install`
 - `pnpm dev` — dev server on **:3001** (Turbopack)
 - `pnpm build` — production build (also the typecheck gate)
-- `pnpm build:ipfs` — root-served build (empty base path) for IPFS/ENS hosting;
-  pinned by the manual `deploy-ipfs.yml` workflow (see README "Decentralized hosting")
 - `pnpm lint` / `pnpm lint:fix`
 - `pnpm format` / `pnpm format:check`
 

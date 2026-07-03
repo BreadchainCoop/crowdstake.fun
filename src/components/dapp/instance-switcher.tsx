@@ -6,7 +6,6 @@ import { isAddress, type Address } from "viem";
 import {
   CaretDown,
   Check,
-  CloudArrowUp,
   Copy,
   Plus,
   PlusCircle,
@@ -188,14 +187,6 @@ export function InstanceSwitcher() {
             >
               <PlusCircle size={18} weight="bold" />
               Deploy a new instance
-            </Link>
-            <Link
-              href="/app/publish"
-              onClick={() => setOpen(false)}
-              className="text-surface-grey-2 hover:bg-paper-1 hover:text-text-standard flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium"
-            >
-              <CloudArrowUp size={18} weight="bold" />
-              Publish app to IPFS
             </Link>
 
             <div className="border-paper-2 mt-2 border-t pt-2">
