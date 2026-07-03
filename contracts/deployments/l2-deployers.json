@@ -1,0 +1,25 @@
+{
+  "note": "Canonical CrowdStakeDeployer + factory per chain (StableYield/USDC on the L2s). Deployed via the 'Deploy contracts (multi-chain)' etherform workflow. Set NEXT_PUBLIC_DEPLOYER_<chainId> repo vars to these.",
+  "chains": {
+    "42161": {
+      "name": "Arbitrum One",
+      "yieldKind": "stable",
+      "deployer": "0x976724aC0d83dC3624920f720b91B1Aa5691E28A",
+      "factory": "0x83C637C270e47d10B48EED0FCb91c5A40cc92F16",
+      "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "assetSymbol": "USDC",
+      "yieldVault": "0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA",
+      "yieldVaultName": "Steakhouse High-Yield USDC (Morpho)"
+    },
+    "10": {
+      "name": "OP Mainnet",
+      "yieldKind": "stable",
+      "deployer": "0x86054D9d62Fd33FcC30731FCC31A556259810ec2",
+      "factory": "0x3178cf7ba399b48Bb383592B2ddc87D47e478417",
+      "asset": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "assetSymbol": "USDC",
+      "yieldVault": "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59",
+      "yieldVaultName": "Gauntlet USDC Prime (Morpho)"
+    }
+  }
+}

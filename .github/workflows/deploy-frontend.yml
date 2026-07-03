@@ -49,6 +49,14 @@ jobs:
           # The canonical CrowdStakeDeployer (admin/democratic registry +
           # instance artwork). See contracts/deployments/gnosis-factory.json.
           NEXT_PUBLIC_DEPLOYER_ADDRESS: ${{ vars.NEXT_PUBLIC_DEPLOYER_ADDRESS }}
+          # Per-chain canonical deployers (unset → that chain is read-only in the
+          # UI). See contracts/deployments/l2-deployers.json.
+          NEXT_PUBLIC_DEPLOYER_42161: ${{ vars.NEXT_PUBLIC_DEPLOYER_42161 }}
+          NEXT_PUBLIC_DEPLOYER_10: ${{ vars.NEXT_PUBLIC_DEPLOYER_10 }}
+          NEXT_PUBLIC_DEPLOYER_1: ${{ vars.NEXT_PUBLIC_DEPLOYER_1 }}
+          NEXT_PUBLIC_RPC_URL_42161: ${{ vars.NEXT_PUBLIC_RPC_URL_42161 }}
+          NEXT_PUBLIC_RPC_URL_10: ${{ vars.NEXT_PUBLIC_RPC_URL_10 }}
+          NEXT_PUBLIC_RPC_URL_1: ${{ vars.NEXT_PUBLIC_RPC_URL_1 }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

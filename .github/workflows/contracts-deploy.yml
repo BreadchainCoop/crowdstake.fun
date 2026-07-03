@@ -160,6 +160,9 @@ jobs:
 
       - name: Verify on Blockscout
         continue-on-error: true
+        # Bounded: L2 Blockscout verification can hang the etherform script.
+        # The deploy already succeeded by here — verification is best-effort.
+        timeout-minutes: 5
         env:
           RPC_URL: ${{ steps.chain.outputs.rpc }}
           BLOCKSCOUT_URL: ${{ steps.chain.outputs.blockscout }}
