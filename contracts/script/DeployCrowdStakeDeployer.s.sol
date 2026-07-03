@@ -12,21 +12,28 @@ import {BaseDistributionManager} from "../src/base/BaseDistributionManager.sol";
 import {VotingDistributionStrategy} from "../src/implementation/strategies/VotingDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
-import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
+import {WrappedNativeYield} from "../src/implementation/token/WrappedNativeYield.sol";
 
 /// @notice Fresh, self-contained deploy of the ONE canonical CrowdStakeDeployer plus its
 ///         own CrowdStakeFactory and beacons. The token + distribution-manager impls now
 ///         carry per-instance metadata (ERC-7572 contractURI). The broadcaster owns the
 ///         factory/beacons, so this relies on no prior deployment and needs no external
-///         allowlist tx. Used for the fork e2e and (deferred) the mainnet cutover.
+///         allowlist tx. Used for the fork e2e and the mainnet/L2 cutovers.
+///
+/// @dev CHAIN-PARAMETERIZED: the yield token wraps the chain's native currency into an
+///      ERC-4626 vault. Set WRAPPED_NATIVE + YIELD_VAULT env vars per chain (the vault's
+///      asset() MUST equal WRAPPED_NATIVE); defaults are Gnosis WXDAI + sDAI. See
+///      contracts/deployments/yield-assets.md for the per-chain addresses.
 contract DeployCrowdStakeDeployer is Script {
-    // Gnosis underlying tokens for SexyDaiYield.
-    address constant WXDAI = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d;
-    address constant SXDAI = 0xaf204776c7245bF4147c2612BF6e5972Ee483701;
+    // Gnosis defaults (native xDAI → WXDAI → sDAI).
+    address constant DEFAULT_WRAPPED_NATIVE = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d; // WXDAI
+    address constant DEFAULT_YIELD_VAULT = 0xaf204776c7245bF4147c2612BF6e5972Ee483701; // sDAI
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address me = vm.addr(pk);
+        address wrappedNative = vm.envOr("WRAPPED_NATIVE", DEFAULT_WRAPPED_NATIVE);
+        address yieldVault = vm.envOr("YIELD_VAULT", DEFAULT_YIELD_VAULT);
         vm.startBroadcast(pk);
 
         CrowdStakeFactory factory = new CrowdStakeFactory(me);
@@ -34,7 +41,8 @@ contract DeployCrowdStakeDeployer is Script {
         address cycleBeacon = address(new UpgradeableBeacon(address(new CycleModule()), me));
         address adminRegBeacon = address(new UpgradeableBeacon(address(new AdminRecipientRegistry()), me));
         address votingRegBeacon = address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), me));
-        address tokenBeacon = address(new UpgradeableBeacon(address(new SexyDaiYield(WXDAI, SXDAI)), me));
+        address tokenBeacon =
+            address(new UpgradeableBeacon(address(new WrappedNativeYield(wrappedNative, yieldVault)), me));
         address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), me));
         address stratBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), me));
         address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), me));
@@ -63,5 +71,7 @@ contract DeployCrowdStakeDeployer is Script {
         vm.stopBroadcast();
         console.log("CrowdStakeDeployer:", address(d));
         console.log("FACTORY:", address(factory));
+        console.log("WRAPPED_NATIVE:", wrappedNative);
+        console.log("YIELD_VAULT:", yieldVault);
     }
 }
