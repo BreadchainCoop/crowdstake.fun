@@ -360,6 +360,13 @@ function DeployForm() {
         </div>
       )}
 
+      {!deployerAvailable && (
+        <Caption className="text-system-warning mt-4 block">
+          Deploys aren&apos;t available on {chain.chain.name} yet — switch your
+          wallet to a supported chain (currently Gnosis).
+        </Caption>
+      )}
+
       <div className="mt-2">
         <ActionButton
           isLoading={isBusy}
