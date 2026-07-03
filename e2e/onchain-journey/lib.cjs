@@ -177,9 +177,14 @@ async function resolveInstance(distributionManager) {
 
 // The most recent instance deployed by `owner` via the deployer (decoded).
 async function latestDeployedInstance(owner) {
+  // Deploys happen in the post-fork session (recent blocks). Bound the range:
+  // `fromBlock: "earliest"` spans ~47M blocks, which forked RPC backends
+  // (e.g. QuickNode) reject via their eth_getLogs range cap.
+  const latest = await pub.getBlockNumber();
+  const fromBlock = latest > 5000n ? latest - 5000n : 0n;
   const logs = await pub.getLogs({
     address: A.deployer,
-    fromBlock: "earliest",
+    fromBlock,
     toBlock: "latest",
   });
   for (let i = logs.length - 1; i >= 0; i--) {
