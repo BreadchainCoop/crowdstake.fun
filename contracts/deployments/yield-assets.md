@@ -22,13 +22,18 @@ All rows **verified on-chain** (`asset()`, `decimals`, appreciating `convertToAs
 | Optimism (10) | **stable** | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | Gauntlet USDC Prime `0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59` | Morpho ~6.65% | ✅ asset()==USDC |
 | Ethereum (1, config-only) | stable | USDC `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | sUSDS `0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD` or a Morpho/Yearn USDC vault | ~3.6% | re-verify before deploy |
 
-Deploy example (Optimism, stablecoin):
-```
-YIELD_KIND=stable \
-ASSET=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
-YIELD_VAULT=0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59 \
-PRIVATE_KEY=… forge script script/DeployCrowdStakeDeployer.s.sol --rpc-url <op-rpc> --broadcast
-```
+**Deploy via the etherform CI workflow** (`Deploy contracts (multi-chain)` →
+Run workflow), so the key stays a repo secret (`DEPLOY_PRIVATE_KEY`, funded on
+the target chain). For Optimism stablecoin, set the inputs:
+- chain: `optimism`
+- target: `DeployCrowdStakeDeployer`
+- yield_kind: `stable`
+- asset: `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` (native USDC)
+- yield_vault: `0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59` (Gauntlet USDC Prime)
+
+The run summary prints the deployer address + the `NEXT_PUBLIC_DEPLOYER_10` repo
+variable to set. (Locally, the equivalent is `YIELD_KIND=stable ASSET=… YIELD_VAULT=…
+PRIVATE_KEY=… forge script script/DeployCrowdStakeDeployer.s.sol --rpc-url <op> --broadcast`.)
 
 ## Native-ETH alternative (rejected — ~1% yield)
 The safe native-ETH ERC-4626 vaults (Aave Static aTokens, `asset()==WETH`, 18dp,
