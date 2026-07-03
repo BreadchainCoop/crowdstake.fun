@@ -9,7 +9,11 @@ import {
   HandCoins,
   Sparkle,
 } from "@phosphor-icons/react";
-import { useNativeBalance, useTokenBalance } from "@/hooks/use-token";
+import {
+  useNativeBalance,
+  useTokenBalance,
+  useWrapped,
+} from "@/hooks/use-token";
 import { useVotingState } from "@/hooks/use-voting";
 import { useActiveChain, useBaseAssetSymbol } from "@/hooks/use-chain";
 import { cn } from "@/lib/utils";
@@ -32,19 +36,23 @@ export function OnboardingBanner() {
   const { isConnected } = useAccount();
   const balance = useTokenBalance();
   const native = useNativeBalance();
+  const wrapped = useWrapped();
   const { hasVoted } = useVotingState();
   const baseSym = useBaseAssetSymbol();
-  const chainName = useActiveChain().chain.name;
+  const { chain, yieldKind } = useActiveChain();
+  const chainName = chain.name;
 
   if (!isConnected) return null;
   const bal = balance.data;
-  const nativeBal = native.data?.value;
+  // The deposit asset is the native currency on native chains, but the wrapped
+  // stablecoin (USDC) on stable chains — nudge off *that* balance, not gas.
+  const baseBal = yieldKind === "stable" ? wrapped.balance : native.data?.value;
   if (bal === undefined) return null; // still loading — don't flash a wrong nudge
 
   let nudge: Nudge;
   if (bal === 0n) {
     nudge =
-      nativeBal && nativeBal > 0n
+      baseBal && baseBal > 0n
         ? {
             tone: "action",
             icon: HandCoins,

@@ -73,5 +73,7 @@ export function durationToBlocks(
   blockTimeSeconds: number,
 ): bigint {
   if (!(seconds > 0) || !(blockTimeSeconds > 0)) return 0n;
-  return BigInt(Math.max(1, Math.round(seconds / blockTimeSeconds)));
+  // Ceil so the on-chain cycle never ends up *shorter* than the requested
+  // duration (a 13s ask at 12s/block → 2 blocks, not 1); min 1 block.
+  return BigInt(Math.max(1, Math.ceil(seconds / blockTimeSeconds)));
 }
