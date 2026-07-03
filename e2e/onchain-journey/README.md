@@ -22,7 +22,7 @@ the app's wiring produced the transaction, not the test script:
 6. **Deploy** a fresh instance in one tx → `SystemDeployed` resolves to 7
    non-zero contracts owned by the signer.
 
-`run.sh` also deploys a **CrowdStakeDeployerV2** to the fork and runs
+`run.sh` also uses the canonical **CrowdStakeDeployer** to run
 `journey-democratic.cjs`, which drives the democratic (recipient-voted) path:
 deploy a `VotingRecipientRegistry`-backed instance, then propose → execute →
 process a new recipient through the voting UI, asserting each step on-chain.

@@ -23,6 +23,8 @@ export interface DeployParams {
   registryKind?: number;
   initialRecipients?: Address[];
   proposalExpiry?: bigint;
+  // 0 = proportional (votes), 1 = equal, 2 = split (half votes / half equal).
+  distributionKind?: number;
   // Instance artwork (off-chain URIs). Empty string = none.
   tokenImageURI?: string;
   bannerImageURI?: string;
@@ -30,7 +32,7 @@ export interface DeployParams {
 
 /**
  * Deploy a full CrowdStake instance in one transaction via CrowdStakeDeployer,
- * then surface the resulting seven addresses (decoded from SystemDeployed).
+ * then surface the resulting instance addresses (decoded from SystemDeployed).
  */
 export function useDeployInstance() {
   // Deploying is a write on the wallet's CURRENT chain — use ITS deployer.
@@ -73,6 +75,7 @@ export function useDeployInstance() {
             votingPowerStrategy: Address;
             distributionManager: Address;
             distributionStrategy: Address;
+            secondaryDistributionStrategy: Address;
             votingModule: Address;
           };
           return {
@@ -115,6 +118,7 @@ export function useDeployInstance() {
             registryKind: p.registryKind ?? 0,
             initialRecipients: p.initialRecipients ?? [],
             proposalExpiry: p.proposalExpiry ?? 0n,
+            distributionKind: p.distributionKind ?? 0,
             tokenImageURI: p.tokenImageURI ?? "",
             bannerImageURI: p.bannerImageURI ?? "",
           },

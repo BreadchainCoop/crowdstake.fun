@@ -984,9 +984,10 @@ contract MultiStrategyDistributionManagerTest is Test {
         assertEq(address(retrieved[2]), address(strategies[2]), "Third strategy should match");
     }
 
-    // Test 8: Cannot initialize with zero strategies
-    function testRevertsNoStrategies() public {
-        IDistributionStrategy[] memory strategies = new IDistributionStrategy[](0);
+    // Test 8: Empty strategy set is allowed at init (wired later via setStrategies), but
+    //         the manager is not distribution-ready and setStrategies([]) is rejected.
+    function testEmptyInitThenSetStrategies() public {
+        IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
         bytes memory initData = abi.encodeWithSelector(
             MultiStrategyDistributionManager.initialize.selector,
@@ -994,11 +995,25 @@ contract MultiStrategyDistributionManagerTest is Test {
             address(registry),
             address(yieldToken),
             address(votingModule),
-            strategies,
+            none,
             address(this)
         );
-        vm.expectRevert();
-        new ERC1967Proxy(address(impl), initData);
+        // Empty init no longer reverts — a deployer wires strategies afterwards.
+        MultiStrategyDistributionManager mgr =
+            MultiStrategyDistributionManager(address(new ERC1967Proxy(address(impl), initData)));
+        assertEq(mgr.getStrategyCount(), 0, "starts with no strategies");
+        assertFalse(mgr.isDistributionReady(), "not ready with zero strategies");
+
+        // setStrategies rejects an empty set...
+        vm.expectRevert(MultiStrategyDistributionManager.NoStrategies.selector);
+        mgr.setStrategies(none);
+
+        // ...and accepts a non-empty one.
+        IDistributionStrategy[] memory wired = new IDistributionStrategy[](2);
+        wired[0] = IDistributionStrategy(address(new MockDistributableStrategy(address(yieldToken))));
+        wired[1] = IDistributionStrategy(address(new MockDistributableStrategy(address(yieldToken))));
+        mgr.setStrategies(wired);
+        assertEq(mgr.getStrategyCount(), 2, "strategies wired via setStrategies");
     }
 
     // Test 9: Cannot initialize with zero address strategy

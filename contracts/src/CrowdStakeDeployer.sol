@@ -3,9 +3,11 @@ pragma solidity ^0.8.20;
 
 import {AbstractCycleModule} from "./abstract/AbstractCycleModule.sol";
 import {BaseDistributionManager} from "./base/BaseDistributionManager.sol";
+import {MultiStrategyDistributionManager} from "./base/MultiStrategyDistributionManager.sol";
 import {AbstractDistributionManager} from "./abstract/AbstractDistributionManager.sol";
 import {BasisPointsVotingModule} from "./base/BasisPointsVotingModule.sol";
 import {VotingDistributionStrategy} from "./implementation/strategies/VotingDistributionStrategy.sol";
+import {EqualDistributionStrategy} from "./implementation/strategies/EqualDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "./implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "./implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "./implementation/token/SexyDaiYield.sol";
@@ -13,6 +15,7 @@ import {AbstractToken} from "./abstract/AbstractToken.sol";
 import {TimeWeightedVotingPower} from "./implementation/TimeWeightedVotingPower.sol";
 import {IVotingPowerStrategy} from "./interfaces/IVotingPowerStrategy.sol";
 import {IVotesCheckpoints} from "./interfaces/IVotesCheckpoints.sol";
+import {IDistributionStrategy} from "./interfaces/IDistributionStrategy.sol";
 
 /// @notice Minimal view of CrowdStakeFactory's deployment entrypoints.
 interface ICrowdStakeFactory {
@@ -22,26 +25,44 @@ interface ICrowdStakeFactory {
 
 /// @title CrowdStakeDeployer
 /// @notice The one canonical, one-transaction deployer for a complete, fully-wired
-///         CrowdStake instance. The caller chooses the recipient registry kind —
-///         an admin-controlled registry or a democratic VotingRecipientRegistry where
-///         current recipients vote to add and remove members — and optionally supplies
-///         instance artwork (token + banner image URIs) that is written to the
-///         distribution manager (the app's canonical per-instance key) in the same tx.
-///         Reuses one CrowdStakeFactory + its allowlisted beacons.
+///         CrowdStake instance. The caller chooses:
+///           - the recipient registry kind — an admin-controlled registry or a democratic
+///             VotingRecipientRegistry where current recipients vote to add/remove members;
+///           - the yield distribution strategy — proportional to votes, split equally among
+///             recipients, or a 50/50 split of the two (see {DistributionKind});
+///         and optionally supplies instance artwork (token + banner image URIs) that is
+///         written to the distribution manager (the app's canonical per-instance key) in the
+///         same tx. Reuses one CrowdStakeFactory + its allowlisted beacons.
 contract CrowdStakeDeployer {
     ICrowdStakeFactory public immutable FACTORY;
     address public immutable CYCLE_BEACON;
     address public immutable REGISTRY_BEACON; // AdminRecipientRegistry
     address public immutable VOTING_REGISTRY_BEACON; // VotingRecipientRegistry
     address public immutable TOKEN_BEACON;
-    address public immutable DIST_MANAGER_BEACON;
-    address public immutable STRATEGY_BEACON;
+    address public immutable DIST_MANAGER_BEACON; // BaseDistributionManager (single strategy)
+    address public immutable MULTI_DIST_MANAGER_BEACON; // MultiStrategyDistributionManager
+    address public immutable STRATEGY_BEACON; // VotingDistributionStrategy
+    address public immutable EQUAL_STRATEGY_BEACON; // EqualDistributionStrategy
     address public immutable VOTING_BEACON;
 
     /// @notice 0 = admin-controlled registry, 1 = democratic (recipient-voted).
     enum RegistryKind {
         Admin,
         Voting
+    }
+
+    /// @notice How claimed yield is split among recipients each cycle.
+    /// @dev Proportional uses BaseDistributionManager + VotingDistributionStrategy (votes drive
+    ///      the split; a cycle with zero votes never distributes). Equal and Split use
+    ///      MultiStrategyDistributionManager, which permits zero-voter cycles:
+    ///        - Equal: a single EqualDistributionStrategy (every recipient gets 1/N).
+    ///        - Split: [VotingDistributionStrategy, EqualDistributionStrategy] — half the yield
+    ///          is distributed by votes, half equally. (The vote half still needs votes to be
+    ///          present at cycle end, otherwise the proportional strategy reverts.)
+    enum DistributionKind {
+        Proportional,
+        Equal,
+        Split
     }
 
     struct Params {
@@ -55,6 +76,8 @@ contract CrowdStakeDeployer {
         uint8 registryKind; // 0 = admin, 1 = democratic
         address[] initialRecipients; // democratic only: the founding recipient cohort
         uint256 proposalExpiry; // democratic only: seconds a proposal stays open
+        // Yield distribution
+        uint8 distributionKind; // 0 = proportional, 1 = equal, 2 = split (half/half)
         // Instance artwork (off-chain URIs: ipfs/https/data). Empty = none.
         string tokenImageURI;
         string bannerImageURI;
@@ -66,13 +89,15 @@ contract CrowdStakeDeployer {
         address token;
         address votingPowerStrategy;
         address distributionManager;
-        address distributionStrategy;
+        address distributionStrategy; // primary: voting strat (proportional/split) or equal strat (equal)
+        address secondaryDistributionStrategy; // split only: the equal strat; else address(0)
         address votingModule;
     }
 
     error ZeroOwner();
     error ZeroCycleLength();
     error InvalidRegistryKind();
+    error InvalidDistributionKind();
     error EmptyInitialRecipients();
     error ZeroProposalExpiry();
 
@@ -86,7 +111,9 @@ contract CrowdStakeDeployer {
         address votingRegistryBeacon,
         address tokenBeacon,
         address distManagerBeacon,
+        address multiDistManagerBeacon,
         address strategyBeacon,
+        address equalStrategyBeacon,
         address votingBeacon
     ) {
         FACTORY = ICrowdStakeFactory(factory);
@@ -95,7 +122,9 @@ contract CrowdStakeDeployer {
         VOTING_REGISTRY_BEACON = votingRegistryBeacon;
         TOKEN_BEACON = tokenBeacon;
         DIST_MANAGER_BEACON = distManagerBeacon;
+        MULTI_DIST_MANAGER_BEACON = multiDistManagerBeacon;
         STRATEGY_BEACON = strategyBeacon;
+        EQUAL_STRATEGY_BEACON = equalStrategyBeacon;
         VOTING_BEACON = votingBeacon;
     }
 
@@ -104,6 +133,7 @@ contract CrowdStakeDeployer {
         if (p.owner == address(0)) revert ZeroOwner();
         if (p.cycleLength == 0) revert ZeroCycleLength();
         if (p.registryKind > uint8(RegistryKind.Voting)) revert InvalidRegistryKind();
+        if (p.distributionKind > uint8(DistributionKind.Split)) revert InvalidDistributionKind();
         if (p.registryKind == uint8(RegistryKind.Voting)) {
             // Pre-validate here so a bad config reverts cleanly instead of deep in
             // the registry's initialize (which would abort the whole one-tx deploy).
@@ -149,29 +179,12 @@ contract CrowdStakeDeployer {
         inst.votingPowerStrategy =
             address(new TimeWeightedVotingPower(IVotesCheckpoints(inst.token), AbstractCycleModule(inst.cycleModule)));
 
-        // 5. Distribution manager (deployer-owned; placeholders corrected below).
-        inst.distributionManager = FACTORY.create(
-            DIST_MANAGER_BEACON,
-            abi.encodeWithSelector(
-                BaseDistributionManager.initialize.selector,
-                inst.cycleModule,
-                inst.registry,
-                inst.token,
-                self, // placeholder votingModule
-                address(0), // placeholder strategy
-                self // deployer owns it temporarily
-            ),
-            keccak256(abi.encodePacked(baseSalt, "dist-manager"))
-        );
-
-        // 6. Voting distribution strategy (votes drive the split).
-        inst.distributionStrategy = FACTORY.create(
-            STRATEGY_BEACON,
-            abi.encodeWithSelector(
-                VotingDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, p.owner
-            ),
-            keccak256(abi.encodePacked(baseSalt, "strategy"))
-        );
+        // 5-6. Distribution manager + strategies (kind-dependent; deployer-owned, wired below).
+        if (p.distributionKind == uint8(DistributionKind.Proportional)) {
+            _deployProportional(inst, baseSalt, self, p.owner);
+        } else {
+            _deployMulti(inst, baseSalt, self, p.owner, p.distributionKind == uint8(DistributionKind.Split));
+        }
 
         // 7. Voting module.
         IVotingPowerStrategy[] memory vps = new IVotingPowerStrategy[](1);
@@ -184,8 +197,7 @@ contract CrowdStakeDeployer {
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );
 
-        // Wire references + authorise the manager as the token's yield claimer.
-        BaseDistributionManager(inst.distributionManager).setDistributionStrategy(inst.distributionStrategy);
+        // Wire shared references + authorise the manager as the token's yield claimer.
         AbstractDistributionManager(inst.distributionManager).setVotingModule(inst.votingModule);
         AbstractCycleModule(inst.cycleModule).setDistributionManager(inst.distributionManager);
         AbstractToken(inst.token).setYieldClaimer(inst.distributionManager);
@@ -201,5 +213,86 @@ contract CrowdStakeDeployer {
         AbstractCycleModule(inst.cycleModule).transferOwnership(p.owner);
 
         emit SystemDeployed(p.owner, msg.sender, p.salt, inst);
+    }
+
+    /// @dev Proportional: BaseDistributionManager (single strategy) + VotingDistributionStrategy.
+    ///      The manager is created with a placeholder strategy, then wired via
+    ///      setDistributionStrategy once the strategy (which references the manager) exists.
+    function _deployProportional(Instance memory inst, bytes32 baseSalt, address self, address owner) private {
+        inst.distributionManager = FACTORY.create(
+            DIST_MANAGER_BEACON,
+            abi.encodeWithSelector(
+                BaseDistributionManager.initialize.selector,
+                inst.cycleModule,
+                inst.registry,
+                inst.token,
+                self, // placeholder votingModule
+                address(0), // placeholder strategy
+                self // deployer owns it temporarily
+            ),
+            keccak256(abi.encodePacked(baseSalt, "dist-manager"))
+        );
+
+        inst.distributionStrategy = FACTORY.create(
+            STRATEGY_BEACON,
+            abi.encodeWithSelector(
+                VotingDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+            ),
+            keccak256(abi.encodePacked(baseSalt, "strategy"))
+        );
+
+        BaseDistributionManager(inst.distributionManager).setDistributionStrategy(inst.distributionStrategy);
+    }
+
+    /// @dev Equal / Split: MultiStrategyDistributionManager (permits zero-voter cycles). Created
+    ///      with an empty strategy set, then wired via setStrategies once the strategies (which
+    ///      reference the manager) exist. `split` adds a VotingDistributionStrategy so half the
+    ///      yield is distributed by votes and half equally; otherwise it is purely equal.
+    function _deployMulti(Instance memory inst, bytes32 baseSalt, address self, address owner, bool split) private {
+        IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
+        inst.distributionManager = FACTORY.create(
+            MULTI_DIST_MANAGER_BEACON,
+            abi.encodeWithSelector(
+                MultiStrategyDistributionManager.initialize.selector,
+                inst.cycleModule,
+                inst.registry,
+                inst.token,
+                self, // placeholder votingModule
+                none, // empty; strategies wired below via setStrategies
+                self // deployer owns it temporarily
+            ),
+            keccak256(abi.encodePacked(baseSalt, "dist-manager"))
+        );
+
+        address equalStrat = FACTORY.create(
+            EQUAL_STRATEGY_BEACON,
+            abi.encodeWithSelector(
+                EqualDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+            ),
+            keccak256(abi.encodePacked(baseSalt, "equal-strategy"))
+        );
+
+        IDistributionStrategy[] memory strategies;
+        if (split) {
+            // Primary = voting (proportional half), secondary = equal half.
+            inst.distributionStrategy = FACTORY.create(
+                STRATEGY_BEACON,
+                abi.encodeWithSelector(
+                    VotingDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+                ),
+                keccak256(abi.encodePacked(baseSalt, "strategy"))
+            );
+            inst.secondaryDistributionStrategy = equalStrat;
+            strategies = new IDistributionStrategy[](2);
+            strategies[0] = IDistributionStrategy(inst.distributionStrategy);
+            strategies[1] = IDistributionStrategy(equalStrat);
+        } else {
+            // Pure equal: the equal strategy is the primary and only strategy.
+            inst.distributionStrategy = equalStrat;
+            strategies = new IDistributionStrategy[](1);
+            strategies[0] = IDistributionStrategy(equalStrat);
+        }
+
+        MultiStrategyDistributionManager(inst.distributionManager).setStrategies(strategies);
     }
 }

@@ -9,7 +9,9 @@ import {CrowdStakeDeployer} from "../src/CrowdStakeDeployer.sol";
 import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {BasisPointsVotingModule} from "../src/base/BasisPointsVotingModule.sol";
 import {BaseDistributionManager} from "../src/base/BaseDistributionManager.sol";
+import {MultiStrategyDistributionManager} from "../src/base/MultiStrategyDistributionManager.sol";
 import {VotingDistributionStrategy} from "../src/implementation/strategies/VotingDistributionStrategy.sol";
+import {EqualDistributionStrategy} from "../src/implementation/strategies/EqualDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
@@ -48,17 +50,21 @@ contract DeployCrowdStakeDeployer is Script {
         address votingRegBeacon = address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), me));
         address tokenBeacon = address(new UpgradeableBeacon(_tokenImpl(asset, yieldVault), me));
         address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), me));
+        address multiDistBeacon = address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), me));
         address stratBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), me));
+        address equalStratBeacon = address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), me));
         address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), me));
 
-        address[] memory beacons = new address[](7);
+        address[] memory beacons = new address[](9);
         beacons[0] = cycleBeacon;
         beacons[1] = adminRegBeacon;
         beacons[2] = votingRegBeacon;
         beacons[3] = tokenBeacon;
         beacons[4] = distBeacon;
-        beacons[5] = stratBeacon;
-        beacons[6] = votingBeacon;
+        beacons[5] = multiDistBeacon;
+        beacons[6] = stratBeacon;
+        beacons[7] = equalStratBeacon;
+        beacons[8] = votingBeacon;
         factory.allowlistBeacons(beacons);
 
         CrowdStakeDeployer d = new CrowdStakeDeployer(
@@ -68,7 +74,9 @@ contract DeployCrowdStakeDeployer is Script {
             votingRegBeacon,
             tokenBeacon,
             distBeacon,
+            multiDistBeacon,
             stratBeacon,
+            equalStratBeacon,
             votingBeacon
         );
 

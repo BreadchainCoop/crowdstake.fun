@@ -70,10 +70,18 @@ function DeployForm() {
   const bannerImgValid =
     bannerImg.trim() === "" || isValidImageUri(bannerImg.trim());
 
-  // Democratic (V2-only): registry kind, founding recipients, proposal window.
+  // Recipient governance: registry kind, founding recipients, proposal window.
   const [registryKind, setRegistryKind] = useState<"admin" | "voting">("admin");
   const [foundersText, setFoundersText] = useState("");
   const [expiryDays, setExpiryDays] = useState("7");
+
+  // Yield distribution: how each cycle's yield is split among recipients.
+  // 0 = proportional (votes), 1 = equal, 2 = split (half votes / half equal).
+  const [distributionKind, setDistributionKind] = useState<
+    "proportional" | "equal" | "split"
+  >("proportional");
+  const distributionCode =
+    distributionKind === "equal" ? 1 : distributionKind === "split" ? 2 : 0;
 
   const ownerValue = (owner.trim() || address || "") as string;
   const cycleBlocks = durationToBlocks(cycleSeconds, chain.blockTimeSeconds);
@@ -131,6 +139,7 @@ function DeployForm() {
       registryKind: democratic ? 1 : 0,
       initialRecipients: democratic ? (founders as Address[]) : [],
       proposalExpiry: democratic ? BigInt(Number(cleanExpiry) * 86400) : 0n,
+      distributionKind: distributionCode,
       tokenImageURI: tokenImg.trim(),
       bannerImageURI: bannerImg.trim(),
     });
@@ -314,6 +323,41 @@ function DeployForm() {
         )}
       </div>
 
+      <div className="mb-4">
+        <Caption className="text-surface-grey-2 mb-1.5 block">
+          Yield distribution
+        </Caption>
+        <div className="border-paper-2 inline-flex flex-wrap rounded-xl border p-1">
+          {(
+            [
+              ["proportional", "By votes"],
+              ["equal", "Equally"],
+              ["split", "Half & half"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setDistributionKind(k)}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+                distributionKind === k
+                  ? "bg-core-orange text-white"
+                  : "text-surface-grey-2 hover:text-text-standard"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Caption className="text-surface-grey mt-1.5 block">
+          {distributionKind === "proportional"
+            ? "Each cycle's yield is split in proportion to community votes. Recipients with more votes get more."
+            : distributionKind === "equal"
+              ? "Each cycle's yield is split evenly across all recipients, regardless of votes."
+              : "Half of each cycle's yield is split by votes, the other half evenly across all recipients."}
+        </Caption>
+      </div>
+
       <ArtworkFields
         tokenImg={tokenImg}
         setTokenImg={setTokenImg}
@@ -393,8 +437,14 @@ function DeployForm() {
 
       <Body className="text-surface-grey mt-6 text-sm">
         Deploys the full system — token, cycle module, voting module + power,
-        recipient registry, and a vote-driven distribution manager — wired and
-        owned by you. Yield is distributed proportionally to community votes.
+        recipient registry, and a distribution manager — wired and owned by you.
+        Yield is distributed{" "}
+        {distributionKind === "proportional"
+          ? "proportionally to community votes"
+          : distributionKind === "equal"
+            ? "equally across all recipients"
+            : "half by votes and half equally"}
+        .
       </Body>
     </Card>
   );

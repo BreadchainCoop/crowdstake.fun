@@ -1,8 +1,8 @@
-/* Focused e2e for the democratic (VotingRecipientRegistry) flow via CrowdStake
- * DeployerV2. Drives the REAL UI with the env-key wallet: deploy a democratic
- * instance, then propose -> execute -> process a new recipient through the
- * voting UI, asserting on-chain at each step. Requires TEST_DEPLOYER_ADDRESS =
- * a V2 deployer and the app built with NEXT_PUBLIC_DEPLOYER_V2=true. */
+/* Focused e2e for the democratic (VotingRecipientRegistry) flow via the
+ * canonical CrowdStakeDeployer. Drives the REAL UI with the env-key wallet:
+ * deploy a democratic instance, then propose -> execute -> process a new
+ * recipient through the voting UI, asserting on-chain at each step. Requires
+ * TEST_DEPLOYER_ADDRESS = a CrowdStakeDeployer. */
 const { chromium } = require("playwright");
 const { installShim } = require("./inject.cjs");
 const L = require("./lib.cjs");

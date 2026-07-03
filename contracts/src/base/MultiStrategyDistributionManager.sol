@@ -52,12 +52,21 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager, Reentr
     /// @notice Emitted when the strategy set is configured during initialization
     event StrategiesInitialized(IDistributionStrategy[] strategies);
 
+    /// @notice Emitted when the strategy set is (re)configured via setStrategies
+    event StrategiesSet(IDistributionStrategy[] strategies);
+
+    /// @notice Thrown when configuring an empty strategy set via setStrategies
+    error NoStrategies();
+
     /// @notice Initializes the MultiStrategyDistributionManager with multiple strategies
     /// @param _cycleManager Address of the cycle manager
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _baseToken Address of the base token with yield
     /// @param _votingModule Address of the voting module
-    /// @param _strategies Array of distribution strategies to distribute to
+    /// @param _strategies Array of distribution strategies to distribute to. May be empty
+    ///        when the caller wires strategies afterwards via {setStrategies} — this breaks
+    ///        the manager<->strategy circular dependency during one-tx deploys, since a
+    ///        strategy needs this manager's address at its own init.
     /// @param _owner Address that will own this contract (receives onlyOwner privileges)
     function initialize(
         address _cycleManager,
@@ -71,14 +80,29 @@ contract MultiStrategyDistributionManager is AbstractDistributionManager, Reentr
         __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _owner);
         __ReentrancyGuard_init();
 
-        // Store strategies
-        require(_strategies.length > 0, "No strategies provided");
+        // Store strategies (may be empty; isDistributionReady() guards a zero-strategy manager).
         MultiStrategyDistributionManagerStorage storage $ = _getMultiStrategyDistributionManagerStorage();
         for (uint256 i = 0; i < _strategies.length; i++) {
             if (address(_strategies[i]) == address(0)) revert ZeroAddress();
             $.strategies.push(_strategies[i]);
         }
         emit StrategiesInitialized(_strategies);
+    }
+
+    /// @notice Replaces the configured strategy set. Owner-only.
+    /// @dev Mirrors {BaseDistributionManager-setDistributionStrategy}: lets a deployer wire
+    ///      strategies after both this manager and its strategies exist (the strategies
+    ///      reference this manager at their own init, so they must be deployed afterwards).
+    /// @param _strategies The new, non-empty strategy set (no zero addresses).
+    function setStrategies(IDistributionStrategy[] calldata _strategies) external onlyOwner {
+        if (_strategies.length == 0) revert NoStrategies();
+        MultiStrategyDistributionManagerStorage storage $ = _getMultiStrategyDistributionManagerStorage();
+        delete $.strategies;
+        for (uint256 i = 0; i < _strategies.length; i++) {
+            if (address(_strategies[i]) == address(0)) revert ZeroAddress();
+            $.strategies.push(_strategies[i]);
+        }
+        emit StrategiesSet(_strategies);
     }
 
     /// @notice Checks if conditions are met for distribution (cycle complete, recipients configured, sufficient yield)

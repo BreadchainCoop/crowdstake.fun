@@ -75,7 +75,7 @@ const votingRegAbi = parseAbi([
   "function isRecipient(address) view returns (bool)",
 ]);
 const deployerAbi = parseAbi([
-  "event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, (address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address votingModule) instance)",
+  "event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, (address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address secondaryDistributionStrategy, address votingModule) instance)",
 ]);
 const wxdaiAbi = parseAbi([
   "function deposit() payable",

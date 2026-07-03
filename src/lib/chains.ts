@@ -163,6 +163,39 @@ export const CHAINS: Record<number, ChainConfig> = {
   },
 };
 
+/**
+ * Which address fields were pinned at BUILD time via NEXT_PUBLIC_* env vars.
+ * The runtime address manifest (src/lib/remote-addresses.ts, fetched from the
+ * rolling `contract-addresses` GitHub release) must never override a pinned
+ * field — e.g. the e2e fork harness bakes its own deployer + instance and must
+ * not be clobbered by mainnet addresses. Production builds leave these unset
+ * so the latest release always wins.
+ */
+export const ENV_PINNED: Record<
+  number,
+  { deployer: boolean; instance: boolean }
+> = {
+  [gnosis.id]: {
+    deployer: !!orNull(process.env.NEXT_PUBLIC_DEPLOYER_ADDRESS),
+    instance: !!(
+      orNull(process.env.NEXT_PUBLIC_TOKEN_ADDRESS) ||
+      orNull(process.env.NEXT_PUBLIC_DISTRIBUTION_MANAGER_ADDRESS)
+    ),
+  },
+  [arbitrum.id]: {
+    deployer: !!orNull(process.env.NEXT_PUBLIC_DEPLOYER_42161),
+    instance: false,
+  },
+  [optimism.id]: {
+    deployer: !!orNull(process.env.NEXT_PUBLIC_DEPLOYER_10),
+    instance: false,
+  },
+  [mainnet.id]: {
+    deployer: !!orNull(process.env.NEXT_PUBLIC_DEPLOYER_1),
+    instance: false,
+  },
+};
+
 /** The chain shown before a wallet connects, and the app's home instance. */
 export const DEFAULT_CHAIN_ID = gnosis.id;
 

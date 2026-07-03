@@ -10,8 +10,10 @@ import {CycleModule} from "../src/implementation/CycleModule.sol";
 import {AbstractCycleModule} from "../src/abstract/AbstractCycleModule.sol";
 import {BasisPointsVotingModule} from "../src/base/BasisPointsVotingModule.sol";
 import {BaseDistributionManager} from "../src/base/BaseDistributionManager.sol";
+import {MultiStrategyDistributionManager} from "../src/base/MultiStrategyDistributionManager.sol";
 import {AbstractDistributionManager} from "../src/abstract/AbstractDistributionManager.sol";
 import {VotingDistributionStrategy} from "../src/implementation/strategies/VotingDistributionStrategy.sol";
+import {EqualDistributionStrategy} from "../src/implementation/strategies/EqualDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
@@ -41,17 +43,23 @@ contract CrowdStakeDeployerTest is Test {
             address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), address(this)));
         address tokenBeacon = address(new UpgradeableBeacon(address(new SexyDaiYield(WXDAI, SXDAI)), address(this)));
         address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), address(this)));
+        address multiDistBeacon =
+            address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), address(this)));
         address stratBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), address(this)));
+        address equalStratBeacon =
+            address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), address(this)));
         address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), address(this)));
 
-        address[] memory beacons = new address[](7);
+        address[] memory beacons = new address[](9);
         beacons[0] = cycleBeacon;
         beacons[1] = registryBeacon;
         beacons[2] = votingRegistryBeacon;
         beacons[3] = tokenBeacon;
         beacons[4] = distBeacon;
-        beacons[5] = stratBeacon;
-        beacons[6] = votingBeacon;
+        beacons[5] = multiDistBeacon;
+        beacons[6] = stratBeacon;
+        beacons[7] = equalStratBeacon;
+        beacons[8] = votingBeacon;
         factory.allowlistBeacons(beacons);
 
         deployer = new CrowdStakeDeployer(
@@ -61,7 +69,9 @@ contract CrowdStakeDeployerTest is Test {
             votingRegistryBeacon,
             tokenBeacon,
             distBeacon,
+            multiDistBeacon,
             stratBeacon,
+            equalStratBeacon,
             votingBeacon
         );
     }
@@ -77,6 +87,7 @@ contract CrowdStakeDeployerTest is Test {
             registryKind: 0,
             initialRecipients: new address[](0),
             proposalExpiry: 0,
+            distributionKind: 0, // proportional
             tokenImageURI: "",
             bannerImageURI: ""
         });
@@ -97,6 +108,7 @@ contract CrowdStakeDeployerTest is Test {
             registryKind: 1,
             initialRecipients: founders,
             proposalExpiry: expiry,
+            distributionKind: 0, // proportional
             tokenImageURI: "",
             bannerImageURI: ""
         });
@@ -137,6 +149,41 @@ contract CrowdStakeDeployerTest is Test {
         reg.processQueue();
         assertEq(reg.getRecipientCount(), 2, "candidate added by unanimous (n=1) vote");
         assertTrue(reg.isRecipient(address(0xBEEF)), "new recipient active");
+    }
+
+    // ---- Distribution strategy kinds ----
+
+    function test_DeploysEqualDistribution() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("equal-1");
+        p.distributionKind = 1; // equal
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+
+        MultiStrategyDistributionManager dm = MultiStrategyDistributionManager(i.distributionManager);
+        assertEq(dm.getStrategyCount(), 1, "single equal strategy");
+        assertEq(address(dm.strategies(0)), i.distributionStrategy, "equal strat wired as strategy[0]");
+        assertEq(i.secondaryDistributionStrategy, address(0), "no secondary for pure equal");
+        assertEq(IOwnable(i.distributionManager).owner(), OWNER, "manager owner");
+        assertEq(AbstractToken(i.token).yieldClaimer(), i.distributionManager, "yieldClaimer wired");
+    }
+
+    function test_DeploysSplitDistribution() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("split-1");
+        p.distributionKind = 2; // split (half votes / half equal)
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+
+        MultiStrategyDistributionManager dm = MultiStrategyDistributionManager(i.distributionManager);
+        assertEq(dm.getStrategyCount(), 2, "voting + equal strategies");
+        assertEq(address(dm.strategies(0)), i.distributionStrategy, "voting strat is primary/strategy[0]");
+        assertEq(address(dm.strategies(1)), i.secondaryDistributionStrategy, "equal strat is secondary/strategy[1]");
+        assertTrue(i.distributionStrategy != address(0) && i.secondaryDistributionStrategy != address(0), "both set");
+        assertEq(IOwnable(i.distributionManager).owner(), OWNER, "manager owner");
+    }
+
+    function test_RevertWhen_InvalidDistributionKind() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("bad-dist");
+        p.distributionKind = 3; // out of range
+        vm.expectRevert(CrowdStakeDeployer.InvalidDistributionKind.selector);
+        deployer.deploy(p);
     }
 
     // ---- Instance metadata ----

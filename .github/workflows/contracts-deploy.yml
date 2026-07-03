@@ -5,9 +5,12 @@ name: Deploy contracts (Gnosis)
 # Two targets:
 #   - DeployGnosis           → a fresh, fully-wired CrowdStake instance
 #   - DeployCrowdStakeDeployer → the ONE canonical one-tx deployer (+ its own
-#                                factory/beacons). After it runs, set the printed
-#                                address as the NEXT_PUBLIC_DEPLOYER_ADDRESS repo
-#                                variable and redeploy the frontend.
+#                                factory/beacons).
+#
+# After either target, the run publishes/updates the rolling `contract-addresses`
+# GitHub release with an addresses.json manifest. The static frontend fetches
+# that manifest at runtime (src/lib/remote-addresses.ts), so NO frontend
+# rebuild/redeploy is needed to pick up new addresses.
 #
 # Requires repo secrets: DEPLOY_PRIVATE_KEY (funded Gnosis key), GNOSIS_RPC_URL.
 
@@ -38,7 +41,8 @@ on:
         default: "crowdstake.fun-gnosis"
 
 permissions:
-  contents: read
+  # write: the publish step creates/updates the rolling contract-addresses release.
+  contents: write
 
 jobs:
   deploy:
@@ -85,7 +89,7 @@ jobs:
             echo "### Canonical CrowdStakeDeployer deployed" >> "$GITHUB_STEP_SUMMARY"
             echo "\`$ADDR\`" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Set repo variable **NEXT_PUBLIC_DEPLOYER_ADDRESS** to this address, then redeploy the frontend." >> "$GITHUB_STEP_SUMMARY"
+            echo "Published to the \`contract-addresses\` release — the live frontend picks it up on next page load (no rebuild needed)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Verify on Blockscout
@@ -107,3 +111,62 @@ jobs:
             contracts/deployments/gnosis.json
             contracts/broadcast/${{ inputs.target }}.s.sol/100/run-latest.json
           if-no-files-found: warn
+
+      # Publish the merged address manifest to the rolling `contract-addresses`
+      # release. The static frontend fetches addresses.json from this release at
+      # runtime, so deploys go live without a frontend rebuild. The manifest is
+      # merged with the previous one so a deployer redeploy never drops the
+      # default-instance addresses (or another chain's entry), and vice versa.
+      - name: Publish address manifest (rolling release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          gh release download contract-addresses -p addresses.json -O prev.json -R "$GITHUB_REPOSITORY" \
+            || echo '{}' > prev.json
+          python3 - <<'PY'
+          import json, os, time
+
+          target = os.environ["TARGET"]
+          chain = "100"  # this workflow deploys to Gnosis
+          try:
+              prev = json.load(open("prev.json"))
+          except Exception:
+              prev = {}
+          chains = prev.get("chains", {})
+          entry = chains.get(chain, {})
+
+          if target == "DeployCrowdStakeDeployer":
+              b = json.load(open("broadcast/DeployCrowdStakeDeployer.s.sol/100/run-latest.json"))
+              created = {
+                  t.get("contractName"): t.get("contractAddress")
+                  for t in b["transactions"]
+                  if t.get("transactionType") == "CREATE" and t.get("contractName")
+              }
+              entry["deployer"] = created["CrowdStakeDeployer"]
+              entry["factory"] = created.get("CrowdStakeFactory", entry.get("factory"))
+          else:  # DeployGnosis → a fresh default instance
+              d = json.load(open("deployments/gnosis.json"))
+              entry["factory"] = d.get("factory", entry.get("factory"))
+              entry["defaultInstance"] = {
+                  k: d[k]
+                  for k in (
+                      "token", "distributionManager", "cycleModule", "votingModule",
+                      "recipientRegistry", "distributionStrategy", "votingPowerStrategy",
+                  )
+              }
+
+          entry["commit"] = os.environ.get("GITHUB_SHA", "")
+          entry["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+          chains[chain] = entry
+          json.dump({"version": 1, "chains": chains}, open("addresses.json", "w"), indent=2)
+          print(json.dumps({"version": 1, "chains": chains}, indent=2))
+          PY
+          gh release view contract-addresses -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create contract-addresses -R "$GITHUB_REPOSITORY" \
+                 --title "Contract addresses (latest)" \
+                 --notes "Rolling manifest of live contract addresses. The static frontend fetches addresses.json from this release at runtime."
+          gh release upload contract-addresses addresses.json --clobber -R "$GITHUB_REPOSITORY"
+          gh release edit contract-addresses -R "$GITHUB_REPOSITORY" \
+            --notes "Rolling manifest of live contract addresses (last update: $TARGET @ ${GITHUB_SHA::7}, $(date -u +%Y-%m-%dT%H:%MZ)). The static frontend fetches addresses.json from this release at runtime."
