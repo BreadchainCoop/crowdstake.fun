@@ -13,6 +13,7 @@ import {VotingDistributionStrategy} from "../src/implementation/strategies/Votin
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {WrappedNativeYield} from "../src/implementation/token/WrappedNativeYield.sol";
+import {StableYield} from "../src/implementation/token/StableYield.sol";
 
 /// @notice Fresh, self-contained deploy of the ONE canonical CrowdStakeDeployer plus its
 ///         own CrowdStakeFactory and beacons. The token + distribution-manager impls now
@@ -20,19 +21,24 @@ import {WrappedNativeYield} from "../src/implementation/token/WrappedNativeYield
 ///         factory/beacons, so this relies on no prior deployment and needs no external
 ///         allowlist tx. Used for the fork e2e and the mainnet/L2 cutovers.
 ///
-/// @dev CHAIN-PARAMETERIZED: the yield token wraps the chain's native currency into an
-///      ERC-4626 vault. Set WRAPPED_NATIVE + YIELD_VAULT env vars per chain (the vault's
-///      asset() MUST equal WRAPPED_NATIVE); defaults are Gnosis WXDAI + sDAI. See
-///      contracts/deployments/yield-assets.md for the per-chain addresses.
+/// @dev CHAIN-PARAMETERIZED yield token. Two kinds (env YIELD_KIND, default "native"):
+///      - "native": WrappedNativeYield(ASSET, YIELD_VAULT) — deposit native, ASSET is the
+///                  wrapped-native (WXDAI/WETH); the vault is denominated in it. Gnosis.
+///      - "stable": StableYield(ASSET, YIELD_VAULT) — deposit an ERC-20 stablecoin (ASSET,
+///                  e.g. USDC); higher-yield Morpho USDC vaults on Arbitrum/Optimism.
+///      In both cases the vault's asset() MUST equal ASSET. Defaults are Gnosis WXDAI+sDAI.
+///      See contracts/deployments/yield-assets.md for per-chain addresses.
 contract DeployCrowdStakeDeployer is Script {
     // Gnosis defaults (native xDAI → WXDAI → sDAI).
-    address constant DEFAULT_WRAPPED_NATIVE = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d; // WXDAI
+    address constant DEFAULT_ASSET = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d; // WXDAI
     address constant DEFAULT_YIELD_VAULT = 0xaf204776c7245bF4147c2612BF6e5972Ee483701; // sDAI
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         address me = vm.addr(pk);
-        address wrappedNative = vm.envOr("WRAPPED_NATIVE", DEFAULT_WRAPPED_NATIVE);
+        // ASSET is the deposit token: wrapped-native for "native", a stablecoin for "stable".
+        // (WRAPPED_NATIVE kept as an alias for backwards compatibility.)
+        address asset = vm.envOr("ASSET", vm.envOr("WRAPPED_NATIVE", DEFAULT_ASSET));
         address yieldVault = vm.envOr("YIELD_VAULT", DEFAULT_YIELD_VAULT);
         vm.startBroadcast(pk);
 
@@ -41,8 +47,7 @@ contract DeployCrowdStakeDeployer is Script {
         address cycleBeacon = address(new UpgradeableBeacon(address(new CycleModule()), me));
         address adminRegBeacon = address(new UpgradeableBeacon(address(new AdminRecipientRegistry()), me));
         address votingRegBeacon = address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), me));
-        address tokenBeacon =
-            address(new UpgradeableBeacon(address(new WrappedNativeYield(wrappedNative, yieldVault)), me));
+        address tokenBeacon = address(new UpgradeableBeacon(_tokenImpl(asset, yieldVault), me));
         address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), me));
         address stratBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), me));
         address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), me));
@@ -71,7 +76,19 @@ contract DeployCrowdStakeDeployer is Script {
         vm.stopBroadcast();
         console.log("CrowdStakeDeployer:", address(d));
         console.log("FACTORY:", address(factory));
-        console.log("WRAPPED_NATIVE:", wrappedNative);
+        console.log("YIELD_KIND:", _stable() ? "stable" : "native");
+        console.log("ASSET:", asset);
         console.log("YIELD_VAULT:", yieldVault);
+    }
+
+    /// @dev "stable" → StableYield (ERC-20 stablecoin deposit); else WrappedNativeYield.
+    function _stable() internal view returns (bool) {
+        return keccak256(bytes(vm.envOr("YIELD_KIND", string("native")))) == keccak256(bytes("stable"));
+    }
+
+    /// @dev Deploy the token implementation matching YIELD_KIND (broadcast-safe).
+    function _tokenImpl(address asset, address yieldVault) internal returns (address) {
+        return
+            _stable() ? address(new StableYield(asset, yieldVault)) : address(new WrappedNativeYield(asset, yieldVault));
     }
 }
