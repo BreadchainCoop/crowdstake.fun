@@ -2,7 +2,7 @@
 
 Two token kinds, selected per chain by the deploy env `YIELD_KIND`:
 
-- **`native`** — `WrappedNativeYield(ASSET, YIELD_VAULT)`: deposit native currency,
+- **`native`** — `SexyDaiYield(ASSET, YIELD_VAULT)`: deposit native currency,
   wrap it, park in an ERC-4626 vault whose `asset()` == the wrapped-native. Used
   on Gnosis (native xDAI is a dollar, so sDAI gives real yield).
 - **`stable`** — `StableYield(ASSET, YIELD_VAULT)`: deposit an ERC-20 stablecoin

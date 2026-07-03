@@ -8,8 +8,8 @@ import {AbstractToken} from "../../abstract/AbstractToken.sol";
 
 /// @title StableYield
 /// @notice A yield token whose deposit asset is an ERC-20 stablecoin (e.g. USDC)
-///         parked in an ERC-4626 savings vault. Unlike WrappedNativeYield there
-///         is NO native path — native currency can't become a stablecoin
+///         parked in an ERC-4626 savings vault. Unlike the native SexyDaiYield
+///         there is NO native path — native currency can't become a stablecoin
 ///         without a swap, so `mint()`-payable reverts. The project token mirrors
 ///         the stablecoin's decimals so 1 token == 1 unit of the stablecoin and
 ///         the yield math stays in the underlying's units.

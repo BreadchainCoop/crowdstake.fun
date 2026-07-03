@@ -12,7 +12,7 @@ import {BaseDistributionManager} from "../src/base/BaseDistributionManager.sol";
 import {VotingDistributionStrategy} from "../src/implementation/strategies/VotingDistributionStrategy.sol";
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
-import {WrappedNativeYield} from "../src/implementation/token/WrappedNativeYield.sol";
+import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
 import {StableYield} from "../src/implementation/token/StableYield.sol";
 
 /// @notice Fresh, self-contained deploy of the ONE canonical CrowdStakeDeployer plus its
@@ -22,12 +22,11 @@ import {StableYield} from "../src/implementation/token/StableYield.sol";
 ///         allowlist tx. Used for the fork e2e and the mainnet/L2 cutovers.
 ///
 /// @dev CHAIN-PARAMETERIZED yield token. Two kinds (env YIELD_KIND, default "native"):
-///      - "native": WrappedNativeYield(ASSET, YIELD_VAULT) — deposit native, ASSET is the
-///                  wrapped-native (WXDAI/WETH); the vault is denominated in it. Gnosis.
+///      - "native": SexyDaiYield(ASSET, YIELD_VAULT) — deposit native, ASSET is the
+///                  wrapped-native (WXDAI); the vault (sDAI) is denominated in it. Gnosis.
 ///      - "stable": StableYield(ASSET, YIELD_VAULT) — deposit an ERC-20 stablecoin (ASSET,
 ///                  e.g. USDC); higher-yield Morpho USDC vaults on Arbitrum/Optimism.
-///      In both cases the vault's asset() MUST equal ASSET. Defaults are Gnosis WXDAI+sDAI.
-///      See contracts/deployments/yield-assets.md for per-chain addresses.
+///      Defaults are Gnosis WXDAI+sDAI. See contracts/deployments/yield-assets.md.
 contract DeployCrowdStakeDeployer is Script {
     // Gnosis defaults (native xDAI → WXDAI → sDAI).
     address constant DEFAULT_ASSET = 0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d; // WXDAI
@@ -81,14 +80,13 @@ contract DeployCrowdStakeDeployer is Script {
         console.log("YIELD_VAULT:", yieldVault);
     }
 
-    /// @dev "stable" → StableYield (ERC-20 stablecoin deposit); else WrappedNativeYield.
+    /// @dev "stable" → StableYield (ERC-20 stablecoin deposit); else native SexyDaiYield.
     function _stable() internal view returns (bool) {
         return keccak256(bytes(vm.envOr("YIELD_KIND", string("native")))) == keccak256(bytes("stable"));
     }
 
     /// @dev Deploy the token implementation matching YIELD_KIND (broadcast-safe).
     function _tokenImpl(address asset, address yieldVault) internal returns (address) {
-        return
-            _stable() ? address(new StableYield(asset, yieldVault)) : address(new WrappedNativeYield(asset, yieldVault));
+        return _stable() ? address(new StableYield(asset, yieldVault)) : address(new SexyDaiYield(asset, yieldVault));
     }
 }
