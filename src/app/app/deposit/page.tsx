@@ -6,6 +6,7 @@ import { Card, PageHeader } from "@/components/dapp/ui";
 import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
+import { AddFundsCard } from "@/components/dapp/add-funds";
 import { cn } from "@/lib/utils";
 import { parseAmount } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
@@ -30,6 +31,7 @@ export default function DepositPage() {
         title="Deposit"
         subtitle={`Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
       />
+      <AddFundsCard className="mb-5" />
       <DepositForm />
     </div>
   );
