@@ -19,7 +19,11 @@ import { useDistributionReady } from "@/hooks/use-distribution";
 import { useIsRecipient } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
-import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
+import {
+  useActiveChain,
+  useBaseAssetSymbol,
+  useNativeSymbol,
+} from "@/hooks/use-chain";
 
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
@@ -32,6 +36,7 @@ export default function PortfolioPage() {
   const { symbol: tokenSymbol } = useInstanceToken();
   const fmt = useAmountFormatter();
   const nativeSym = useNativeSymbol();
+  const baseSym = useBaseAssetSymbol();
   const { blockTimeSeconds } = useActiveChain();
 
   return (
@@ -57,7 +62,7 @@ export default function PortfolioPage() {
         <StatCard
           label={`Your ${tokenSymbol}`}
           value={`${fmt(balance.data)} ${tokenSymbol}`}
-          sub={`Redeemable 1:1 for ${nativeSym}`}
+          sub={`Redeemable 1:1 for ${baseSym}`}
           accent
         />
         <StatCard

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { formatAmount } from "@/lib/format";
+import { useInstanceToken } from "@/hooks/use-token";
 
 /**
  * Demo mode: a DISPLAY-ONLY ×1000 multiplier on shown token amounts, so a tiny
@@ -67,8 +68,10 @@ export function useDemoMode() {
  */
 export function useAmountFormatter(): (value?: bigint) => string {
   const { demo } = useDemoMode();
+  // Format in the active instance token's decimals (18 native, 6 for USDC).
+  const { decimals } = useInstanceToken();
   return (value?: bigint) =>
     value === undefined || value === null
-      ? formatAmount(value)
-      : formatAmount(demo ? value * DEMO_MULTIPLIER : value);
+      ? formatAmount(value, 4, decimals)
+      : formatAmount(demo ? value * DEMO_MULTIPLIER : value, 4, decimals);
 }

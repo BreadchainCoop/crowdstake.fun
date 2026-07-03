@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { useNativeBalance, useTokenBalance } from "@/hooks/use-token";
 import { useVotingState } from "@/hooks/use-voting";
-import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
+import { useActiveChain, useBaseAssetSymbol } from "@/hooks/use-chain";
 import { cn } from "@/lib/utils";
 
 type Nudge = {
@@ -33,7 +33,7 @@ export function OnboardingBanner() {
   const balance = useTokenBalance();
   const native = useNativeBalance();
   const { hasVoted } = useVotingState();
-  const nativeSym = useNativeSymbol();
+  const baseSym = useBaseAssetSymbol();
   const chainName = useActiveChain().chain.name;
 
   if (!isConnected) return null;
@@ -48,14 +48,14 @@ export function OnboardingBanner() {
         ? {
             tone: "action",
             icon: HandCoins,
-            message: `You have ${nativeSym} ready. Deposit to start earning yield and get voting power.`,
+            message: `Deposit ${baseSym} to start earning yield and get voting power.`,
             href: "/app/deposit",
             cta: "Deposit",
           }
         : {
             tone: "action",
             icon: Sparkle,
-            message: `Add some ${nativeSym} on ${chainName}, then deposit to join this instance.`,
+            message: `Add some ${baseSym} on ${chainName}, then deposit to join this instance.`,
           };
   } else if (!hasVoted) {
     nudge = {

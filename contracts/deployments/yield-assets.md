@@ -1,31 +1,42 @@
-# Per-chain yield assets (WrappedNativeYield config)
+# Per-chain yield assets
 
-`WrappedNativeYield(WRAPPED_NATIVE, YIELD_VAULT)` mints 1:1 on a native-currency
-deposit, wraps it, and parks it in an ERC-4626 vault whose `asset()` **must
-equal** `WRAPPED_NATIVE`. Yield = the vault's share appreciation. To deploy on a
-chain, pass these two addresses as env vars to `DeployCrowdStakeDeployer`.
+Two token kinds, selected per chain by the deploy env `YIELD_KIND`:
 
-The design keeps the deposit **chain-native** (deposit ETH, redeem ETH). The
-honest tradeoff: safe native-ETH ERC-4626 yield is thin today (~1%), because the
-high-yield vaults on these chains are stablecoin-denominated (Morpho USDC,
-~4-6.65%) which can't take a native-ETH deposit. See "Stablecoin alternative".
+- **`native`** — `WrappedNativeYield(ASSET, YIELD_VAULT)`: deposit native currency,
+  wrap it, park in an ERC-4626 vault whose `asset()` == the wrapped-native. Used
+  on Gnosis (native xDAI is a dollar, so sDAI gives real yield).
+- **`stable`** — `StableYield(ASSET, YIELD_VAULT)`: deposit an ERC-20 stablecoin
+  (USDC) into a stablecoin ERC-4626 vault. Used on the ETH L2s, where native-ETH
+  vault yield is ~1% but **stablecoin yield is 4-6.65%**. No native path; token
+  decimals mirror the stablecoin (6).
 
-All rows below were **verified on-chain** (`asset()`, `decimals`,
-`convertToAssets(1e18)` appreciating) unless marked otherwise.
+In both cases `YIELD_VAULT.asset()` **must equal** `ASSET` (constructor-enforced).
+All rows **verified on-chain** (`asset()`, `decimals`, appreciating `convertToAssets`).
 
-| Chain | WRAPPED_NATIVE | YIELD_VAULT | Vault | ~APY | verified |
-|-------|----------------|-------------|-------|------|----------|
-| Gnosis (100) | WXDAI `0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d` | sDAI `0xaf204776c7245bF4147c2612BF6e5972Ee483701` | Spark Savings DAI | ~variable (DSR) | ✅ asset()==WXDAI |
-| Arbitrum (42161) | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | waArbWETH `0x4cE13a79f45C1Be00BdABD38B764aC28C082704E` | Aave v3 Static aToken (WETH) | ~1.0% | ✅ asset()==WETH, 18dp, 1.065 |
-| Optimism (10) | WETH `0x4200000000000000000000000000000000000006` | waOptWETH `0x464b808c2C7E04b07e860fDF7a91870620246148` | Aave v3 Static aToken (WETH) | ~1.24% | ✅ asset()==WETH, 18dp, 1.054 |
-| Ethereum (1, config-only) | WETH `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` | Gauntlet WETH Core `0x4881Ef0BF6d2365D3dd6499ccd7532bcdBCE0658` (or Steakhouse ETH `0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4`) | Morpho MetaMorpho (WETH) | ~1.5-1.6% | asset()==WETH per research; re-verify before deploy |
+## Chosen config (highest safe yield per chain)
 
-## Why Aave Static aTokens on the L2s
-- `asset() == WETH` (verified), 18 decimals, non-rebasing share price that
-  appreciates via `convertToAssets` — exactly the sDAI model, drop-in for the
-  contract. Deposit routes WETH into the deep Aave WETH pool under the hood.
-- Audited (BGD `static-a-token-v3`, Certora-verified).
-- Immediate withdrawals (subject to Aave pool utilization; healthy today).
+| Chain | KIND | ASSET | YIELD_VAULT | Vault / ~APY | verified |
+|-------|------|-------|-------------|--------------|----------|
+| Gnosis (100) | native | WXDAI `0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d` | sDAI `0xaf204776c7245bF4147c2612BF6e5972Ee483701` | Spark Savings DAI | ✅ asset()==WXDAI |
+| Arbitrum (42161) | **stable** | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | Steakhouse HY USDC `0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA` | Morpho ~4.17% | ✅ asset()==USDC |
+| Optimism (10) | **stable** | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | Gauntlet USDC Prime `0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59` | Morpho ~6.65% | ✅ asset()==USDC |
+| Ethereum (1, config-only) | stable | USDC `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | sUSDS `0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD` or a Morpho/Yearn USDC vault | ~3.6% | re-verify before deploy |
+
+Deploy example (Optimism, stablecoin):
+```
+YIELD_KIND=stable \
+ASSET=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
+YIELD_VAULT=0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59 \
+PRIVATE_KEY=… forge script script/DeployCrowdStakeDeployer.s.sol --rpc-url <op-rpc> --broadcast
+```
+
+## Native-ETH alternative (rejected — ~1% yield)
+The safe native-ETH ERC-4626 vaults (Aave Static aTokens, `asset()==WETH`, 18dp,
+verified appreciating): Arbitrum waArbWETH `0x4cE13a79f45C1Be00BdABD38B764aC28C082704E`
+(~1.0%, 1.065), Optimism waOptWETH `0x464b808c2C7E04b07e860fDF7a91870620246148`
+(~1.24%, 1.054), Ethereum Morpho Gauntlet WETH Core
+`0x4881Ef0BF6d2365D3dd6499ccd7532bcdBCE0658` (~1.5%). They work with
+`YIELD_KIND=native` + `ASSET=WETH` but yield far less than the stablecoin vaults.
 
 ## Safety notes
 - **Ethereum Aave WETH is tainted** by the April-2026 rsETH bridge exploit

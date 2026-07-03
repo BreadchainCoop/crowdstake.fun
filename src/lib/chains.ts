@@ -23,8 +23,15 @@ export interface ChainConfig {
   defaultInstance: InstanceAddresses | null;
   /** The ERC20 the yield token wraps native into (WXDAI on Gnosis), if any. */
   wrappedToken: Address | null;
-  /** Human symbol for the wrapped ERC20 (e.g. WXDAI). */
+  /** Human symbol for the deposit ERC20 (WXDAI on native chains, USDC on stable). */
   wrappedSymbol: string;
+  /**
+   * Yield model: "native" deposits the native currency into a wrapped-native
+   * ERC-4626 vault (Gnosis); "stable" deposits an ERC-20 stablecoin (USDC) into
+   * a stablecoin ERC-4626 vault (higher yield on the ETH L2s). Drives whether
+   * the deposit UI offers a native path.
+   */
+  yieldKind: "native" | "stable";
   /**
    * Seconds per `block.number` increment on this chain — used to convert a
    * time-based cycle length to/from blocks. NOTE: this tracks what the EVM
@@ -104,6 +111,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     defaultInstance: GNOSIS_INSTANCE,
     wrappedToken: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d" as Address, // WXDAI
     wrappedSymbol: "WXDAI",
+    yieldKind: "native",
     blockTimeSeconds: 5,
     explorer: "https://gnosisscan.io",
     deployable: true,
@@ -116,8 +124,9 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_42161) as Address | null,
     defaultInstance: null,
-    wrappedToken: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" as Address, // WETH
-    wrappedSymbol: "WETH",
+    wrappedToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as Address, // native USDC
+    wrappedSymbol: "USDC",
+    yieldKind: "stable",
     blockTimeSeconds: 12, // block.number follows the L1 cadence on Arbitrum
     explorer: "https://arbiscan.io",
     deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_42161,
@@ -130,8 +139,9 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_10) as Address | null,
     defaultInstance: null,
-    wrappedToken: "0x4200000000000000000000000000000000000006" as Address, // WETH
-    wrappedSymbol: "WETH",
+    wrappedToken: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" as Address, // native USDC
+    wrappedSymbol: "USDC",
+    yieldKind: "stable",
     blockTimeSeconds: 2,
     explorer: "https://optimistic.etherscan.io",
     deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_10,
@@ -144,8 +154,9 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_1) as Address | null,
     defaultInstance: null,
-    wrappedToken: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" as Address, // WETH
-    wrappedSymbol: "WETH",
+    wrappedToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as Address, // USDC
+    wrappedSymbol: "USDC",
+    yieldKind: "stable",
     blockTimeSeconds: 12,
     explorer: "https://etherscan.io",
     deployable: !!process.env.NEXT_PUBLIC_DEPLOYER_1,

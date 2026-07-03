@@ -22,11 +22,13 @@ import {
 export default function DepositPage() {
   const { symbol } = useInstanceToken();
   const native = useNativeSymbol();
+  const { yieldKind, wrappedSymbol } = useActiveChain();
+  const depositSym = yieldKind === "stable" ? wrappedSymbol : native;
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Deposit"
-        subtitle={`Stake ${native} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
+        subtitle={`Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`}
       />
       <DepositForm />
     </div>
@@ -34,13 +36,20 @@ export default function DepositPage() {
 }
 
 function DepositForm() {
-  const [mode, setMode] = useState<"native" | "wrapped">("native");
+  const { yieldKind, wrappedToken, wrappedSymbol } = useActiveChain();
+  const isStable = yieldKind === "stable";
+  // Stable instances deposit an ERC-20 stablecoin (USDC); there is no native
+  // path. Native instances offer native + wrapped.
+  const [mode, setMode] = useState<"native" | "wrapped">(
+    isStable ? "wrapped" : "native",
+  );
   const [amount, setAmount] = useState("");
 
-  const { symbol } = useInstanceToken();
+  const { symbol, decimals } = useInstanceToken();
   const nativeSym = useNativeSymbol();
-  const { wrappedToken, wrappedSymbol } = useActiveChain();
   const hasWrapped = Boolean(wrappedToken);
+  // The native toggle only makes sense when the instance accepts native.
+  const showModeToggle = hasWrapped && !isStable;
   const fmt = useAmountFormatter();
   const native = useNativeBalance();
   const wrapped = useWrapped();
@@ -48,7 +57,9 @@ function DepositForm() {
   const { deposit, ...depositTx } = useDeposit();
   const { approve, ...approveTx } = useApproveWrapped();
 
-  const parsed = parseAmount(amount);
+  // Native is always 18-dp; the wrapped/stable asset uses the token's decimals.
+  const depositDecimals = mode === "native" ? 18 : decimals;
+  const parsed = parseAmount(amount, depositDecimals);
   // Native deposits pay gas in the native token too, so reserve a little for
   // gas — otherwise a MAX deposit sends the whole balance and can't fund the tx.
   const GAS_RESERVE = 10n ** 16n; // ~0.01 of the native token
@@ -83,7 +94,7 @@ function DepositForm() {
 
   return (
     <Card>
-      {hasWrapped && (
+      {showModeToggle && (
         <div className="border-paper-2 mb-5 inline-flex rounded-xl border p-1">
           {(["native", "wrapped"] as const).map((m) => (
             <button
@@ -108,6 +119,7 @@ function DepositForm() {
         onChange={setAmount}
         balance={balance}
         symbol={mode === "native" ? nativeSym : wrappedSymbol}
+        decimals={depositDecimals}
       />
 
       <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">

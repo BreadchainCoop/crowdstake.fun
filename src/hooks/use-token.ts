@@ -3,7 +3,7 @@
 import { erc20Abi, maxUint256, zeroAddress, type Address } from "viem";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { tokenAbi } from "@/lib/abis";
-import { TOKEN_SYMBOL } from "@/lib/constants";
+import { TOKEN_SYMBOL, TOKEN_DECIMALS } from "@/lib/constants";
 import { chainConfig } from "@/lib/chains";
 import { useActiveChainId, useInstance } from "@/components/instance-provider";
 import { useTx } from "@/hooks/use-tx";
@@ -30,9 +30,17 @@ export function useInstanceToken() {
     functionName: "name",
     chainId,
   });
+  const decimals = useReadContract({
+    address: a.token,
+    abi: tokenAbi,
+    functionName: "decimals",
+    chainId,
+  });
   return {
     symbol: (symbol.data as string | undefined) || TOKEN_SYMBOL,
     name: name.data as string | undefined,
+    // The project token mirrors its base asset's decimals (18 native, 6 USDC).
+    decimals: (decimals.data as number | undefined) ?? TOKEN_DECIMALS,
   };
 }
 

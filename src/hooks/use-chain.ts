@@ -12,3 +12,15 @@ export function useActiveChain(): ChainConfig {
 export function useNativeSymbol(): string {
   return nativeSymbol(useActiveChainId());
 }
+
+/**
+ * The asset a stake is deposited into / redeemed for: the native currency on
+ * native-yield chains (xDAI/ETH), or the stablecoin on stable-yield chains (USDC).
+ */
+export function useBaseAssetSymbol(): string {
+  const chainId = useActiveChainId();
+  const cfg = chainConfig(chainId);
+  return cfg.yieldKind === "stable"
+    ? cfg.wrappedSymbol
+    : cfg.chain.nativeCurrency.symbol;
+}
