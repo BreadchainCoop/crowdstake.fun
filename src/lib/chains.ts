@@ -116,7 +116,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_42161) as Address | null,
     defaultInstance: null,
-    wrappedToken: null,
+    wrappedToken: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" as Address, // WETH
     wrappedSymbol: "WETH",
     blockTimeSeconds: 12, // block.number follows the L1 cadence on Arbitrum
     explorer: "https://arbiscan.io",
@@ -130,7 +130,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_10) as Address | null,
     defaultInstance: null,
-    wrappedToken: null,
+    wrappedToken: "0x4200000000000000000000000000000000000006" as Address, // WETH
     wrappedSymbol: "WETH",
     blockTimeSeconds: 2,
     explorer: "https://optimistic.etherscan.io",
@@ -144,7 +144,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     ),
     deployer: orNull(process.env.NEXT_PUBLIC_DEPLOYER_1) as Address | null,
     defaultInstance: null,
-    wrappedToken: null,
+    wrappedToken: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" as Address, // WETH
     wrappedSymbol: "WETH",
     blockTimeSeconds: 12,
     explorer: "https://etherscan.io",
