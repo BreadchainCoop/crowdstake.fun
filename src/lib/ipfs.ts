@@ -47,6 +47,13 @@ export async function collectSelfFiles(onProgress?: Progress): Promise<File[]> {
     done += batch.length;
     onProgress?.(done, paths.length);
   }
+  // Include the manifest itself so the pinned copy can re-pin ITSELF from
+  // wherever it's served (the generator excludes it from its own listing).
+  files.push(
+    new File([JSON.stringify(paths)], MANIFEST_PATH.slice(1), {
+      type: "application/json",
+    }),
+  );
   return files;
 }
 
@@ -102,6 +109,9 @@ export async function pinToPinata(
   const form = new FormData();
   for (const f of files) form.append("file", f, `crowdstake/${f.name}`);
   form.append("pinataMetadata", JSON.stringify({ name: "crowdstake-app" }));
+  // CIDv1 (base32) — required for <cid>.ipfs.<gateway> subdomain URLs; the
+  // default v0 Qm… base58 CID is case-sensitive and can't be a DNS label.
+  form.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
   const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
     method: "POST",
     headers: { Authorization: `Bearer ${jwt.trim()}` },
@@ -119,6 +129,56 @@ export async function pinToPinata(
   const json = (await res.json()) as { IpfsHash?: string };
   if (!json.IpfsHash) throw new Error("Pinata returned no CID.");
   return json.IpfsHash;
+}
+
+/** Default Kubo (go-ipfs) RPC API of a locally running node. */
+export const LOCAL_IPFS_API = "http://127.0.0.1:5001";
+
+/**
+ * Pin a directory to a LOCAL IPFS node (Kubo / IPFS Desktop) via its RPC API —
+ * the fully account-free path: no service, no key, no email. Your node hosts
+ * the site and announces it to the network; public gateways fetch it from you.
+ *
+ * Uses /api/v0/add with cid-version=1 (subdomain gateways require CIDv1) and a
+ * shared root folder; Kubo reports that folder's CID as the directory root.
+ *
+ * Requires the node to allow this origin on its RPC API (one-time):
+ *   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '["*"]'
+ *   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST"]'
+ * then restart the daemon.
+ */
+export async function pinToLocalNode(
+  files: File[],
+  apiUrl: string = LOCAL_IPFS_API,
+  signal?: AbortSignal,
+): Promise<string> {
+  const base = apiUrl.replace(/\/+$/, "");
+  const form = new FormData();
+  for (const f of files) {
+    // Kubo expects the multipart filename to be the URI-encoded relative path.
+    form.append("file", f, encodeURIComponent(`crowdstake/${f.name}`));
+  }
+  const res = await fetch(
+    `${base}/api/v0/add?recursive=true&pin=true&cid-version=1&progress=false`,
+    { method: "POST", body: form, signal },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`IPFS node error ${res.status}: ${body.slice(0, 200)}`);
+  }
+  // NDJSON stream of {Name, Hash, ...}; the root folder's entry carries the CID.
+  const text = await res.text();
+  let root: string | null = null;
+  for (const line of text.trim().split("\n")) {
+    try {
+      const entry = JSON.parse(line) as { Name?: string; Hash?: string };
+      if (entry.Name === "crowdstake" && entry.Hash) root = entry.Hash;
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  if (!root) throw new Error("IPFS node returned no directory CID.");
+  return root;
 }
 
 /** Gateway + ENS URLs for a freshly pinned directory CID. */

@@ -37,15 +37,21 @@ cat <<EOF
   Test the IPFS publish flow:
     1. Open  ${URL}/app/publish/
     2. Leave "What to publish" on "This running app" (self-pin).
-    3. Pin with "Pinata" (works today): paste a free API key scoped to
-       pinFileToIPFS from https://app.pinata.cloud/developers/api-keys
-       → Publish to IPFS.
+    3. Pick a provider:
+       - "Your IPFS node" (NO account): run a local Kubo/IPFS Desktop node,
+         allow the origin once:
+           ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '["*"]'
+           ipfs config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST"]'
+         restart the daemon, then Publish. Keep the node running; public
+         gateways may need a few minutes to find fresh content.
+       - "Pinata": paste a free API key scoped to pinFileToIPFS from
+         https://app.pinata.cloud/developers/api-keys → always-on pin.
     4. It uploads, then shows a CID + gateway URLs.
     5. Verify it: open  https://<CID>.ipfs.dweb.link/app/
        and a specific instance:  https://<CID>.ipfs.dweb.link/app/?i=<distributionManager>
 
-  (Storacha is the other provider, but its upload endpoint up.storacha.network
-   is currently unreachable in DNS — use Pinata until it's back.)
+  (Storacha is the third provider, but its upload endpoint up.storacha.network
+   is currently unreachable in DNS — use the others until it's back.)
 
   Ctrl-C to stop.
 

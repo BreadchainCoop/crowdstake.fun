@@ -65,10 +65,15 @@ Publish to IPFS **from the browser** — no CI, no repo secrets. Open
 `/app/publish`, pick a provider, and the running app pins itself; you get a CID,
 gateway URLs, and the `ipfs://` URI for an ENS contenthash.
 
-- **Pinata** — paste a free API key scoped to `pinFileToIPFS` (stays in the tab).
+- **Your IPFS node** — fully account-free: a local [Kubo/IPFS Desktop](https://docs.ipfs.tech/install/ipfs-desktop/)
+  node pins and hosts the app itself (one-time CORS config, shown in the UI).
+  Keep the node online for gateways to fetch it; fresh content can take a few
+  minutes to become fetchable through public gateways.
+- **Pinata** — paste a free API key scoped to `pinFileToIPFS` (stays in the tab);
+  always-on pinning without running anything.
 - **Storacha** — email magic-link sign-in (IPFS + Filecoin, nothing to paste).
-  Note: its upload endpoint `up.storacha.network` can be down in DNS; use Pinata
-  when it is.
+  Note: its upload endpoint `up.storacha.network` can be down in DNS; use one of
+  the others when it is.
 
 Try it locally (serves the root build so self-pin works exactly as on IPFS):
 

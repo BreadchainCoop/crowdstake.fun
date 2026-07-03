@@ -18,10 +18,12 @@ import {
 } from "@phosphor-icons/react";
 import { Card, PageHeader } from "@/components/dapp/ui";
 import {
+  LOCAL_IPFS_API,
   canSelfPin,
   collectSelfFiles,
   filesFromFolderInput,
   ipfsUrls,
+  pinToLocalNode,
   pinToPinata,
 } from "@/lib/ipfs";
 import { copyToClipboard, cn } from "@/lib/utils";
@@ -120,9 +122,12 @@ function Publish() {
     canSelfPin ? "self" : "folder",
   );
   const [folder, setFolder] = useState<File[]>([]);
-  const [provider, setProvider] = useState<"pinata" | "storacha">("pinata");
+  const [provider, setProvider] = useState<"local" | "pinata" | "storacha">(
+    "local",
+  );
   const [email, setEmail] = useState("");
   const [pinataJwt, setPinataJwt] = useState("");
+  const [nodeApi, setNodeApi] = useState(LOCAL_IPFS_API);
   const [step, setStep] = useState<Step>("idle");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [cid, setCid] = useState<string | null>(null);
@@ -198,7 +203,17 @@ function Publish() {
       // The gather loop doesn't take the abort signal — honor a cancel here.
       if (abort.signal.aborted) throw new Error("Cancelled");
 
-      // 3a. Pinata — one authenticated REST call with the user's key.
+      // 3a. Local IPFS node — the account-free path: your node hosts the site.
+      if (provider === "local") {
+        phase = "Adding to your IPFS node";
+        setStep("uploading");
+        const root = await pinToLocalNode(files, nodeApi, abort.signal);
+        setCid(root);
+        setStep("done");
+        return;
+      }
+
+      // 3b. Pinata — one authenticated REST call with the user's key.
       if (provider === "pinata") {
         phase = "Uploading to Pinata";
         setStep("uploading");
@@ -208,7 +223,7 @@ function Publish() {
         return;
       }
 
-      // 3b. Storacha — sign in + create a space if we don't already have one.
+      // 3c. Storacha — sign in + create a space if we don't already have one.
       const client = storacha!.client;
       let spaceDid = client.spaces()[0]?.did();
       if (storacha!.needsLogin) {
@@ -248,15 +263,17 @@ function Publish() {
         return;
       }
       const msg = e instanceof Error ? e.message : String(e);
-      // Storacha's upload endpoint (up.storacha.network) has periods of being
-      // unreachable in DNS; a bare "Failed to fetch" is unhelpful, so point the
-      // user at the provider that works.
-      if (
-        provider === "storacha" &&
-        /failed to fetch|networkerror/i.test(msg)
-      ) {
+      const isFetchFail = /failed to fetch|networkerror/i.test(msg);
+      // Map bare network errors to actionable guidance per provider.
+      if (provider === "storacha" && isFetchFail) {
+        // Storacha's upload endpoint (up.storacha.network) has periods of
+        // being unreachable in DNS.
         setError(
-          "Storacha's upload service looks unreachable right now. Switch the provider to Pinata above and try again.",
+          "Storacha's upload service looks unreachable right now. Use your own IPFS node or Pinata above instead.",
+        );
+      } else if (provider === "local" && isFetchFail) {
+        setError(
+          `Couldn't reach your IPFS node at ${nodeApi}. Is the daemon running, and does its RPC API allow this origin? One-time setup: ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '["*"]' && ipfs config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST"]' — then restart the daemon.`,
         );
       } else {
         setError(`${phase} failed: ${msg}`);
@@ -443,7 +460,24 @@ function Publish() {
         <Caption className="text-surface-grey-2 font-semibold">
           Pin with
         </Caption>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <button
+            disabled={busy}
+            onClick={() => setProvider("local")}
+            className={cn(
+              "rounded-xl border p-3 text-left",
+              provider === "local"
+                ? "border-core-orange bg-core-orange/5"
+                : "border-paper-2 hover:border-core-orange/50",
+            )}
+          >
+            <span className="text-text-standard block text-sm font-semibold">
+              Your IPFS node
+            </span>
+            <Caption className="text-surface-grey-2">
+              No account. You host it.
+            </Caption>
+          </button>
           <button
             disabled={busy}
             onClick={() => setProvider("pinata")}
@@ -458,7 +492,7 @@ function Publish() {
               Pinata
             </span>
             <Caption className="text-surface-grey-2">
-              Paste a scoped API key. Works today.
+              Scoped API key · always-on pin.
             </Caption>
           </button>
           <button
@@ -481,7 +515,45 @@ function Publish() {
         </div>
       </div>
 
-      {provider === "pinata" ? (
+      {provider === "local" ? (
+        <div className="mt-4">
+          <Caption className="text-surface-grey-2 font-semibold">
+            Your node&apos;s RPC API
+          </Caption>
+          <Body className="text-surface-grey-2 mt-1 text-sm">
+            Fully account-free: your running{" "}
+            <a
+              href="https://docs.ipfs.tech/install/ipfs-desktop/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-core-orange underline"
+            >
+              IPFS node
+            </a>{" "}
+            (Kubo or IPFS Desktop) pins and hosts the app itself. One-time:
+            allow this origin on the RPC API —{" "}
+            <code className="break-all">
+              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin
+              &apos;[&quot;*&quot;]&apos;
+            </code>{" "}
+            and{" "}
+            <code className="break-all">
+              ipfs config --json API.HTTPHeaders.Access-Control-Allow-Methods
+              &apos;[&quot;PUT&quot;,&quot;POST&quot;]&apos;
+            </code>
+            , then restart the daemon. Keep the node online so gateways can
+            fetch your site (or additionally pin with a service for always-on).
+          </Body>
+          <input
+            type="text"
+            value={nodeApi}
+            onChange={(e) => setNodeApi(e.target.value)}
+            placeholder={LOCAL_IPFS_API}
+            disabled={busy}
+            className="border-paper-2 bg-paper-main text-text-standard focus:border-core-orange mt-2 w-full rounded-lg border px-3 py-2 font-mono text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+      ) : provider === "pinata" ? (
         <div className="mt-4">
           <Caption className="text-surface-grey-2 font-semibold">
             Pinata API key (JWT)
