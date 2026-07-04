@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "chains": {
+    "100": {
+      "deployer": "0x9cc96b6503f1fb8e53104f3d754ddfc4c318e796",
+      "factory": "0xd3ea5c3744a4a083182682d76f8ad00825f99102",
+      "commit": "4e7a5244c98363564ff30b4cb73c61a2636b0c55",
+      "updatedAt": "2026-07-03T23:24:04Z"
+    },
+    "42161": {
+      "deployer": "0xef5eda10b907e766654473cf8f7945a824fce7ca",
+      "factory": "0x223b71d0dbddcf118b71ec4b27b703ad1d148cdd",
+      "commit": "4e7a5244c98363564ff30b4cb73c61a2636b0c55",
+      "updatedAt": "2026-07-04T01:08:54Z"
+    },
+    "10": {
+      "deployer": "0xd32c19c9846d249ec2c646b83d3e1afdbffa61e5",
+      "factory": "0x9b83ec8956d07ee494b59284398a7c9cd56d2afd",
+      "commit": "4e7a5244c98363564ff30b4cb73c61a2636b0c55",
+      "updatedAt": "2026-07-04T01:15:56Z"
+    }
+  }
+}
