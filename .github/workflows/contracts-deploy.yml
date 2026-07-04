@@ -242,3 +242,25 @@ jobs:
           gh release upload contract-addresses addresses.json --clobber -R "$GITHUB_REPOSITORY"
           gh release edit contract-addresses -R "$GITHUB_REPOSITORY" \
             --notes "Rolling manifest of live contract addresses (last update: $TARGET on chain $CHAIN_ID @ ${GITHUB_SHA::7}, $(date -u +%Y-%m-%dT%H:%MZ)). The static frontend fetches addresses.json from this release at runtime."
+
+      # Mirror the manifest to the `addresses` branch, which the frontend fetches
+      # cross-origin via raw.githubusercontent.com (sends Access-Control-Allow-
+      # Origin: *). The release *asset* download redirects to a host that omits
+      # CORS headers, so a browser on our Pages origin can't fetch it directly.
+      # continue-on-error: a mirror hiccup must never fail the contract deploy
+      # (which already completed above). addresses.json is in ./contracts (the
+      # job's working-directory).
+      - name: Mirror manifest to addresses branch (CORS-fetchable)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m json.tool addresses.json >/dev/null
+          content_b64=$(base64 -w0 addresses.json)
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/contents/addresses.json?ref=addresses" --jq .sha 2>/dev/null || true)
+          gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/addresses.json" \
+            -f message="chore(addresses): publish manifest @ ${GITHUB_SHA::7}" \
+            -f content="$content_b64" \
+            -f branch=addresses \
+            ${sha:+-f sha="$sha"}

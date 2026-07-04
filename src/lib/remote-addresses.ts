@@ -15,19 +15,23 @@ import { CHAINS, ENV_PINNED, type InstanceAddresses } from "@/lib/chains";
  *   2. This manifest (latest release)
  *   3. Baked-in fallbacks in chains.ts
  *
- * CORS note: plain `github.com/releases/download/...` URLs don't send CORS
- * headers on the redirect, so browsers can't fetch them. api.github.com sends
- * `access-control-allow-origin: *` on every response (including the asset
- * redirect when requested with `Accept: application/octet-stream`), so we go
- * through the API: release-by-tag → asset → download. Both requests are
- * "simple" (no preflight) and anonymous (60 req/h/IP rate limit — fine for
- * one fetch per page load).
+ * CORS note: fetching the manifest from the GitHub *release asset* fails
+ * in-browser — the asset download 302-redirects to
+ * release-assets.githubusercontent.com, which omits `Access-Control-Allow-
+ * Origin`. So contracts-deploy also mirrors the manifest to the `addresses`
+ * branch, and we fetch it via raw.githubusercontent.com, which DOES send
+ * `access-control-allow-origin: *`. This keeps the no-rebuild property: a
+ * contract redeploy updates the branch and the live app picks it up on the next
+ * page load. `NEXT_PUBLIC_ADDRESSES_URL` still overrides for previews.
  */
 
-const REPO = "BreadchainCoop/crowdstake.fun";
-const RELEASE_TAG = "contract-addresses";
-const ASSET_NAME = "addresses.json";
 const FETCH_TIMEOUT_MS = 5_000;
+
+// CORS-fetchable mirror of the manifest (contracts-deploy pushes here). raw
+// .githubusercontent.com sends `access-control-allow-origin: *`; the GitHub
+// release-asset download does not (it redirects to a host without CORS).
+const MANIFEST_URL =
+  "https://raw.githubusercontent.com/BreadchainCoop/crowdstake.fun/addresses/addresses.json";
 
 /** Per-chain entry in the published manifest (all fields optional). */
 interface ManifestChain {
@@ -69,15 +73,7 @@ async function fetchManifest(): Promise<Manifest> {
   if (override && override.length > 0) {
     return (await fetchJson(override)) as Manifest;
   }
-  const release = (await fetchJson(
-    `https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}`,
-  )) as { assets?: { name: string; url: string }[] };
-  const asset = release.assets?.find((a) => a.name === ASSET_NAME);
-  if (!asset) throw new Error(`release has no ${ASSET_NAME} asset`);
-  return (await fetchJson(
-    asset.url,
-    "application/octet-stream",
-  )) as Manifest;
+  return (await fetchJson(MANIFEST_URL)) as Manifest;
 }
 
 /** A checksummed address, or null if the input isn't a valid address. */
