@@ -66,7 +66,7 @@ function fetchJson(url: string, accept?: string): Promise<unknown> {
   });
 }
 
-/** Fetch the manifest — direct URL override, or via the GitHub API release. */
+/** Fetch the manifest — direct URL override, or the CORS-fetchable `addresses` branch (raw). */
 async function fetchManifest(): Promise<Manifest> {
   // NOTE: must be a static literal for Next to inline it into the bundle.
   const override = process.env.NEXT_PUBLIC_ADDRESSES_URL;
