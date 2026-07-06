@@ -63,7 +63,9 @@ export function OnboardingBanner() {
         : {
             tone: "action",
             icon: Sparkle,
-            message: `Add some ${baseSym} on ${chainName}, then deposit to join this instance.`,
+            message: `Need ${baseSym} on ${chainName}? Bring it from any chain or buy with a card, then deposit.`,
+            href: "/app/deposit",
+            cta: "Add funds",
           };
   } else if (!hasVoted) {
     nudge = {
