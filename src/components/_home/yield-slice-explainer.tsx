@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Body, Caption, Chip, Heading2, Heading4 } from "@breadcoop/ui";
+import { Body, Caption, Chip, Heading4 } from "@breadcoop/ui";
 import {
   ArrowRight,
   ArrowsClockwise,
@@ -114,10 +114,7 @@ export function YieldSliceExplainer() {
               How the mechanism works
             </Chip>
           </div>
-          <Heading2 className="text-text-standard mt-4">
-            Where the funding comes from
-          </Heading2>
-          <Body className="text-surface-grey-2 mx-auto mt-4 text-lg">
+          <Body className="text-surface-grey-2 mx-auto mt-6 text-lg">
             Your savings do the work while staying yours. Here&apos;s how a
             slice of yield — and only the yield — turns into funding for your
             community.
