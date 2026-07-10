@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { encodeFunctionData, numberToHex, type Hex } from "viem";
 import { useAccount } from "wagmi";
+import { useSetActiveWallet } from "@privy-io/wagmi";
 import {
   useLogin,
   usePrivy,
   useSendTransaction,
   useWallets,
+  type ConnectedWallet,
 } from "@privy-io/react-auth";
 import {
   WalletActionsContext,
@@ -27,11 +29,41 @@ import {
  */
 export function PrivyWalletActions({ children }: { children: ReactNode }) {
   const { login } = useLogin();
-  const { logout } = usePrivy();
+  const { ready, authenticated, logout } = usePrivy();
   const { wallets } = useWallets();
+  const { setActiveWallet } = useSetActiveWallet();
   const { sendTransaction } = useSendTransaction();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const selfPaidWrite = useWalletWrite();
+
+  /**
+   * Prefer the embedded (sponsorable) wallet, else the first connected one.
+   * `wallets` can be briefly empty right after login while the embedded wallet
+   * provisions, so callers must tolerate `undefined`.
+   */
+  const preferredWallet = useCallback((): ConnectedWallet | undefined => {
+    return (
+      wallets.find((w) => w.walletClientType === "privy") ?? wallets[0]
+    );
+  }, [wallets]);
+
+  /**
+   * Bridge the authenticated Privy wallet into wagmi. Privy auth alone does NOT
+   * make wagmi `isConnected` — without this the UI stays on "Connect" forever
+   * and re-clicking calls `login()` on an already-authenticated user (a no-op
+   * that throws "use a `link` helper instead"). Runs once per wallet: a ref
+   * guards against re-entering while `setActiveWallet` is in flight.
+   */
+  const bridging = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready || !authenticated || isConnected) return;
+    const wallet = preferredWallet();
+    if (!wallet || bridging.current === wallet.address) return;
+    bridging.current = wallet.address;
+    void setActiveWallet(wallet).finally(() => {
+      bridging.current = null;
+    });
+  }, [ready, authenticated, isConnected, preferredWallet, setActiveWallet]);
 
   /** Is the active wallet a Privy embedded wallet (sponsorable)? */
   const activeIsEmbedded = useCallback(() => {
@@ -67,7 +99,17 @@ export function PrivyWalletActions({ children }: { children: ReactNode }) {
   );
 
   const actions: WalletActions = {
-    connect: () => login(),
+    // Already authenticated (e.g. embedded wallet still bridging into wagmi)?
+    // Re-running `login()` throws "already logged in" — instead push the Privy
+    // wallet into wagmi so `isConnected` flips. Otherwise open the login flow.
+    connect: () => {
+      if (authenticated) {
+        const wallet = preferredWallet();
+        if (wallet) void setActiveWallet(wallet);
+        return;
+      }
+      login();
+    },
     disconnect: () => void logout(),
     sendSponsored,
     // Embedded Privy wallets are gas-sponsored; external wallets self-pay.

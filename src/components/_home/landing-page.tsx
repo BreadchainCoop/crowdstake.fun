@@ -7,17 +7,9 @@ import {
   Chip,
   Heading2,
   Heading3,
-  Heading4,
   Logo,
 } from "@breadcoop/ui";
-import {
-  ArrowRight,
-  CheckCircle,
-  Coins,
-  ShieldCheck,
-  Target,
-  TrendUp,
-} from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, CheckCircle } from "@phosphor-icons/react/dist/ssr";
 import { FundingCalculator } from "@/components/_home/funding-calculator";
 import { HowItWorks } from "@/components/_home/how-it-works";
 import { YieldEngine } from "@/components/_home/yield-engine";
@@ -32,12 +24,11 @@ export function LandingPage() {
       <SiteNav />
       <main>
         <Hero />
-        <KeyConcepts />
-        <Features />
         <UnderTheHood />
         <YieldSliceExplainer />
         <HowItWorks />
         <YieldEngine />
+        <CalculatorSection />
         <GetStarted />
         <CtaBand />
       </main>
@@ -59,7 +50,6 @@ function SiteNav() {
           </span>
         </a>
         <div className="hidden items-center gap-8 md:flex">
-          <NavLink href="#features">Features</NavLink>
           <NavLink href="#how-it-works">How it Works</NavLink>
           <NavLink href="#get-started">Get Started</NavLink>
         </div>
@@ -99,22 +89,22 @@ function Hero() {
   return (
     <section
       id="top"
-      className="section-container grid gap-12 py-20 lg:grid-cols-2 lg:py-28"
+      className="section-container py-20 lg:py-28"
     >
-      <div className="flex flex-col justify-center">
+      <div className="mx-auto flex max-w-2xl flex-col justify-center text-center">
         <h1 className="font-breadDisplay text-core-orange text-6xl leading-[1.04] font-extrabold tracking-tight break-words sm:text-7xl">
           Crowdstaking
         </h1>
         <Heading2 className="text-primary-jade mt-2 italic">
           Turning shared funds into shared futures.
         </Heading2>
-        <Body className="text-surface-grey-2 mt-6 max-w-xl text-lg">
+        <Body className="text-surface-grey-2 mx-auto mt-6 max-w-xl text-lg">
           Crowdstaking transforms any pool of money into an interest-generating
           engine to fund your group&apos;s shared goals. Your deposited funds
           remain safely staked and fully withdrawable — only the interest gets
           allocated.
         </Body>
-        <div className="mt-8 flex flex-wrap gap-4">
+        <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Button
             app="fund"
             variant="primary"
@@ -128,7 +118,7 @@ function Hero() {
             Launch App
           </Button>
         </div>
-        <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
+        <ul className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2">
           {[
             "Open source protocol",
             "Fully customizable",
@@ -145,112 +135,17 @@ function Hero() {
           ))}
         </ul>
       </div>
-      <div className="flex items-center">
+    </section>
+  );
+}
+
+/* ---------------------------- Calculator --------------------------------- */
+
+function CalculatorSection() {
+  return (
+    <section id="calculator" className="bg-paper-1 py-20">
+      <div className="section-container flex justify-center">
         <FundingCalculator />
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------- Key Concepts & Design Principles ------------------ */
-
-function KeyConcepts() {
-  return (
-    <section id="concepts" className="bg-paper-1 py-20">
-      <div className="section-container">
-        <Heading2 className="text-text-standard text-center">
-          Fund what&apos;s meaningful to you
-        </Heading2>
-        <div className="mt-12 grid gap-12 md:grid-cols-2">
-          <div>
-            <Heading3 className="text-core-orange">Key Concepts</Heading3>
-            <div className="mt-6 space-y-6">
-              <Concept
-                title="Interest Distribution"
-                body="The protocol accumulates interest and distributes it to each user."
-              />
-              <Concept
-                title="Cycle-Based Operations"
-                body="The system operates in fixed-length cycles (measured in blocks), providing predictable distribution schedules while allowing for regular reallocation of resources."
-              />
-            </div>
-          </div>
-          <div>
-            <Heading3 className="text-primary-jade">Design Principles</Heading3>
-            <div className="mt-6 space-y-6">
-              <Concept
-                title="Accessibility"
-                body="Any community can deploy and customize their own instance."
-              />
-              <Concept
-                title="Decentralization"
-                body="No single entity controls interest distribution."
-              />
-              <Concept
-                title="Flexibility"
-                body="Support for adding/removing interest recipients and adjusting parameters."
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Concept({ title, body }: { title: string; body: string }) {
-  return (
-    <div>
-      <Heading4 className="text-text-standard">{title}</Heading4>
-      <Body className="text-surface-grey-2 mt-1">{body}</Body>
-    </div>
-  );
-}
-
-/* ------------------------------- Features -------------------------------- */
-
-const FEATURES = [
-  {
-    icon: Coins,
-    title: "Automated Yield Generation",
-    body: "Community members deposit funds to generate interest on the principal.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "White-Label Ready",
-    body: "Deploy with your organization's branding and customize the interface to match your community's needs.",
-  },
-  {
-    icon: TrendUp,
-    title: "Interest Optimization",
-    body: "Advanced strategies automatically rebalance funds across DeFi protocols to maximize community returns.",
-  },
-  {
-    icon: Target,
-    title: "Project Tracking",
-    body: "Monitor funded projects with milestone-based payments and transparent progress reporting.",
-  },
-];
-
-function Features() {
-  return (
-    <section id="features" className="py-20">
-      <div className="section-container">
-        <Heading2 className="text-text-standard text-center">Features</Heading2>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          {FEATURES.map(({ icon: Icon, title, body }) => (
-            <div
-              key={title}
-              className="border-paper-2 bg-paper-0 rounded-2xl border p-6 transition-shadow hover:shadow-lg"
-            >
-              <div className="bg-core-orange/10 flex h-12 w-12 items-center justify-center rounded-xl">
-                <Icon size={24} weight="bold" className="text-core-orange" />
-              </div>
-              <Heading4 className="text-text-standard mt-4">{title}</Heading4>
-              <Body className="text-surface-grey-2 mt-2">{body}</Body>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -298,7 +193,7 @@ function GetStarted() {
             timeline="24-48 hours"
             technical="None required"
           >
-            <Button app="fund" variant="primary" as="a" href="#get-started">
+            <Button app="fund" variant="primary" as={Link} href="/app/deploy">
               Start Quick Deploy
             </Button>
           </DeployCard>
