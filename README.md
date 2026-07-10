@@ -9,6 +9,7 @@ This is a monorepo:
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/` (root)   | **Next.js frontend** — landing page + dapp (App Router, React 19, Tailwind v4, [`@breadcoop/ui`](https://github.com/BreadchainCoop/bread-ui-kit) design system). |
 | `contracts/` | **Foundry smart contracts** — the on-chain protocol (distribution, voting, automation, registries).                                                              |
+| `telegram/`  | **Telegram Mini App launcher** — bot setup scripts + guide for running the dapp inside Telegram ([telegram/README.md](./telegram/README.md)).                    |
 
 ## Quick start
 

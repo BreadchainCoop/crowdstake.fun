@@ -13,6 +13,8 @@ Monorepo: a **Next.js frontend at the repo root** and the **Foundry smart contra
 contracts/            Foundry project (the protocol)
   src/ test/ script/  Solidity + tests + deploy scripts
   foundry.toml        contracts build config (FOUNDRY_PROFILE=ci in CI)
+telegram/             Telegram Mini App launcher (zero-dep bot scripts + setup guide);
+                      the in-app side lives in src/lib/telegram.ts + telegram-provider.tsx
 .github/workflows/    CI (contracts build/test today; etherform + web deploy to follow)
 ```
 

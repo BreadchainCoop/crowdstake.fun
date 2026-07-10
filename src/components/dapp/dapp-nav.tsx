@@ -58,7 +58,7 @@ export function DappNav() {
   const links = useNavLinks();
 
   return (
-    <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
+    <header className="border-paper-2 bg-paper-main/80 tg-safe-top sticky top-0 z-50 border-b backdrop-blur">
       <nav className="section-container flex h-16 items-center gap-3">
         {/* Left: the instance IS the brand (white-label) — its badge + name. */}
         <InstanceSwitcher />

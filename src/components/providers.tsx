@@ -12,7 +12,9 @@ import { WagmiWalletActions } from "@/components/wallet/wallet-actions";
 import { PrivyWalletActions } from "@/components/wallet/privy-wallet-actions";
 import { InstanceProvider } from "@/components/instance-provider";
 import { DemoModeProvider } from "@/components/demo-mode-provider";
+import { TelegramProvider } from "@/components/telegram-provider";
 import { hydrateRemoteAddresses } from "@/lib/remote-addresses";
+import { isTelegramMiniApp } from "@/lib/telegram";
 
 export function Providers({ children }: { children: ReactNode }) {
   // One QueryClient per browser session; hashFn keeps bigint query keys stable.
@@ -48,6 +50,14 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => setMounted(true), []);
   const usePrivyTree = privyConfigured() && mounted;
 
+  // Telegram's webview injects no wallet; inside a Mini App launch Privy's
+  // seamless Telegram auth (dashboard: Telegram login + seamless enabled)
+  // signs the user into an embedded wallet with zero clicks — it reads the
+  // #tgWebAppData launch hash on its own. Offering `telegram` in the modal is
+  // scoped to that context so the web experience is unchanged. Evaluated only
+  // in the mounted (client) Privy tree, so the value is settled when read.
+  const inTelegram = isTelegramMiniApp();
+
   const app = (
     <InstanceProvider key={addressesVersion}>
       <DemoModeProvider>{children}</DemoModeProvider>
@@ -55,33 +65,37 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {usePrivyTree ? (
-        // Embedded wallets + native ("App pays", EIP-7702) gas sponsorship, so
-        // cross-chain governance is submitted gaslessly from the browser.
-        <PrivyProvider
-          appId={PRIVY_APP_ID}
-          config={{
-            embeddedWallets: {
-              ethereum: { createOnLogin: "users-without-wallets" },
-              showWalletUIs: false,
-            },
-            defaultChain: CHAINS[DEFAULT_CHAIN_ID].chain,
-            supportedChains: [...SUPPORTED_CHAINS],
-            appearance: { accentColor: "#EA5817" },
-            loginMethods: ["email", "wallet"],
-          }}
-        >
-          <PrivyWagmiProvider config={privyWagmiConfig}>
-            <PrivyWalletActions>{app}</PrivyWalletActions>
-          </PrivyWagmiProvider>
-        </PrivyProvider>
-      ) : (
-        // No Privy (SSR, local dev, e2e) → plain wagmi/injected, self-paid gas.
-        <WagmiProvider config={fallbackWagmiConfig}>
-          <WagmiWalletActions>{app}</WagmiWalletActions>
-        </WagmiProvider>
-      )}
-    </QueryClientProvider>
+    <TelegramProvider>
+      <QueryClientProvider client={queryClient}>
+        {usePrivyTree ? (
+          // Embedded wallets + native ("App pays", EIP-7702) gas sponsorship, so
+          // cross-chain governance is submitted gaslessly from the browser.
+          <PrivyProvider
+            appId={PRIVY_APP_ID}
+            config={{
+              embeddedWallets: {
+                ethereum: { createOnLogin: "users-without-wallets" },
+                showWalletUIs: false,
+              },
+              defaultChain: CHAINS[DEFAULT_CHAIN_ID].chain,
+              supportedChains: [...SUPPORTED_CHAINS],
+              appearance: { accentColor: "#EA5817" },
+              loginMethods: inTelegram
+                ? ["telegram", "email", "wallet"]
+                : ["email", "wallet"],
+            }}
+          >
+            <PrivyWagmiProvider config={privyWagmiConfig}>
+              <PrivyWalletActions>{app}</PrivyWalletActions>
+            </PrivyWagmiProvider>
+          </PrivyProvider>
+        ) : (
+          // No Privy (SSR, local dev, e2e) → plain wagmi/injected, self-paid gas.
+          <WagmiProvider config={fallbackWagmiConfig}>
+            <WagmiWalletActions>{app}</WagmiWalletActions>
+          </WagmiProvider>
+        )}
+      </QueryClientProvider>
+    </TelegramProvider>
   );
 }

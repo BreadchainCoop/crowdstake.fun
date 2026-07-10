@@ -50,7 +50,7 @@ export function LandingPage() {
 
 function SiteNav() {
   return (
-    <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
+    <header className="border-paper-2 bg-paper-main/80 tg-safe-top sticky top-0 z-50 border-b backdrop-blur">
       <nav className="section-container flex h-16 items-center justify-between">
         <a href="#top" className="flex items-center gap-2">
           <Logo variant="square" color="orange" size={32} />
