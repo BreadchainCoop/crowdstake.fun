@@ -2,10 +2,29 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
+// Icons + preview images ride Next's file conventions (src/app/icon.png,
+// apple-icon.png, opengraph-image.png, twitter-image.png — plus a classic
+// public/favicon.ico for tools that hardcode the path); metadataBase makes
+// the generated URLs absolute, which scrapers require.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://crowdstake.fun"),
   title: "Crowdstaking — Community-Powered Funding Protocol",
   description:
     "Transform any pool of money into a democratic, interest-generating engine for your group's shared goals. Open source, free, and customizable.",
+  openGraph: {
+    type: "website",
+    url: "https://crowdstake.fun",
+    siteName: "Crowdstaking",
+    title: "Crowdstaking — Community-Powered Funding Protocol",
+    description:
+      "Stake together — only the interest funds your community's goals. Open source, multichain, gasless.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Crowdstaking — Community-Powered Funding Protocol",
+    description:
+      "Stake together — only the interest funds your community's goals.",
+  },
 };
 
 /**
