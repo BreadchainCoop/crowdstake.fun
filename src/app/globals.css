@@ -34,6 +34,14 @@ body {
   }
 }
 
+/* Hide scrollbars on intentionally-scrollable pill rows (the mobile nav). */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* --- Telegram Mini App (html.tg-app set by the boot script in layout.tsx) ---
    Fullscreen mini apps draw under the device status bar / Telegram controls;
    telegram-web-app.js exposes the insets as CSS vars (0px in the regular
