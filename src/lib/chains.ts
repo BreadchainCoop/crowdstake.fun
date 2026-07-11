@@ -106,7 +106,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     rpcUrl: or(process.env.NEXT_PUBLIC_RPC_URL, "https://rpc.gnosischain.com"),
     deployer: or(
       process.env.NEXT_PUBLIC_DEPLOYER_ADDRESS,
-      "0x4D6178572690B39D04d2E790E1D0c776f2cBBC95",
+      "0xD9dbc941C5e66D1cC67C6612d221263eD1A27C55", // v2 (family-aware), 2026-07-11
     ) as Address,
     defaultInstance: GNOSIS_INSTANCE,
     wrappedToken: "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d" as Address, // WXDAI
@@ -126,7 +126,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     // address manifest supersedes this fallback on redeploys.
     deployer: or(
       process.env.NEXT_PUBLIC_DEPLOYER_42161,
-      "0x976724aC0d83dC3624920f720b91B1Aa5691E28A",
+      "0x4480909dD3fC3ADE8586Dd3758F628A7c9B38A30", // v2 (family-aware), 2026-07-11
     ) as Address,
     defaultInstance: null,
     wrappedToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as Address, // native USDC
@@ -146,7 +146,7 @@ export const CHAINS: Record<number, ChainConfig> = {
     // address manifest supersedes this fallback on redeploys.
     deployer: or(
       process.env.NEXT_PUBLIC_DEPLOYER_10,
-      "0x86054D9d62Fd33FcC30731FCC31A556259810ec2",
+      "0xCf1Fe91A1946E56D12c2B685a18Cc3d7c1F0c361", // v2 (family-aware), 2026-07-11
     ) as Address,
     defaultInstance: null,
     wrappedToken: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" as Address, // native USDC
