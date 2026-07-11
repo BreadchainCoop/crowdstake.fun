@@ -17,6 +17,7 @@ import {
 } from "@/hooks/use-distribution-history";
 import { addressUrl, shortChainName, txUrl } from "@/lib/chains";
 import { toDecimal } from "@/lib/distribution-history";
+import { DEMO_MULTIPLIER, useDemoMode } from "@/components/demo-mode-provider";
 import {
   formatAmountKeepTiny,
   formatNumberKeepTiny,
@@ -29,7 +30,20 @@ import { useInstanceToken } from "@/hooks/use-token";
  * ~decimal number → grouped string (family totals across chains). Dust-safe:
  * small real payouts keep their significant digits instead of showing "0".
  */
-const fmtNum = formatNumberKeepTiny;
+/**
+ * History shows REAL unscaled values by default; demo mode (display-only
+ * ×1000) applies here too so a demo walkthrough reads consistently across
+ * pages. Dust-safe formatting keeps significant digits either way.
+ */
+function useHistoryFormatters() {
+  const { demo } = useDemoMode();
+  return {
+    fmtNum: (n: number, maxFrac?: number) =>
+      formatNumberKeepTiny(demo ? n * Number(DEMO_MULTIPLIER) : n, maxFrac),
+    fmtAmt: (v: bigint, maxFrac: number, decimals: number) =>
+      formatAmountKeepTiny(demo ? v * DEMO_MULTIPLIER : v, maxFrac, decimals),
+  };
+}
 
 function fmtDate(ts: number): string {
   if (!ts) return "—";
@@ -41,6 +55,7 @@ function fmtDate(ts: number): string {
 }
 
 export default function HistoryPage() {
+  const { fmtNum, fmtAmt } = useHistoryFormatters();
   const { history, isLoading, error, loadOlder } = useDistributionHistory();
   const { symbol: tokenSymbol } = useInstanceToken();
 
@@ -147,8 +162,7 @@ export default function HistoryPage() {
                           {shortChainName(c.chainId)}
                         </span>
                         <span className="text-surface-grey-2">
-                          {formatAmountKeepTiny(c.total, 2, c.decimals)}{" "}
-                          {c.symbol}
+                          {fmtAmt(c.total, 2, c.decimals)} {c.symbol}
                           <span className="text-surface-grey ml-2">
                             {c.rounds} round{c.rounds === 1 ? "" : "s"}
                           </span>
@@ -239,6 +253,7 @@ function RecipientRow({
   r: RecipientSummary;
   isFamily: boolean;
 }) {
+  const { fmtNum, fmtAmt } = useHistoryFormatters();
   return (
     <li className="flex items-start justify-between gap-3">
       <a
@@ -258,7 +273,7 @@ function RecipientRow({
             {r.perChain
               .map(
                 (pc) =>
-                  `${formatAmountKeepTiny(pc.amount, 2, pc.decimals)} ${pc.symbol} on ${shortChainName(
+                  `${fmtAmt(pc.amount, 2, pc.decimals)} ${pc.symbol} on ${shortChainName(
                     pc.chainId,
                   )}`,
               )
@@ -282,6 +297,7 @@ function WaveGroup({
   wave: PayoutWave;
   allTimeNormalized: number;
 }) {
+  const { fmtNum } = useHistoryFormatters();
   const symbols = new Set(wave.rounds.map((r) => r.symbol));
   const symbol = symbols.size === 1 ? ` ${[...symbols][0]}` : "";
   return (
@@ -318,6 +334,7 @@ function RoundRow({
   round: EnrichedRound;
   allTimeNormalized: number;
 }) {
+  const { fmtAmt } = useHistoryFormatters();
   const [open, setOpen] = useState(false);
   const panelId = `round-${round.chainId}-${round.txHash}`;
   // This round's weight in everything ever distributed (normalized — rounds on
@@ -337,8 +354,7 @@ function RoundRow({
       >
         <div className="min-w-0">
           <div className="text-text-standard text-sm font-semibold">
-            {formatAmountKeepTiny(round.total, 2, round.decimals)}{" "}
-            {round.symbol}
+            {fmtAmt(round.total, 2, round.decimals)} {round.symbol}
           </div>
           <div className="text-surface-grey text-xs">
             {fmtDate(round.timestamp)} · {shortChainName(round.chainId)} ·{" "}
@@ -373,8 +389,7 @@ function RoundRow({
                       {shortenAddress(x.recipient)}
                     </a>
                     <span className="text-text-standard">
-                      {formatAmountKeepTiny(x.amount, 4, round.decimals)}{" "}
-                      {round.symbol}
+                      {fmtAmt(x.amount, 4, round.decimals)} {round.symbol}
                       <span className="text-surface-grey ml-2 text-xs tabular-nums">
                         {formatPercent(share)}
                       </span>
