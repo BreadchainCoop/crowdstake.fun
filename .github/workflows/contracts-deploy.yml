@@ -90,7 +90,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BreadchainCoop/etherform
-          ref: main
+          # Pinned to the verify-blockscout.sh fix (RPC-free constructor args +
+          # bounded polling). Repoint to main once BreadchainCoop/etherform#55
+          # merges.
+          ref: fix/blockscout-verify-hang
           sparse-checkout: scripts
           path: .etherform
 
@@ -168,12 +171,16 @@ jobs:
 
       - name: Verify on Blockscout
         continue-on-error: true
-        # Bounded: L2 Blockscout verification can hang the etherform script.
-        # The deploy already succeeded by here — verification is best-effort.
+        # Best-effort: the deploy already succeeded by here. The script derives
+        # constructor args from the broadcast file (no RPC needed) and its
+        # polling is tuned below to a hard bound of INITIAL_WAIT +
+        # MAX_CHECKS × CHECK_DELAY = 150s, well inside the step timeout.
         timeout-minutes: 5
         env:
-          RPC_URL: ${{ steps.chain.outputs.rpc }}
           BLOCKSCOUT_URL: ${{ steps.chain.outputs.blockscout }}
+          INITIAL_WAIT: "30"
+          CHECK_DELAY: "20"
+          MAX_CHECKS: "6"
         run: |
           BROADCAST_FILE=$(ls "broadcast/${{ inputs.target }}.s.sol/${{ steps.chain.outputs.id }}/run-latest.json" 2>/dev/null || true)
           if [ -n "$BROADCAST_FILE" ]; then
