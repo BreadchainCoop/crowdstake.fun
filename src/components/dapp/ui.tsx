@@ -81,3 +81,14 @@ export function EmptyState({ children }: { children: ReactNode }) {
     </Card>
   );
 }
+
+/** Pulse placeholder while the instance's family mode is being resolved —
+ * rendering either mode's real form first would flash the wrong one. */
+export function GateSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      <div className="bg-paper-1 h-24 rounded-2xl" />
+      <div className="bg-paper-1 h-40 rounded-2xl" />
+    </div>
+  );
+}

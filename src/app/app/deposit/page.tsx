@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { Body, Caption } from "@breadcoop/ui";
-import { Card, PageHeader } from "@/components/dapp/ui";
+import { Card, GateSkeleton, PageHeader } from "@/components/dapp/ui";
 import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
@@ -32,18 +32,24 @@ export default function DepositPage() {
   const family = useFamily();
   const depositSym = yieldKind === "stable" ? wrappedSymbol : native;
   const isFamily = family.isFamily && !family.isLoading;
+  // familyId not yet known — don't render (and then swap) the wrong mode.
+  const resolving = family.familyId === null && family.isLoading;
 
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Deposit"
         subtitle={
-          isFamily
-            ? `Mint ${symbol} across the chains this community lives on — deposit whatever you hold on each. Your principal stays withdrawable; only the interest is distributed.`
-            : `Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
+          resolving
+            ? `Deposit to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
+            : isFamily
+              ? `Mint ${symbol} across the chains this community lives on — deposit whatever you hold on each. Your principal stays withdrawable; only the interest is distributed.`
+              : `Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
         }
       />
-      {isFamily ? (
+      {resolving ? (
+        <GateSkeleton />
+      ) : isFamily ? (
         <>
           <FamilyDeposit family={family} tokenSymbol={symbol} />
           <details className="mt-4">
