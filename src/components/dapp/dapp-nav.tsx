@@ -84,7 +84,7 @@ export function DappNav() {
         {/* Right: utilities */}
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <DemoToggle />
-          <WalletButton />
+          <WalletButton size="sm" />
         </div>
       </nav>
 
