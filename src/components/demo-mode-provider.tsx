@@ -75,3 +75,18 @@ export function useAmountFormatter(): (value?: bigint) => string {
       ? formatAmount(value, 4, decimals)
       : formatAmount(demo ? value * DEMO_MULTIPLIER : value, 4, decimals);
 }
+
+/**
+ * Formatter for 18-decimal-normalized values (family-wide sums, which mix
+ * 18-dp native tokens with 6-dp USDC mirrors). Demo-scaled like the rest.
+ */
+export function useAmountFormatter18(): (
+  value?: bigint,
+  maxFrac?: number,
+) => string {
+  const { demo } = useDemoMode();
+  return (value?: bigint, maxFrac = 4) =>
+    value === undefined || value === null
+      ? formatAmount(value, maxFrac, 18)
+      : formatAmount(demo ? value * DEMO_MULTIPLIER : value, maxFrac, 18);
+}

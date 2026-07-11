@@ -14,11 +14,17 @@ import {
   useNativeBalance,
   useInstanceToken,
 } from "@/hooks/use-token";
+import { useFamily } from "@/hooks/use-family";
+import { useFamilyPosition } from "@/hooks/use-family-stats";
+import { shortChainName } from "@/lib/chains";
 import { useCycle } from "@/hooks/use-cycle";
 import { useDistributionReady } from "@/hooks/use-distribution";
 import { useIsRecipient } from "@/hooks/use-recipients";
 import { formatAmount, blocksToDuration } from "@/lib/format";
-import { useAmountFormatter } from "@/components/demo-mode-provider";
+import {
+  useAmountFormatter,
+  useAmountFormatter18,
+} from "@/components/demo-mode-provider";
 import {
   useActiveChain,
   useBaseAssetSymbol,
@@ -35,9 +41,23 @@ export default function PortfolioPage() {
   const isRecipient = useIsRecipient();
   const { symbol: tokenSymbol } = useInstanceToken();
   const fmt = useAmountFormatter();
+  const fmt18 = useAmountFormatter18();
   const nativeSym = useNativeSymbol();
   const baseSym = useBaseAssetSymbol();
   const { blockTimeSeconds } = useActiveChain();
+
+  // Families: your position is your holdings on EVERY chain, not just the one
+  // being viewed (a member usually minted on several).
+  const family = useFamily();
+  const fpos = useFamilyPosition(family);
+  const familyMode = family.isFamily && fpos.balance18 !== undefined;
+  const heldChains = fpos.perChain.filter((c) => c.balance18 > 0n);
+  const balanceBreakdown =
+    familyMode && heldChains.length > 0
+      ? heldChains
+          .map((c) => `${fmt18(c.balance18)} on ${shortChainName(c.chainId)}`)
+          .join(" · ")
+      : null;
 
   return (
     <div>
@@ -60,14 +80,24 @@ export default function PortfolioPage() {
       <Heading4 className="text-text-standard">Your position</Heading4>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label={`Your ${tokenSymbol}`}
-          value={`${fmt(balance.data)} ${tokenSymbol}`}
-          sub={`Redeemable 1:1 for ${baseSym}`}
+          label={
+            familyMode
+              ? `Your ${tokenSymbol} · all chains`
+              : `Your ${tokenSymbol}`
+          }
+          value={
+            familyMode
+              ? `${fmt18(fpos.balance18)} ${tokenSymbol}`
+              : `${fmt(balance.data)} ${tokenSymbol}`
+          }
+          sub={balanceBreakdown ?? `Redeemable 1:1 for ${baseSym}`}
           accent
         />
         <StatCard
-          label="Your voting power"
-          value={fmt(votes.data)}
+          label={
+            familyMode ? "Your voting power · all chains" : "Your voting power"
+          }
+          value={familyMode ? fmt18(fpos.votes18) : fmt(votes.data)}
           sub="Delegated automatically on deposit"
         />
         <StatCard

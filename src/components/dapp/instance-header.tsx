@@ -22,10 +22,8 @@ import { useFamily } from "@/hooks/use-family";
 import { useFamilyStats } from "@/hooks/use-family-stats";
 import {
   useAmountFormatter,
-  useDemoMode,
-  DEMO_MULTIPLIER,
+  useAmountFormatter18,
 } from "@/components/demo-mode-provider";
-import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** cs2-style stat pill: orange-outlined chip with an icon + label + value. */
@@ -65,17 +63,25 @@ export function InstanceHeader() {
   const cycle = useCycle();
   const { kind } = useRegistryKind();
   const fmt = useAmountFormatter();
-  const apy = useApy();
+  const fmt18 = useAmountFormatter18();
   const family = useFamily();
   const fstats = useFamilyStats(family);
-  const { demo } = useDemoMode();
+  // Families are rated across ALL their chains — the browsed chain alone can
+  // be empty while the community earns elsewhere.
+  const apy = useApy(
+    family.isFamily
+      ? {
+          familyId: family.familyId,
+          ratePerMs: fstats.ratePerMs,
+          totalStaked18: fstats.totalStaked18,
+        }
+      : undefined,
+  );
 
   const democratic = kind === "voting";
   // Families: headline the whole community (all chains summed, 18-dp
   // normalized), not just the chain being viewed.
   const familyMode = family.isFamily && fstats.totalStaked18 !== undefined;
-  const fmt18 = (v: bigint | undefined) =>
-    formatAmount(v !== undefined && demo ? v * DEMO_MULTIPLIER : v, 4, 18);
   const chainsNote = familyMode ? ` · ${fstats.chains} chains` : "";
 
   return (
@@ -123,7 +129,9 @@ export function InstanceHeader() {
           label={`Live yield${chainsNote}`}
         >
           {familyMode ? (
-            `${fmt18(fstats.yieldAccrued18)} ${symbol}`
+            // 6 fractional digits like the ticking single-chain counter —
+            // young families accrue amounts a 4-dp display rounds to zero.
+            `${fmt18(fstats.yieldAccrued18, 6)} ${symbol}`
           ) : (
             <LiveYield symbol={symbol} />
           )}
