@@ -111,7 +111,7 @@ export default function HistoryPage() {
       {hasData && (
         <>
           {/* Summary */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatCard
               label="Total distributed"
               value={`≈ ${fmtNum(history.totalNormalized)}`}
@@ -260,7 +260,7 @@ function RecipientRow({
         href={addressUrl(r.recipient, r.perChain[0]?.chainId)}
         target="_blank"
         rel="noreferrer"
-        className="text-text-standard hover:text-core-orange font-mono text-sm"
+        className="text-text-standard hover:text-core-orange font-mono text-sm whitespace-nowrap"
       >
         {shortenAddress(r.recipient)}
       </a>
