@@ -109,9 +109,7 @@ export function InstanceHeader() {
   // 6-dp and 18-dp); re-quantize to 18 dp so it sums with the accruing bigints
   // and demo-scales through the same formatter.
   const distributed18 =
-    history !== null
-      ? parseUnits(history.totalNormalized.toFixed(18), 18)
-      : undefined;
+    history !== null ? safeParse18(history.totalNormalized) : undefined;
   const accruing18 = family.isFamily
     ? fstats.yieldAccrued18
     : singleLiveYield !== undefined
@@ -229,4 +227,14 @@ export function InstanceHeader() {
       </div>
     </div>
   );
+}
+
+/** parseUnits-safe 18-dp quantization: Number.toFixed goes exponential at
+ * >= 1e21 (parseUnits throws on it), so fall back to a whole-unit BigInt. */
+function safeParse18(n: number): bigint {
+  try {
+    return parseUnits(n.toFixed(18), 18);
+  } catch {
+    return BigInt(Math.round(n)) * 10n ** 18n;
+  }
 }

@@ -241,10 +241,15 @@ export async function loadChainHolders(
   // pass's logs when the range is re-scanned. So on an incomplete scan the old
   // cache is left untouched and only the best-effort merge is RETURNED.
   if (complete) {
+    // A lagging RPC replica can report latest < cached.toBlock; the cursor
+    // must never regress — deltas aren't idempotent, and a regressed range
+    // would be re-scanned and double-applied (same guard as
+    // distribution-history's bigMax).
+    const newTo = cached ? bigMax(BigInt(cached.toBlock), latest) : latest;
     if (capped) {
       writeCache(chainId, token, {
         fromBlock: coveredFrom.toString(),
-        toBlock: latest.toString(),
+        toBlock: newTo.toString(),
         capped: true,
         count: holders.size,
       });
@@ -253,7 +258,7 @@ export async function loadChainHolders(
       for (const [addr, v] of balances) record[addr] = v.toString();
       writeCache(chainId, token, {
         fromBlock: coveredFrom.toString(),
-        toBlock: latest.toString(),
+        toBlock: newTo.toString(),
         capped: false,
         balances: record,
       });
@@ -266,4 +271,8 @@ export async function loadChainHolders(
     capped,
     complete,
   };
+}
+
+function bigMax(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
 }
