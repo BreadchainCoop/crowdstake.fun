@@ -90,10 +90,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BreadchainCoop/etherform
-          # Pinned to the verify-blockscout.sh fix (RPC-free constructor args +
-          # bounded polling). Repoint to main once BreadchainCoop/etherform#55
-          # merges.
-          ref: fix/blockscout-verify-hang
+          # Pinned to the etherform commit with the verify-blockscout.sh fix
+          # (RPC-free constructor args + bounded polling; etherform#55). A SHA
+          # pin keeps deploys reproducible — bump deliberately.
+          ref: 180aa91926a02ce2045f9a7e3ed08be9395ecfab
           sparse-checkout: scripts
           path: .etherform
 
