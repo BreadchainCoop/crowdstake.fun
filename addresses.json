@@ -8,10 +8,10 @@
       "updatedAt": "2026-07-11T00:46:44Z"
     },
     "42161": {
-      "deployer": "0xef5eda10b907e766654473cf8f7945a824fce7ca",
-      "factory": "0x223b71d0dbddcf118b71ec4b27b703ad1d148cdd",
-      "commit": "4e7a5244c98363564ff30b4cb73c61a2636b0c55",
-      "updatedAt": "2026-07-04T01:08:54Z"
+      "deployer": "0x4480909dd3fc3ade8586dd3758f628a7c9b38a30",
+      "factory": "0xabc995e02a22ae7134fdad95bef0a28505976134",
+      "commit": "7ff25e0572f3c8a821544d77bd97fe6973dab138",
+      "updatedAt": "2026-07-11T00:46:48Z"
     },
     "10": {
       "deployer": "0xd32c19c9846d249ec2c646b83d3e1afdbffa61e5",
