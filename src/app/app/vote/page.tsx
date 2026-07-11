@@ -150,7 +150,7 @@ function VoteForm() {
   const { recipients } = useRecipients();
   const voting = useVotingState();
   const cycle = useCycle();
-  const { vote, ...tx } = useVote();
+  const { vote, recast, supportsRecast, recastProbePending, ...tx } = useVote();
 
   // Per-recipient weight in *percent* (0..100); converted to basis points on submit.
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -188,6 +188,12 @@ function VoteForm() {
     voting.expectedPointsLength !== undefined &&
     points.length !== Number(voting.expectedPointsLength);
 
+  // Recasting rides the EIP-712 signature path (castVoteWithSignature). On a
+  // module that doesn't expose it (VOTE_TYPEHASH() reverts), the ballot stays
+  // locked for the cycle, exactly like before.
+  const probing = voting.hasVoted && recastProbePending;
+  const locked = voting.hasVoted && !supportsRecast;
+
   const distributeEqually = () => {
     const w: Record<string, number> = {};
     recipients.forEach((r) => (w[r] = 1));
@@ -208,8 +214,11 @@ function VoteForm() {
         {voting.hasVoted && (
           <p className="text-system-green mt-3 flex items-center gap-2 text-sm font-medium">
             <CheckCircle size={18} weight="fill" />
-            You&apos;ve already voted this cycle. New votes are accepted next
-            cycle.
+            {probing
+              ? "You voted this cycle."
+              : supportsRecast
+                ? "You voted this cycle — you can update your ballot until it ends."
+                : "You've already voted this cycle. New votes are accepted next cycle."}
           </p>
         )}
       </Card>
@@ -220,7 +229,7 @@ function VoteForm() {
         </Caption>
         <button
           onClick={distributeEqually}
-          disabled={voting.hasVoted}
+          disabled={locked}
           className="text-core-orange text-sm font-semibold hover:underline disabled:opacity-50"
         >
           Distribute equally
@@ -233,32 +242,36 @@ function VoteForm() {
         weights={weights}
         setWeight={setWeight}
         maxStep={maxStep}
-        disabled={voting.hasVoted}
+        disabled={locked}
       />
 
       <div className="mt-6">
         <ActionButton
           isLoading={tx.isBusy}
           disabled={
-            !anyAllocated || voting.hasVoted || noPower || lengthMismatch
+            !anyAllocated || locked || probing || noPower || lengthMismatch
           }
-          onClick={() => vote(points)}
+          onClick={() => (voting.hasVoted ? recast(points) : vote(points))}
         >
-          {voting.hasVoted ? "Already voted this cycle" : "Cast vote"}
+          {probing || locked
+            ? "Already voted this cycle"
+            : voting.hasVoted
+              ? "Update vote"
+              : "Cast vote"}
         </ActionButton>
       </div>
 
-      {!voting.hasVoted && noPower && (
+      {!locked && noPower && (
         <Caption className="text-system-warning mt-2 block text-center">
           Your voting power is still accruing this cycle — try again shortly.
         </Caption>
       )}
-      {!voting.hasVoted && !noPower && lengthMismatch && (
+      {!locked && !noPower && lengthMismatch && (
         <Caption className="text-system-warning mt-2 block text-center">
           The recipient list just changed — refresh before voting.
         </Caption>
       )}
-      {!anyAllocated && !voting.hasVoted && !noPower && !lengthMismatch && (
+      {!anyAllocated && !locked && !noPower && !lengthMismatch && (
         <Caption className="text-surface-grey mt-2 block text-center">
           Allocate weight to at least one recipient.
         </Caption>
@@ -268,7 +281,7 @@ function VoteForm() {
         status={tx.status}
         hash={tx.hash}
         error={tx.error}
-        successLabel="Vote cast"
+        successLabel={voting.hasVoted ? "Vote updated" : "Vote cast"}
       />
 
       <Body className="text-surface-grey mt-6 text-sm">

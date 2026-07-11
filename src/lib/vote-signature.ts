@@ -15,9 +15,11 @@ import {
  *
  * The same chainless domain carries the three registry-governance kinds too
  * (registry-update, proposal, proposal-vote): distinct EIP-712 primary types
- * are the firewall between action kinds. Every TYPES const + payload builder
+ * are the firewall between action kinds. Every cross-chain TYPES const +
+ * payload builder
  * below mirrors relay/src/typed-data.ts and the contracts byte-for-byte —
- * pinned by the tracked relay/test/crosschain-vector.json parity assertion.
+ * pinned by the tracked relay/test/crosschain-vector.json;
+ * the classic Vote types are pinned by e2e/verify-classic-recast.ts parity assertion.
  */
 
 /** Domain per family: EIP712Domain(string name,string version,bytes32 salt). */
@@ -87,6 +89,47 @@ export function buildVotePayload(
     deadline: deadline.toString(),
     signature,
   };
+}
+
+/* ─────────────────────── classic (single-chain) vote ─────────────────── */
+
+/**
+ * Classic single-chain vote signature — the recast path for non-family
+ * instances. Unlike the chainless family domain above, this is the STANDARD
+ * EIP712Upgradeable domain (name "CrowdstakingVoting", version "1", chainId,
+ * verifyingContract = the voting module), so the signature is bound to one
+ * module on one chain. Mirrors AbstractVotingModule.VOTE_TYPEHASH and its
+ * validateSignature assembly byte-for-byte — the direct voteWithData path
+ * reverts AlreadyVotedInCurrentCycle, but castVoteWithSignature only gates on
+ * nonce uniqueness and _processVote reverts the previous ballot, so recasting
+ * is designed in via this signature path.
+ */
+export function classicVoteDomain(chainId: number, votingModule: Address) {
+  return {
+    name: "CrowdstakingVoting",
+    version: "1",
+    chainId,
+    verifyingContract: votingModule,
+  } as const;
+}
+
+/** Mirrors VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)"). */
+export const CLASSIC_VOTE_TYPES = {
+  Vote: [
+    { name: "voter", type: "address" },
+    { name: "pointsHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * pointsHash = keccak256 of the tightly-packed 32-byte words of the points
+ * array — the contract's validateSignature calldatacopies points.offset for
+ * points.length * 0x20 bytes and hashes that (no length prefix, no ABI head),
+ * which is exactly encodePacked over uint256[].
+ */
+export function classicPointsHash(points: readonly bigint[]): Hex {
+  return keccak256(encodePacked(["uint256[]"], [[...points]]));
 }
 
 /* ─────────────────────────── registry-update ─────────────────────────── */
