@@ -17,6 +17,32 @@ export function formatAmount(
   });
 }
 
+/**
+ * Format a decimal number without flooring dust to zero: values ≥ 1 group with
+ * `maxFrac` decimals (like formatAmount); smaller nonzero values keep their
+ * first two significant digits, so a real-but-tiny payout (e.g. 0.000022)
+ * renders as "0.000022" instead of "0".
+ */
+export function formatNumberKeepTiny(n: number, maxFrac = 2): string {
+  if (!Number.isFinite(n) || n === 0) return "0";
+  if (Math.abs(n) >= 1)
+    return n.toLocaleString("en-US", { maximumFractionDigits: maxFrac });
+  return n.toLocaleString("en-US", { maximumSignificantDigits: 2 });
+}
+
+/** formatAmount, but dust-safe (see formatNumberKeepTiny). */
+export function formatAmountKeepTiny(
+  value: bigint | undefined,
+  maxFrac = 2,
+  decimals = TOKEN_DECIMALS,
+): string {
+  if (value === undefined) return "—";
+  const s = formatUnits(value, decimals);
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  return formatNumberKeepTiny(n, maxFrac);
+}
+
 /** Parse a user-entered decimal string into a bigint base unit. Returns null on bad input. */
 export function parseAmount(
   input: string,

@@ -49,9 +49,58 @@ export interface RecipientSummary {
   }[];
 }
 
+/**
+ * One payout "wave": per-chain rounds that belong to the same cross-chain
+ * distribution. Families execute one payout as separate transactions on every
+ * chain, so rounds on DIFFERENT chains landing within a short window are
+ * clustered (heuristically — there's no on-chain link between them). A chain
+ * appears at most once per wave; same-chain rounds are always separate waves.
+ * For classic instances every wave is exactly one round.
+ */
+export interface PayoutWave {
+  /** Stable key for rendering (the newest round's chain+tx). */
+  key: string;
+  /** This wave's rounds, newest first — at most one per chain. */
+  rounds: EnrichedRound[];
+  /** The newest round's timestamp (unix seconds). */
+  timestamp: number;
+  /** Σ over the wave's rounds, normalized (cross-chain comparable). */
+  totalNormalized: number;
+}
+
+/** Rounds on different chains within this window count as one wave. */
+const WAVE_WINDOW_SECONDS = 6 * 3600;
+
+/** Cluster newest-first rounds into contiguous cross-chain waves. */
+function toWaves(rounds: EnrichedRound[]): PayoutWave[] {
+  const waves: PayoutWave[] = [];
+  for (const r of rounds) {
+    const last = waves[waves.length - 1];
+    const joins =
+      last !== undefined &&
+      r.timestamp > 0 && // unknown timestamps never cluster
+      last.timestamp - r.timestamp <= WAVE_WINDOW_SECONDS &&
+      !last.rounds.some((x) => x.chainId === r.chainId);
+    if (joins) {
+      last.rounds.push(r);
+      last.totalNormalized += toDecimal(r.total, r.decimals);
+    } else {
+      waves.push({
+        key: `${r.chainId}-${r.txHash}`,
+        rounds: [r],
+        timestamp: r.timestamp,
+        totalNormalized: toDecimal(r.total, r.decimals),
+      });
+    }
+  }
+  return waves;
+}
+
 export interface DistributionHistory {
   /** Every distribution round across all chains, newest first. */
   rounds: EnrichedRound[];
+  /** Rounds grouped into cross-chain payout waves, newest first. */
+  waves: PayoutWave[];
   /** Per-chain totals. */
   chains: ChainSummary[];
   /** Per-recipient totals across chains, highest first. */
@@ -65,10 +114,18 @@ export interface DistributionHistory {
   failedChains: number[];
 }
 
+// Token display meta never changes — cache successful reads per chain+token
+// (module scope, like use-family-stats' decimals cache) so one flaky RPC read
+// can't fall back to the wrong decimals for a sibling chain's amounts.
+const tokenMetaCache = new Map<string, TokenMeta>();
+
 async function readTokenMeta(
   chainId: number,
   token: Address,
 ): Promise<TokenMeta> {
+  const key = `${chainId}:${token.toLowerCase()}`;
+  const cached = tokenMetaCache.get(key);
+  if (cached) return cached;
   const client = publicClientFor(chainId);
   try {
     const [decimals, symbol] = await Promise.all([
@@ -83,10 +140,18 @@ async function readTokenMeta(
         functionName: "symbol",
       }),
     ]);
-    return { decimals: Number(decimals), symbol: String(symbol) };
+    const meta = { decimals: Number(decimals), symbol: String(symbol) };
+    tokenMetaCache.set(key, meta);
+    return meta;
   } catch {
+    // Guess from the chain's yield model: stable-chain family tokens mirror
+    // USDC's 6 decimals, native chains use 18. NOT cached — a later successful
+    // read must be able to replace the guess.
     const cfg = chainConfig(chainId);
-    return { decimals: 18, symbol: cfg.wrappedSymbol };
+    return {
+      decimals: cfg.yieldKind === "stable" ? 6 : 18,
+      symbol: cfg.wrappedSymbol,
+    };
   }
 }
 
@@ -153,6 +218,7 @@ function aggregate(
 
   return {
     rounds: enriched,
+    waves: toWaves(enriched),
     chains,
     recipients,
     totalNormalized: chains.reduce((s, c) => s + c.normalized, 0),
