@@ -8,7 +8,8 @@ import { useTx } from "@/hooks/use-tx";
 /**
  * The active instance's on-chain artwork URIs, read from its distribution
  * manager (the canonical instance key). Instances on the older implementation
- * simply revert these reads, so the hook degrades to undefined (no image).
+ * simply revert these reads, so the hook degrades to undefined (no image) and
+ * `supported` doubles as feature detection (same pattern as useYieldSplit).
  */
 export function useInstanceMetadata() {
   const a = useInstance();
@@ -29,6 +30,12 @@ export function useInstanceMetadata() {
   return {
     tokenImageURI: (tokenImage.data as string | undefined) || undefined,
     bannerImageURI: (bannerImage.data as string | undefined) || undefined,
+    /** false = the live DM predates instance artwork (writes would revert). */
+    supported: tokenImage.isError
+      ? false
+      : tokenImage.data !== undefined
+        ? true
+        : undefined,
     refetch: () => {
       void tokenImage.refetch();
       void bannerImage.refetch();

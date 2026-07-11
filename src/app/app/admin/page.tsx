@@ -182,6 +182,20 @@ function InstanceMetadataCard() {
   const inputClass =
     "border-paper-2 bg-paper-main text-text-standard focus:border-core-orange w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none";
 
+  // Older distribution managers predate instance artwork — the setter would
+  // revert, so explain instead of offering a guaranteed-to-fail write.
+  if (meta.supported === false) {
+    return (
+      <Card>
+        <Caption className="text-surface-grey-2">Instance artwork</Caption>
+        <Body className="text-surface-grey-2 mt-1">
+          This instance&apos;s contracts predate on-chain artwork — a contract
+          upgrade is required before token and header images can be set.
+        </Body>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <Caption className="text-surface-grey-2">Instance artwork</Caption>

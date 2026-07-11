@@ -10,6 +10,7 @@ import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
 import { parseAmount } from "@/lib/format";
+import { useWalletActions } from "@/components/wallet/wallet-actions";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 import { useFamily } from "@/hooks/use-family";
@@ -86,12 +87,14 @@ function DepositForm() {
   // Native is always 18-dp; the wrapped/stable asset uses the token's decimals.
   const depositDecimals = mode === "native" ? 18 : decimals;
   const parsed = parseAmount(amount, depositDecimals);
-  // Native deposits pay gas in the native token too, so reserve a little for
-  // gas — otherwise a MAX deposit sends the whole balance and can't fund the tx.
+  // Self-paying wallets fund gas from the same native balance, so reserve a
+  // little — otherwise a MAX deposit sends the whole balance and can't fund
+  // the tx. Sponsored (embedded) wallets deposit gas-free: no reserve.
+  const { sponsored } = useWalletActions();
   const GAS_RESERVE = 10n ** 16n; // ~0.01 of the native token
   const rawBalance = mode === "native" ? native.data?.value : wrapped.balance;
   const balance =
-    mode === "native" && rawBalance !== undefined
+    mode === "native" && rawBalance !== undefined && !sponsored
       ? rawBalance > GAS_RESERVE
         ? rawBalance - GAS_RESERVE
         : 0n
