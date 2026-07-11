@@ -13,9 +13,16 @@ import {
   useVotes,
   useNativeBalance,
   useInstanceToken,
+  useYieldSplit,
 } from "@/hooks/use-token";
 import { useFamily } from "@/hooks/use-family";
-import { useFamilyPosition } from "@/hooks/use-family-stats";
+import {
+  scaleTo18,
+  useFamilyPosition,
+  useFamilyStats,
+} from "@/hooks/use-family-stats";
+import { useApy } from "@/hooks/use-apy";
+import { useVoteCount } from "@/hooks/use-vote-count";
 import { shortChainName } from "@/lib/chains";
 import { useCycle } from "@/hooks/use-cycle";
 import { useDistributionReady } from "@/hooks/use-distribution";
@@ -58,6 +65,37 @@ export default function PortfolioPage() {
           .map((c) => `${fmt18(c.balance18)} on ${shortChainName(c.chainId)}`)
           .join(" · ")
       : null;
+
+  // Personal stats (crowdstaking-v2's profile numbers, multichain):
+  // projected annual donation = holdings × APY × the share of yield you give.
+  const fstats = useFamilyStats(family);
+  const apy = useApy(
+    family.isFamily
+      ? {
+          familyId: family.familyId,
+          ratePerMs: fstats.ratePerMs,
+          totalStaked18: fstats.totalStaked18,
+        }
+      : undefined,
+  );
+  const { keepBps, supported: splitSupported } = useYieldSplit();
+  const { decimals } = useInstanceToken();
+  // Tokens without split support donate all yield; with support, give what's
+  // not kept. The ACTIVE chain's split stands in for all chains on families.
+  const giveShare =
+    splitSupported === false || keepBps === undefined
+      ? 1
+      : (10_000 - keepBps) / 10_000;
+  const holdings18 = familyMode
+    ? fpos.balance18
+    : balance.data !== undefined
+      ? scaleTo18(balance.data, decimals)
+      : undefined;
+  const donation18 =
+    holdings18 !== undefined && apy !== undefined
+      ? (holdings18 * BigInt(Math.round(apy * giveShare * 100))) / 10_000n
+      : undefined;
+  const voteCount = useVoteCount(family);
 
   return (
     <div>
@@ -104,6 +142,34 @@ export default function PortfolioPage() {
           label={`Wallet ${nativeSym}`}
           value={`${formatAmount(native.data?.value)} ${nativeSym}`}
           sub="Available to deposit"
+        />
+        <StatCard
+          label="Projected annual donation"
+          value={
+            donation18 !== undefined
+              ? `${fmt18(donation18)} ${tokenSymbol}`
+              : "—"
+          }
+          sub={
+            apy !== undefined
+              ? `At ≈ ${apy.toFixed(1)}% APY · your current yield split`
+              : "Measuring APY…"
+          }
+        />
+        <StatCard
+          label="Votes cast"
+          value={
+            voteCount.count !== undefined
+              ? `${voteCount.partial ? "≈ " : ""}${voteCount.count}`
+              : voteCount.isLoading
+                ? "…"
+                : "—"
+          }
+          sub={
+            familyMode
+              ? "Signed ballots · all chains · recent window"
+              : "From recent on-chain votes"
+          }
         />
       </div>
 
