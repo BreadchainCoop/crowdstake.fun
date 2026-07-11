@@ -87,16 +87,20 @@ function DepositForm() {
   // Native is always 18-dp; the wrapped/stable asset uses the token's decimals.
   const depositDecimals = mode === "native" ? 18 : decimals;
   const parsed = parseAmount(amount, depositDecimals);
-  // Self-paying wallets fund gas from the same native balance, so reserve a
-  // little — otherwise a MAX deposit sends the whole balance and can't fund
-  // the tx. Sponsored (embedded) wallets deposit gas-free: no reserve.
+  // Native deposits always hold back a reserve: self-paying wallets fund gas
+  // from the same balance (otherwise MAX can't fund the tx), and sponsored
+  // (4337) wallets need a sliver of headroom — the bundler's simulation debits
+  // the account before the paymaster settles, so a full-balance native send
+  // reverts in simulation.
   const { sponsored } = useWalletActions();
-  const GAS_RESERVE = 10n ** 16n; // ~0.01 of the native token
+  const GAS_RESERVE = 10n ** 16n; // ~0.01 of the native token (self-paid)
+  const SIM_HEADROOM = 10n ** 15n; // ~0.001 (sponsored)
+  const reserve = sponsored ? SIM_HEADROOM : GAS_RESERVE;
   const rawBalance = mode === "native" ? native.data?.value : wrapped.balance;
   const balance =
-    mode === "native" && rawBalance !== undefined && !sponsored
-      ? rawBalance > GAS_RESERVE
-        ? rawBalance - GAS_RESERVE
+    mode === "native" && rawBalance !== undefined
+      ? rawBalance > reserve
+        ? rawBalance - reserve
         : 0n
       : rawBalance;
   const overBalance =
