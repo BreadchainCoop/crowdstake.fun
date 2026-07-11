@@ -1,9 +1,16 @@
 "use client";
 
-import { useAccount, useReadContract } from "wagmi";
+import { useCallback, useState } from "react";
+import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
 import { useActiveChainId, useInstance } from "@/components/instance-provider";
-import { useTx } from "@/hooks/use-tx";
+import { publicClientFor } from "@/lib/instance";
+import { parseTxError, useTx } from "@/hooks/use-tx";
+import {
+  CLASSIC_VOTE_TYPES,
+  classicPointsHash,
+  classicVoteDomain,
+} from "@/lib/vote-signature";
 
 const LIVE = { refetchInterval: 12_000 } as const;
 
@@ -69,16 +76,114 @@ export function useVotingState() {
   };
 }
 
-/** Cast a direct vote: `points[]` (one per recipient, basis points). */
+/**
+ * Cast a direct vote (`vote`) or update an existing one (`recast`).
+ *
+ * First-time votes go through voteWithData; that path reverts
+ * AlreadyVotedInCurrentCycle on a re-vote, so updating a ballot uses the
+ * EIP-712 signature path instead: castVoteWithSignature only gates on nonce
+ * uniqueness, and _processVote fully reverts the previous ballot's stored
+ * allocations before applying the new one — recasting is designed in.
+ */
 export function useVote() {
   const a = useInstance();
+  const chainId = useActiveChainId();
+  const { address } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
   const tx = useTx();
-  const vote = (points: bigint[]) =>
-    tx.run({
+  // Destructured so recast's useCallback can depend on the stable `run`
+  // instead of the per-render `tx` object.
+  const { run } = tx;
+
+  // Feature-detect the signature path before enabling recast: a module that
+  // doesn't expose VOTE_TYPEHASH won't have castVoteWithSignature either. A
+  // reverting read IS the answer (no retry) — recast stays unavailable there
+  // and the UI keeps the locked "already voted" behavior. The old live
+  // default instance's v1 module passes this probe and verifiably recasts
+  // (replaces, not double-counts) — see e2e/verify-classic-recast.ts.
+  const typehash = useReadContract({
+    address: a.votingModule,
+    abi: votingModuleAbi,
+    functionName: "VOTE_TYPEHASH",
+    chainId,
+    query: { retry: false, staleTime: Infinity },
+  });
+  const supportsRecast = typehash.isSuccess;
+
+  // The EIP-712 prompt (or the pre-sign nonce read) can fail before any tx
+  // exists — surface that through the same status/error the page already
+  // renders, since useTx only tracks errors from its own submission.
+  const [signError, setSignError] = useState<string | null>(null);
+  const [isSigningBallot, setIsSigningBallot] = useState(false);
+
+  const vote = (points: bigint[]) => {
+    setSignError(null);
+    return run({
       address: a.votingModule,
       abi: votingModuleAbi,
       functionName: "voteWithData",
       args: [points, "0x"],
     });
-  return { vote, ...tx };
+  };
+
+  const recast = useCallback(
+    async (points: bigint[]) => {
+      if (!address) return undefined;
+      setSignError(null);
+      setIsSigningBallot(true);
+      let nonce: bigint;
+      let signature: `0x${string}`;
+      try {
+        // Fresh nonce: wall-clock ms (same scheme as the cross-chain
+        // chooseNonce). Classic nonces are per-voter set-membership, not
+        // monotonic — only a same-millisecond reuse collides, so bump past
+        // any already-used value.
+        nonce = BigInt(Date.now());
+        const client = publicClientFor(chainId);
+        while (
+          await client.readContract({
+            address: a.votingModule,
+            abi: votingModuleAbi,
+            functionName: "isNonceUsed",
+            args: [address, nonce],
+          })
+        ) {
+          nonce += 1n;
+        }
+        signature = await signTypedDataAsync({
+          domain: classicVoteDomain(chainId, a.votingModule),
+          types: CLASSIC_VOTE_TYPES,
+          primaryType: "Vote",
+          message: {
+            voter: address,
+            pointsHash: classicPointsHash(points),
+            nonce,
+          },
+        });
+      } catch (e) {
+        setSignError(parseTxError(e));
+        return undefined;
+      } finally {
+        setIsSigningBallot(false);
+      }
+      return run({
+        address: a.votingModule,
+        abi: votingModuleAbi,
+        functionName: "castVoteWithSignature",
+        args: [address, points, nonce, signature],
+      });
+    },
+    [address, a.votingModule, chainId, signTypedDataAsync, run],
+  );
+
+  return {
+    vote,
+    recast,
+    /** False on v1 modules (no castVoteWithSignature) — recast unavailable. */
+    supportsRecast,
+    ...tx,
+    isBusy: tx.isBusy || isSigningBallot,
+    status: signError ? ("error" as const) : tx.status,
+    error: signError ?? tx.error,
+  };
 }

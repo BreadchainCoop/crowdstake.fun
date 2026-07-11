@@ -89,6 +89,47 @@ export function buildVotePayload(
   };
 }
 
+/* ─────────────────────── classic (single-chain) vote ─────────────────── */
+
+/**
+ * Classic single-chain vote signature — the recast path for non-family
+ * instances. Unlike the chainless family domain above, this is the STANDARD
+ * EIP712Upgradeable domain (name "CrowdstakingVoting", version "1", chainId,
+ * verifyingContract = the voting module), so the signature is bound to one
+ * module on one chain. Mirrors AbstractVotingModule.VOTE_TYPEHASH and its
+ * validateSignature assembly byte-for-byte — the direct voteWithData path
+ * reverts AlreadyVotedInCurrentCycle, but castVoteWithSignature only gates on
+ * nonce uniqueness and _processVote reverts the previous ballot, so recasting
+ * is designed in via this signature path.
+ */
+export function classicVoteDomain(chainId: number, votingModule: Address) {
+  return {
+    name: "CrowdstakingVoting",
+    version: "1",
+    chainId,
+    verifyingContract: votingModule,
+  } as const;
+}
+
+/** Mirrors VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 pointsHash,uint256 nonce)"). */
+export const CLASSIC_VOTE_TYPES = {
+  Vote: [
+    { name: "voter", type: "address" },
+    { name: "pointsHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * pointsHash = keccak256 of the tightly-packed 32-byte words of the points
+ * array — the contract's validateSignature calldatacopies points.offset for
+ * points.length * 0x20 bytes and hashes that (no length prefix, no ABI head),
+ * which is exactly encodePacked over uint256[].
+ */
+export function classicPointsHash(points: readonly bigint[]): Hex {
+  return keccak256(encodePacked(["uint256[]"], [[...points]]));
+}
+
 /* ─────────────────────────── registry-update ─────────────────────────── */
 
 /**
