@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
-import { useSwitchChain, useWriteContract } from "wagmi";
 import { recipientRegistryAbi } from "@/lib/abis";
 import { publicClientFor } from "@/lib/instance";
 import { parseTxError } from "@/hooks/use-tx";
+import { useWalletActions } from "@/components/wallet/wallet-actions";
 
 /**
  * The membership delta needed to bring a sibling chain's recipient set in line
@@ -34,12 +34,13 @@ export type MirrorState = "idle" | "signing" | "confirming" | "done" | "error";
 /**
  * Mirror a sibling chain's admin recipient registry to match the reference set:
  * queue the additions/removals, then processQueue — all on that sibling's chain
- * (switches the wallet, waits on the sibling's own viem client). Admin-registry
- * only; democratic families aren't offered multi-chain.
+ * (receipts awaited on the sibling's own viem client). Admin-registry only;
+ * democratic families aren't offered multi-chain. Writes go through the
+ * wallet-actions layer: gas-sponsored (gasless, chain targeted per call) on a
+ * Privy embedded wallet, else a self-paid write that chain-switches itself.
  */
 export function useMirrorRecipients() {
-  const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
+  const { sendSponsored } = useWalletActions();
   const [busyChain, setBusyChain] = useState<number | null>(null);
   const [state, setState] = useState<MirrorState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +53,9 @@ export function useMirrorRecipients() {
       setState("signing");
       const client = publicClientFor(chainId);
       try {
-        await switchChainAsync({ chainId });
         // Queue additions and removals (batched calls where there's > 0).
         if (diff.toAdd.length > 0) {
-          const hash = await writeContractAsync({
+          const hash = await sendSponsored({
             chainId,
             address: registry,
             abi: recipientRegistryAbi,
@@ -67,7 +67,7 @@ export function useMirrorRecipients() {
         }
         if (diff.toRemove.length > 0) {
           setState("signing");
-          const hash = await writeContractAsync({
+          const hash = await sendSponsored({
             chainId,
             address: registry,
             abi: recipientRegistryAbi,
@@ -79,7 +79,7 @@ export function useMirrorRecipients() {
         }
         // Apply the queued changes.
         setState("signing");
-        const processHash = await writeContractAsync({
+        const processHash = await sendSponsored({
           chainId,
           address: registry,
           abi: recipientRegistryAbi,
@@ -96,7 +96,7 @@ export function useMirrorRecipients() {
         setBusyChain(null);
       }
     },
-    [switchChainAsync, writeContractAsync],
+    [sendSponsored],
   );
 
   return { mirror, busyChain, state, error };
