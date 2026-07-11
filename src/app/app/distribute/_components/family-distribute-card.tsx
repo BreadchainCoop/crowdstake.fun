@@ -3,6 +3,7 @@
 import { ArrowSquareOut, CheckCircle } from "@phosphor-icons/react";
 import { Button, Caption } from "@breadcoop/ui";
 import { Card } from "@/components/dapp/ui";
+import { ActionButton } from "@/components/dapp/action-button";
 import { shortChainName, txUrl } from "@/lib/chains";
 import { useActiveChainId } from "@/components/instance-provider";
 import { useAmountFormatter18 } from "@/components/demo-mode-provider";
@@ -21,7 +22,10 @@ import type { FamilyState } from "@/hooks/use-family";
  */
 export function FamilyDistributeCard({ family }: { family: FamilyState }) {
   const activeChainId = useActiveChainId();
-  const { rows, distributeOn } = useFamilyDistribute(family);
+  const { rows, distributeOn, distributeAll, anyBusy } =
+    useFamilyDistribute(family);
+  // Only rows the contract itself reports ready — the walk re-checks each one.
+  const readyCount = rows.filter((r) => r.isReady === true).length;
 
   if (rows.length === 0) return null;
 
@@ -30,6 +34,18 @@ export function FamilyDistributeCard({ family }: { family: FamilyState }) {
       <Caption className="text-surface-grey-2 block">
         Your community across chains — yield accrues and distributes per chain
       </Caption>
+      <div className="mt-3">
+        {/* chainless: the walk targets each chain itself, so no
+            switch-to-active-chain gating — only connect gating. */}
+        <ActionButton
+          chainless
+          isLoading={anyBusy}
+          disabled={readyCount === 0 || anyBusy}
+          onClick={() => void distributeAll()}
+        >
+          Distribute on all ready chains
+        </ActionButton>
+      </div>
       <div className="mt-1">
         <GasModeNote />
       </div>

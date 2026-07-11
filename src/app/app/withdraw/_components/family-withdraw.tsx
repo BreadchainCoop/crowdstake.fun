@@ -11,11 +11,11 @@ import {
 } from "@phosphor-icons/react";
 import { Body, Button, Caption } from "@breadcoop/ui";
 import { Card } from "@/components/dapp/ui";
+import { ActionButton } from "@/components/dapp/action-button";
 import { GasModeNote } from "@/components/dapp/gas-mode-note";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { shortChainName, txUrl } from "@/lib/chains";
 import { useActiveChainId } from "@/components/instance-provider";
-import { useWalletActions } from "@/components/wallet/wallet-actions";
 import { useInstanceToken } from "@/hooks/use-token";
 import {
   useFamilyWithdraw,
@@ -31,12 +31,14 @@ import type { FamilyState } from "@/hooks/use-family";
  */
 export function FamilyWithdraw({ family }: { family: FamilyState }) {
   const activeChainId = useActiveChainId();
-  const { isConnected } = useAccount();
-  const { connect } = useWalletActions();
   const { symbol } = useInstanceToken();
-  const { rows, withdrawOn } = useFamilyWithdraw(family);
+  const { rows, withdrawOn, withdrawAll, anyBusy } = useFamilyWithdraw(family);
   // Per-chain amount inputs, parsed with THAT chain's token decimals.
   const [amounts, setAmounts] = useState<Record<number, string>>({});
+  // "Withdraw everything" only makes sense with something to burn somewhere.
+  const hasBalances = rows.some(
+    (r) => r.balance !== undefined && r.balance > 0n,
+  );
 
   // Clear a row's input once its withdrawal lands (the state machine passes
   // through "withdrawing" between runs, so each completion clears once).
@@ -70,6 +72,23 @@ export function FamilyWithdraw({ family }: { family: FamilyState }) {
         <Globe size={14} weight="fill" className="text-core-orange" />
         Withdraw {symbol} across your chains
       </Caption>
+
+      <div className="mt-3">
+        {/* chainless: the walk targets each chain itself, so no
+            switch-to-active-chain gating — only connect gating. */}
+        <ActionButton
+          chainless
+          isLoading={anyBusy}
+          disabled={!hasBalances || anyBusy}
+          onClick={() => void withdrawAll()}
+        >
+          Withdraw everything
+        </ActionButton>
+      </div>
+      <Caption className="text-surface-grey mt-1.5 block">
+        burns your full balance on every chain — you receive the local asset on
+        each
+      </Caption>
       <div className="mt-1">
         <GasModeNote />
       </div>
@@ -89,19 +108,6 @@ export function FamilyWithdraw({ family }: { family: FamilyState }) {
           />
         ))}
       </ul>
-
-      {!isConnected && (
-        <div className="mt-5">
-          <Button
-            app="fund"
-            variant="primary"
-            className="w-full"
-            onClick={connect}
-          >
-            Connect wallet
-          </Button>
-        </div>
-      )}
 
       <Body className="text-surface-grey mt-6 text-sm">
         Each withdrawal burns {symbol} on that chain and sends you its base

@@ -140,6 +140,10 @@ export function useFamilyDistribute(family: FamilyState) {
   const membersRef = useRef<Member[]>([]);
   // decimals never change per token — read once per sibling, then reuse.
   const decimalsCache = useRef(new Map<number, number>());
+  // "Distribute all" walk in progress — ref guards re-entry (the walk has
+  // idle gaps between chains while re-checking readiness), state drives the UI.
+  const allRunningRef = useRef(false);
+  const [allRunning, setAllRunning] = useState(false);
 
   const setRows = useCallback(
     (updater: (prev: FamilyDistributeRow[]) => FamilyDistributeRow[]) => {
@@ -253,11 +257,50 @@ export function useFamilyDistribute(family: FamilyState) {
     [patchRow, sendSponsored],
   );
 
+  /**
+   * Distribute on every READY chain, sequentially — a self-paid wallet must
+   * switch networks between writes, so parallel submits would race the switch
+   * (embedded wallets just sign each silently). Each chain's readiness is
+   * RE-CHECKED right before its tx: the row's copy can be up to 12s stale and
+   * distribute is a public keeper race, so a chain someone else just
+   * distributed is skipped instead of submitting a doomed tx. Fail-soft per
+   * chain: not-ready/unreachable rows are skipped without breaking the walk.
+   */
+  const distributeAll = useCallback(async () => {
+    if (allRunningRef.current) return; // one walk at a time
+    allRunningRef.current = true;
+    setAllRunning(true);
+    try {
+      for (const m of membersRef.current) {
+        const row = rowsRef.current.find((r) => r.chainId === m.chainId);
+        if (!row) continue;
+        if (row.unreachable) continue; // can't confirm anything there
+        if (!row.isReady) continue; // only chains shown ready
+        if (row.state === "distributing" || row.state === "confirming")
+          continue;
+        let fresh: ChainReads;
+        try {
+          fresh = await readChain(m, decimalsCache.current);
+        } catch {
+          patchRow(m.chainId, { unreachable: true });
+          continue; // dead RPC — skip this chain, keep walking
+        }
+        patchRow(m.chainId, fresh);
+        if (!fresh.isReady) continue; // raced — already distributed elsewhere
+        await distributeOn(m.chainId);
+      }
+    } finally {
+      allRunningRef.current = false;
+      setAllRunning(false);
+    }
+  }, [distributeOn, patchRow]);
+
   return {
     rows,
     distributeOn,
-    anyBusy: rows.some(
-      (r) => r.state === "distributing" || r.state === "confirming",
-    ),
+    distributeAll,
+    anyBusy:
+      allRunning ||
+      rows.some((r) => r.state === "distributing" || r.state === "confirming"),
   };
 }
