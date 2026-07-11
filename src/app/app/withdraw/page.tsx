@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Caption } from "@breadcoop/ui";
+import { Body, Caption } from "@breadcoop/ui";
 import { Card, PageHeader } from "@/components/dapp/ui";
 import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { formatAmount, parseAmount } from "@/lib/format";
+import { shortChainName } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
+import { useAmountFormatter18 } from "@/components/demo-mode-provider";
 import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
+import { useFamily } from "@/hooks/use-family";
+import { useFamilyPosition } from "@/hooks/use-family-stats";
 import {
   useInstanceToken,
   useTokenBalance,
@@ -30,8 +35,50 @@ export default function WithdrawPage() {
         title="Withdraw"
         subtitle={`Burn ${symbol} to redeem your ${redeemSym} principal 1:1. Your stake is always fully withdrawable.`}
       />
+      <FamilyWithdrawNote />
       <WithdrawForm />
     </div>
+  );
+}
+
+/**
+ * Family mode: withdrawals burn the LOCAL chain's token, so show where the
+ * rest of the holding lives (18-dp normalized across the family).
+ */
+function FamilyWithdrawNote() {
+  const family = useFamily();
+  const chainId = useActiveChainId();
+  const pos = useFamilyPosition(family);
+  const fmt18 = useAmountFormatter18();
+  const { symbol } = useInstanceToken();
+  if (!family.isFamily) return null;
+  const here = pos.perChain.find((c) => c.chainId === chainId);
+  const elsewhere = pos.perChain.filter(
+    (c) => c.chainId !== chainId && c.balance18 > 0n,
+  );
+  return (
+    <Card className="mb-6">
+      <Body className="text-surface-grey-2 text-sm">
+        Withdrawals act per chain. You&apos;re withdrawing on{" "}
+        <span className="text-text-standard font-semibold">
+          {shortChainName(chainId)}
+        </span>
+        {here && ` (balance there: ${fmt18(here.balance18)} ${symbol})`}.
+        {elsewhere.length > 0 && (
+          <>
+            {" "}
+            You also hold{" "}
+            {elsewhere
+              .map(
+                (c) =>
+                  `${fmt18(c.balance18)} ${symbol} on ${shortChainName(c.chainId)}`,
+              )
+              .join(" · ")}
+            .
+          </>
+        )}
+      </Body>
+    </Card>
   );
 }
 

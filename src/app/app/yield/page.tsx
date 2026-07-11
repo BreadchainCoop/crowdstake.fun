@@ -6,8 +6,11 @@ import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
+import { shortChainName } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { useBaseAssetSymbol } from "@/hooks/use-chain";
+import { useFamily } from "@/hooks/use-family";
 import {
   useClaimKeptYield,
   useInstanceToken,
@@ -26,9 +29,28 @@ export default function YieldPage() {
         title="Yield split"
         subtitle="Choose how much of the yield your stake earns goes to the community's recipients and how much you keep for yourself."
       />
+      <FamilySplitNote />
       <SplitForm />
       <KeptYieldCard />
     </div>
+  );
+}
+
+/** Family mode: the split is a per-chain token setting — say so honestly. */
+function FamilySplitNote() {
+  const family = useFamily();
+  const chainId = useActiveChainId();
+  if (!family.isFamily) return null;
+  return (
+    <Card className="mb-6">
+      <Body className="text-surface-grey-2 text-sm">
+        Your yield split applies per chain. You&apos;re setting it for{" "}
+        <span className="text-text-standard font-semibold">
+          {shortChainName(chainId)}
+        </span>
+        ; switch chains in the instance picker to set it elsewhere.
+      </Body>
+    </Card>
   );
 }
 
