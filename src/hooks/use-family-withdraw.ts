@@ -125,6 +125,10 @@ export function useFamilyWithdraw(family: FamilyState) {
   const membersRef = useRef<Member[]>([]);
   // decimals never change per token — read once per sibling, then reuse.
   const decimalsCache = useRef(new Map<number, number>());
+  // "Withdraw everything" walk in progress — ref guards re-entry (the walk has
+  // idle gaps between chains while re-reading balances), state drives the UI.
+  const allRunningRef = useRef(false);
+  const [allRunning, setAllRunning] = useState(false);
 
   const setRows = useCallback(
     (updater: (prev: FamilyWithdrawRow[]) => FamilyWithdrawRow[]) => {
@@ -239,11 +243,49 @@ export function useFamilyWithdraw(family: FamilyState) {
     [address, patchRow, sendSponsored],
   );
 
+  /**
+   * Burn the FULL balance on every chain that has one, sequentially — a
+   * self-paid wallet must switch networks between writes, so parallel submits
+   * would race the switch (embedded wallets just sign each silently). Each
+   * chain's balance is RE-READ right before its burn: the row's copy can be
+   * up to 12s stale, and burning a stale-high amount REVERTS — so the burn
+   * uses the exact fresh amount. Fail-soft per chain: zero/unreachable rows
+   * are skipped without breaking the walk.
+   */
+  const withdrawAll = useCallback(async () => {
+    if (allRunningRef.current || !address) return; // one walk at a time
+    allRunningRef.current = true;
+    setAllRunning(true);
+    try {
+      for (const m of membersRef.current) {
+        const row = rowsRef.current.find((r) => r.chainId === m.chainId);
+        if (!row) continue;
+        if (row.unreachable) continue; // can't confirm anything there
+        if (row.balance === undefined || row.balance === 0n) continue;
+        if (row.state === "withdrawing" || row.state === "confirming") continue;
+        let fresh: ChainReads;
+        try {
+          fresh = await readChain(m, address, decimalsCache.current);
+        } catch {
+          patchRow(m.chainId, { unreachable: true });
+          continue; // dead RPC — skip this chain, keep walking
+        }
+        patchRow(m.chainId, fresh);
+        if (fresh.balance === undefined || fresh.balance === 0n) continue;
+        await withdrawOn(m.chainId, fresh.balance);
+      }
+    } finally {
+      allRunningRef.current = false;
+      setAllRunning(false);
+    }
+  }, [address, patchRow, withdrawOn]);
+
   return {
     rows,
     withdrawOn,
-    anyBusy: rows.some(
-      (r) => r.state === "withdrawing" || r.state === "confirming",
-    ),
+    withdrawAll,
+    anyBusy:
+      allRunning ||
+      rows.some((r) => r.state === "withdrawing" || r.state === "confirming"),
   };
 }
