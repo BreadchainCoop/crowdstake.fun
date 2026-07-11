@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Caption } from "@breadcoop/ui";
-import { Card, PageHeader } from "@/components/dapp/ui";
+import { Card, GateSkeleton, PageHeader } from "@/components/dapp/ui";
 import { AmountField } from "@/components/dapp/amount-field";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
@@ -28,6 +28,8 @@ export default function WithdrawPage() {
   const redeemSym = useRedeemSymbol();
   const family = useFamily();
   const isFamily = family.isFamily && !family.isLoading;
+  // familyId not yet known — don't render (and then swap) the wrong mode.
+  const resolving = family.familyId === null && family.isLoading;
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
@@ -41,7 +43,13 @@ export default function WithdrawPage() {
       {/* Family mode: the token lives on several chains, so withdrawing the
           whole position is a per-chain burn fan-out — one panel, per-chain
           rows. Classic instances keep the single-chain form. */}
-      {isFamily ? <FamilyWithdraw family={family} /> : <WithdrawForm />}
+      {resolving ? (
+        <GateSkeleton />
+      ) : isFamily ? (
+        <FamilyWithdraw family={family} />
+      ) : (
+        <WithdrawForm />
+      )}
     </div>
   );
 }

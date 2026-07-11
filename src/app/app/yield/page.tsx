@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Body, Caption } from "@breadcoop/ui";
-import { Card, PageHeader } from "@/components/dapp/ui";
+import { Card, GateSkeleton, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ function SplitForm({ family }: { family: FamilyState }) {
   // fans setYieldSplit out to every sibling chain (per-chain status rows
   // below); classic instances keep the single-chain write.
   const isFamily = family.isFamily && !family.isLoading;
+  // familyId not yet known — don't render (and then swap) the wrong mode.
+  const resolving = family.familyId === null && family.isLoading;
   const { keepBps, supported, refetch } = useYieldSplit();
   const { setSplit, ...tx } = useSetYieldSplit();
   const fam = useFamilyYieldSplit(family); // inert ([] rows) when not a family
@@ -72,6 +74,9 @@ function SplitForm({ family }: { family: FamilyState }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tx.isSuccess]);
 
+  if (resolving) {
+    return <GateSkeleton />;
+  }
   if (isFamily ? famAllUnsupported : supported === false) {
     return (
       <Card>
