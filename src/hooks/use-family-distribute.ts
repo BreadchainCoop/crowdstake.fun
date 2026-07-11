@@ -227,7 +227,18 @@ export function useFamilyDistribute(family: FamilyState) {
         });
         patchRow(chainId, { state: "confirming", txHash: hash });
         // Wait on THIS chain's client — the wallet may be pointed elsewhere.
-        await publicClientFor(chainId).waitForTransactionReceipt({ hash });
+        // viem's raw wait RETURNS reverted receipts (wagmi's throws); distribute
+        // is a public keeper race, so a lost race must read as failed, not done.
+        const receipt = await publicClientFor(
+          chainId,
+        ).waitForTransactionReceipt({ hash });
+        if (receipt.status === "reverted") {
+          patchRow(chainId, {
+            state: "failed",
+            error: "Transaction reverted — likely already distributed",
+          });
+          return;
+        }
         patchRow(chainId, { state: "done" });
         // Re-read so the advanced cycle / drained pot shows immediately.
         try {

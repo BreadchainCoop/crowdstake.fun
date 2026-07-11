@@ -157,6 +157,10 @@ function AdminRecipients({ family }: { family: FamilyState }) {
   const lastSyncedHashRef = useRef<string | null>(null);
   useEffect(() => {
     if (!processTx.isSuccess || !processTx.hash) return;
+    // A sign() already fanning out must finish first — re-entering swaps the
+    // shared payload under its loop. isBusy is in the deps, so the skipped
+    // sync fires as soon as the running one settles.
+    if (sync.isBusy) return;
     if (!family.isFamily || siblingCount === 0 || !isAdmin) return;
     if (lastSyncedHashRef.current === processTx.hash) return;
     lastSyncedHashRef.current = processTx.hash;
@@ -175,7 +179,7 @@ function AdminRecipients({ family }: { family: FamilyState }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [processTx.isSuccess, processTx.hash]);
+  }, [processTx.isSuccess, processTx.hash, sync.isBusy]);
 
   const knownAdds = new Set(
     [...recipients, ...queuedAdditions, ...pendingAdds].map(lc),
