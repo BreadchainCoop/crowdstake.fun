@@ -25,11 +25,11 @@ import {
 } from "@/hooks/use-family-deposit";
 
 const GAS_RESERVE = 10n ** 16n; // ~0.01 native, kept back to pay gas (self-paid)
-// Sponsored (4337) wallets pay no gas, but the bundler's simulation still
-// debits the account before the paymaster settles — a native deposit of the
-// FULL balance reverts in simulation ("UserOperation reverted … reason: 0x").
-// Keep a sliver back so MAX survives simulation.
-const SIM_HEADROOM = 10n ** 15n; // ~0.001 native
+// Native deposits are the one SELF-PAID case even for sponsored wallets
+// (Privy's sponsorship simulation rejects value-carrying ops — see
+// privy-wallet-actions.tsx), so MAX keeps a sliver back for their gas
+// (a mint is ~350k gas; cheap-native chains only).
+const SPONSORED_NATIVE_RESERVE = 10n ** 15n; // ~0.001 native
 
 /**
  * Multi-asset family mint: deposit into a community token across every chain it
@@ -58,7 +58,7 @@ export function FamilyDeposit({
   // reserve: gas for self-paying wallets, simulation headroom for sponsored.
   const availableFor = (c: FamilyDepositChain, mode: "native" | "wrapped") => {
     if (mode === "wrapped") return c.wrappedBalance;
-    const reserve = sponsored ? SIM_HEADROOM : GAS_RESERVE;
+    const reserve = sponsored ? SPONSORED_NATIVE_RESERVE : GAS_RESERVE;
     return c.nativeBalance > reserve ? c.nativeBalance - reserve : 0n;
   };
 
