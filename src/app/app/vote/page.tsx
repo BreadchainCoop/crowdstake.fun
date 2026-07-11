@@ -150,7 +150,7 @@ function VoteForm() {
   const { recipients } = useRecipients();
   const voting = useVotingState();
   const cycle = useCycle();
-  const { vote, recast, supportsRecast, ...tx } = useVote();
+  const { vote, recast, supportsRecast, recastProbePending, ...tx } = useVote();
 
   // Per-recipient weight in *percent* (0..100); converted to basis points on submit.
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -191,6 +191,7 @@ function VoteForm() {
   // Recasting rides the EIP-712 signature path (castVoteWithSignature). On a
   // module that doesn't expose it (VOTE_TYPEHASH() reverts), the ballot stays
   // locked for the cycle, exactly like before.
+  const probing = voting.hasVoted && recastProbePending;
   const locked = voting.hasVoted && !supportsRecast;
 
   const distributeEqually = () => {
@@ -213,9 +214,11 @@ function VoteForm() {
         {voting.hasVoted && (
           <p className="text-system-green mt-3 flex items-center gap-2 text-sm font-medium">
             <CheckCircle size={18} weight="fill" />
-            {supportsRecast
-              ? "You voted this cycle — you can update your ballot until it ends."
-              : "You've already voted this cycle. New votes are accepted next cycle."}
+            {probing
+              ? "You voted this cycle."
+              : supportsRecast
+                ? "You voted this cycle — you can update your ballot until it ends."
+                : "You've already voted this cycle. New votes are accepted next cycle."}
           </p>
         )}
       </Card>
@@ -245,10 +248,12 @@ function VoteForm() {
       <div className="mt-6">
         <ActionButton
           isLoading={tx.isBusy}
-          disabled={!anyAllocated || locked || noPower || lengthMismatch}
+          disabled={
+            !anyAllocated || locked || probing || noPower || lengthMismatch
+          }
           onClick={() => (voting.hasVoted ? recast(points) : vote(points))}
         >
-          {locked
+          {probing || locked
             ? "Already voted this cycle"
             : voting.hasVoted
               ? "Update vote"
@@ -276,7 +281,7 @@ function VoteForm() {
         status={tx.status}
         hash={tx.hash}
         error={tx.error}
-        successLabel="Vote cast"
+        successLabel={voting.hasVoted ? "Vote updated" : "Vote cast"}
       />
 
       <Body className="text-surface-grey mt-6 text-sm">

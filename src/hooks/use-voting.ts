@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { BaseError, ContractFunctionRevertedError } from "viem";
 import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
 import { useActiveChainId, useInstance } from "@/components/instance-provider";
@@ -85,6 +86,15 @@ export function useVotingState() {
  * uniqueness, and _processVote fully reverts the previous ballot's stored
  * allocations before applying the new one — recasting is designed in.
  */
+
+/** True when a read failed because the contract REVERTED (vs a flaky RPC). */
+function isRevert(error: unknown): boolean {
+  return (
+    error instanceof BaseError &&
+    error.walk((e) => e instanceof ContractFunctionRevertedError) !== null
+  );
+}
+
 export function useVote() {
   const a = useInstance();
   const chainId = useActiveChainId();
@@ -106,9 +116,16 @@ export function useVote() {
     abi: votingModuleAbi,
     functionName: "VOTE_TYPEHASH",
     chainId,
-    query: { retry: false, staleTime: Infinity },
+    query: {
+      // A REVERT is the answer (unsupported — don't retry it), but a transient
+      // RPC failure isn't: without retry it would silently lock recast for the
+      // whole mount on a capable chain.
+      retry: (failureCount, error) => !isRevert(error) && failureCount < 2,
+      staleTime: Infinity,
+    },
   });
   const supportsRecast = typehash.isSuccess;
+  const probePending = typehash.isPending;
 
   // The EIP-712 prompt (or the pre-sign nonce read) can fail before any tx
   // exists — surface that through the same status/error the page already
@@ -140,6 +157,19 @@ export function useVote() {
         // any already-used value.
         nonce = BigInt(Date.now());
         const client = publicClientFor(chainId);
+        // The page's power guard polls at 12s — re-read at sign time so a
+        // just-unstaked wallet can't record a 0-power ballot over its old one
+        // (the classic entrypoint, unlike cross-chain, doesn't revert on it).
+        const livePower = (await client.readContract({
+          address: a.votingModule,
+          abi: votingModuleAbi,
+          functionName: "getCurrentVotingPower",
+          args: [address],
+        })) as bigint;
+        if (livePower === 0n) {
+          setSignError("No voting power — deposit before updating your vote");
+          return undefined;
+        }
         while (
           await client.readContract({
             address: a.votingModule,
@@ -181,6 +211,8 @@ export function useVote() {
     recast,
     /** False on v1 modules (no castVoteWithSignature) — recast unavailable. */
     supportsRecast,
+    /** VOTE_TYPEHASH probe still in flight — recast availability unknown. */
+    recastProbePending: probePending,
     ...tx,
     isBusy: tx.isBusy || isSigningBallot,
     status: signError ? ("error" as const) : tx.status,

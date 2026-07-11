@@ -15,9 +15,11 @@ import {
  *
  * The same chainless domain carries the three registry-governance kinds too
  * (registry-update, proposal, proposal-vote): distinct EIP-712 primary types
- * are the firewall between action kinds. Every TYPES const + payload builder
+ * are the firewall between action kinds. Every cross-chain TYPES const +
+ * payload builder
  * below mirrors relay/src/typed-data.ts and the contracts byte-for-byte —
- * pinned by the tracked relay/test/crosschain-vector.json parity assertion.
+ * pinned by the tracked relay/test/crosschain-vector.json;
+ * the classic Vote types are pinned by e2e/verify-classic-recast.ts parity assertion.
  */
 
 /** Domain per family: EIP712Domain(string name,string version,bytes32 salt). */
