@@ -161,8 +161,8 @@ export function useVote() {
         // just-unstaked wallet can't record a 0-power ballot over its old one
         // (the classic entrypoint, unlike cross-chain, doesn't revert on it).
         const livePower = (await client.readContract({
-          address: a.votingModule,
-          abi: votingModuleAbi,
+          address: a.votingPowerStrategy,
+          abi: votingPowerAbi,
           functionName: "getCurrentVotingPower",
           args: [address],
         })) as bigint;
