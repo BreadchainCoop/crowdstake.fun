@@ -25,6 +25,11 @@ import {
 } from "@/hooks/use-family-deposit";
 
 const GAS_RESERVE = 10n ** 16n; // ~0.01 native, kept back to pay gas (self-paid)
+// Sponsored (4337) wallets pay no gas, but the bundler's simulation still
+// debits the account before the paymaster settles — a native deposit of the
+// FULL balance reverts in simulation ("UserOperation reverted … reason: 0x").
+// Keep a sliver back so MAX survives simulation.
+const SIM_HEADROOM = 10n ** 15n; // ~0.001 native
 
 /**
  * Multi-asset family mint: deposit into a community token across every chain it
@@ -49,12 +54,12 @@ export function FamilyDeposit({
   const decimalsFor = (c: FamilyDepositChain, mode: "native" | "wrapped") =>
     mode === "native" ? 18 : c.wrappedDecimals;
 
-  // Balance available for a row's chosen asset (reserve native gas when self-paid).
+  // Balance available for a row's chosen asset. Native rows always hold back a
+  // reserve: gas for self-paying wallets, simulation headroom for sponsored.
   const availableFor = (c: FamilyDepositChain, mode: "native" | "wrapped") => {
     if (mode === "wrapped") return c.wrappedBalance;
-    return !sponsored && c.nativeBalance > GAS_RESERVE
-      ? c.nativeBalance - GAS_RESERVE
-      : c.nativeBalance;
+    const reserve = sponsored ? SIM_HEADROOM : GAS_RESERVE;
+    return c.nativeBalance > reserve ? c.nativeBalance - reserve : 0n;
   };
 
   const rowByChain = (chainId: number): DepositRow | undefined =>
