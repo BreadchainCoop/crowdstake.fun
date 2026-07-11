@@ -87,10 +87,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 
 function Hero() {
   return (
-    <section
-      id="top"
-      className="section-container py-20 lg:py-28"
-    >
+    <section id="top" className="section-container py-20 lg:py-28">
       <div className="mx-auto flex max-w-2xl flex-col justify-center text-center">
         <h1 className="font-breadDisplay text-core-orange text-6xl leading-[1.04] font-extrabold tracking-tight break-words sm:text-7xl">
           Crowdstaking
