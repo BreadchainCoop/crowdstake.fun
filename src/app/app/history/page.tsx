@@ -12,17 +12,24 @@ import { Card, EmptyState, PageHeader, StatCard } from "@/components/dapp/ui";
 import {
   useDistributionHistory,
   type EnrichedRound,
+  type PayoutWave,
   type RecipientSummary,
 } from "@/hooks/use-distribution-history";
 import { addressUrl, shortChainName, txUrl } from "@/lib/chains";
 import { toDecimal } from "@/lib/distribution-history";
-import { formatAmount, formatPercent, shortenAddress } from "@/lib/format";
+import {
+  formatAmountKeepTiny,
+  formatNumberKeepTiny,
+  formatPercent,
+  shortenAddress,
+} from "@/lib/format";
 import { useInstanceToken } from "@/hooks/use-token";
 
-/** ~decimal number → grouped string (family total across stablecoin chains). */
-function fmtNum(n: number, frac = 2): string {
-  return n.toLocaleString("en-US", { maximumFractionDigits: frac });
-}
+/**
+ * ~decimal number → grouped string (family totals across chains). Dust-safe:
+ * small real payouts keep their significant digits instead of showing "0".
+ */
+const fmtNum = formatNumberKeepTiny;
 
 function fmtDate(ts: number): string {
   if (!ts) return "—";
@@ -100,7 +107,19 @@ export default function HistoryPage() {
               }
               accent
             />
-            <StatCard label="Payout rounds" value={history.roundCount} />
+            {history.isFamily ? (
+              // One family payout executes as separate txs per chain — count
+              // the cross-chain waves, not the per-chain legs.
+              <StatCard
+                label="Payout waves"
+                value={history.waves.length}
+                sub={`${history.roundCount} chain payout${
+                  history.roundCount === 1 ? "" : "s"
+                }`}
+              />
+            ) : (
+              <StatCard label="Payout rounds" value={history.roundCount} />
+            )}
             <StatCard label="Recipients paid" value={history.recipientCount} />
             <StatCard
               label="Chains"
@@ -128,7 +147,8 @@ export default function HistoryPage() {
                           {shortChainName(c.chainId)}
                         </span>
                         <span className="text-surface-grey-2">
-                          {formatAmount(c.total, 2, c.decimals)} {c.symbol}
+                          {formatAmountKeepTiny(c.total, 2, c.decimals)}{" "}
+                          {c.symbol}
                           <span className="text-surface-grey ml-2">
                             {c.rounds} round{c.rounds === 1 ? "" : "s"}
                           </span>
@@ -163,19 +183,34 @@ export default function HistoryPage() {
             </ul>
           </Card>
 
-          {/* Timeline */}
+          {/* Timeline — families group each cross-chain wave's per-chain
+              payouts under one header; classic instances keep the flat list. */}
           <Caption className="text-surface-grey-2 mt-8 mb-3 block">
             Payout timeline
+            {history.isFamily &&
+              " — payouts on different chains within ~6 hours are grouped as one wave"}
           </Caption>
-          <div className="space-y-2">
-            {history.rounds.map((round) => (
-              <RoundRow
-                key={`${round.chainId}-${round.txHash}`}
-                round={round}
-                allTimeNormalized={history.totalNormalized}
-              />
-            ))}
-          </div>
+          {history.isFamily ? (
+            <div className="space-y-5">
+              {history.waves.map((wave) => (
+                <WaveGroup
+                  key={wave.key}
+                  wave={wave}
+                  allTimeNormalized={history.totalNormalized}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {history.rounds.map((round) => (
+                <RoundRow
+                  key={`${round.chainId}-${round.txHash}`}
+                  round={round}
+                  allTimeNormalized={history.totalNormalized}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="mt-6 flex items-center gap-3">
             <Button
@@ -223,7 +258,7 @@ function RecipientRow({
             {r.perChain
               .map(
                 (pc) =>
-                  `${formatAmount(pc.amount, 2, pc.decimals)} ${pc.symbol} on ${shortChainName(
+                  `${formatAmountKeepTiny(pc.amount, 2, pc.decimals)} ${pc.symbol} on ${shortChainName(
                     pc.chainId,
                   )}`,
               )
@@ -232,6 +267,47 @@ function RecipientRow({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * One cross-chain payout wave: a header (date + ≈ total across its chains)
+ * over the per-chain rounds, which keep their own expandable detail. The
+ * grouping is a display-time heuristic (6h clustering) — hence the ≈.
+ */
+function WaveGroup({
+  wave,
+  allTimeNormalized,
+}: {
+  wave: PayoutWave;
+  allTimeNormalized: number;
+}) {
+  const symbols = new Set(wave.rounds.map((r) => r.symbol));
+  const symbol = symbols.size === 1 ? ` ${[...symbols][0]}` : "";
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="text-text-standard text-sm font-semibold">
+          {fmtDate(wave.timestamp)}
+        </span>
+        <span className="text-surface-grey-2 text-sm">
+          ≈ {fmtNum(wave.totalNormalized)}
+          {symbol}
+          <span className="text-surface-grey ml-2 text-xs">
+            {wave.rounds.length} chain{wave.rounds.length === 1 ? "" : "s"}
+          </span>
+        </span>
+      </div>
+      <div className="border-paper-2 space-y-2 border-l-2 pl-3">
+        {wave.rounds.map((round) => (
+          <RoundRow
+            key={`${round.chainId}-${round.txHash}`}
+            round={round}
+            allTimeNormalized={allTimeNormalized}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -261,7 +337,8 @@ function RoundRow({
       >
         <div className="min-w-0">
           <div className="text-text-standard text-sm font-semibold">
-            {formatAmount(round.total, 2, round.decimals)} {round.symbol}
+            {formatAmountKeepTiny(round.total, 2, round.decimals)}{" "}
+            {round.symbol}
           </div>
           <div className="text-surface-grey text-xs">
             {fmtDate(round.timestamp)} · {shortChainName(round.chainId)} ·{" "}
@@ -296,7 +373,8 @@ function RoundRow({
                       {shortenAddress(x.recipient)}
                     </a>
                     <span className="text-text-standard">
-                      {formatAmount(x.amount, 4, round.decimals)} {round.symbol}
+                      {formatAmountKeepTiny(x.amount, 4, round.decimals)}{" "}
+                      {round.symbol}
                       <span className="text-surface-grey ml-2 text-xs tabular-nums">
                         {formatPercent(share)}
                       </span>
