@@ -6,11 +6,11 @@ import { Card, PageHeader } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
 import { TxStatus } from "@/components/dapp/tx-status";
 import { cn } from "@/lib/utils";
-import { shortChainName } from "@/lib/chains";
-import { useActiveChainId } from "@/components/instance-provider";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { useBaseAssetSymbol } from "@/hooks/use-chain";
-import { useFamily } from "@/hooks/use-family";
+import { useFamily, type FamilyState } from "@/hooks/use-family";
+import { useFamilyYieldSplit } from "@/hooks/use-family-yield-split";
+import { FamilySplitStatus } from "@/app/app/yield/_components/family-split-status";
 import {
   useClaimKeptYield,
   useInstanceToken,
@@ -23,40 +23,27 @@ import {
 const GIVE_PRESETS = [100, 75, 50, 25, 0] as const;
 
 export default function YieldPage() {
+  const family = useFamily();
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader
         title="Yield split"
         subtitle="Choose how much of the yield your stake earns goes to the community's recipients and how much you keep for yourself."
       />
-      <FamilySplitNote />
-      <SplitForm />
+      <SplitForm family={family} />
       <KeptYieldCard />
     </div>
   );
 }
 
-/** Family mode: the split is a per-chain token setting — say so honestly. */
-function FamilySplitNote() {
-  const family = useFamily();
-  const chainId = useActiveChainId();
-  if (!family.isFamily) return null;
-  return (
-    <Card className="mb-6">
-      <Body className="text-surface-grey-2 text-sm">
-        Your yield split applies per chain. You&apos;re setting it for{" "}
-        <span className="text-text-standard font-semibold">
-          {shortChainName(chainId)}
-        </span>
-        ; switch chains in the instance picker to set it elsewhere.
-      </Body>
-    </Card>
-  );
-}
-
-function SplitForm() {
+function SplitForm({ family }: { family: FamilyState }) {
+  // Family mode: the split is per-chain token state, so one "Update split"
+  // fans setYieldSplit out to every sibling chain (per-chain status rows
+  // below); classic instances keep the single-chain write.
+  const isFamily = family.isFamily && !family.isLoading;
   const { keepBps, supported, refetch } = useYieldSplit();
   const { setSplit, ...tx } = useSetYieldSplit();
+  const fam = useFamilyYieldSplit(family); // inert ([] rows) when not a family
   // The slider anchors on the on-chain split until the user drags it.
   const [draftGive, setDraftGive] = useState<number | null>(null);
 
@@ -64,6 +51,18 @@ function SplitForm() {
   const give = draftGive ?? chainGive;
   const keep = 100 - give;
   const dirty = draftGive !== null && draftGive !== chainGive;
+  const targetKeepBps = keep * 100;
+  // Family chains that would actually receive a tx: supported, reachable, and
+  // not already at the target (the fan-out skips matching chains).
+  const famPending = fam.rows.filter(
+    (r) =>
+      r.supported === true &&
+      !r.unreachable &&
+      r.keepBps !== undefined &&
+      r.keepBps !== targetKeepBps,
+  );
+  const famAllUnsupported =
+    fam.rows.length > 0 && fam.rows.every((r) => r.supported === false);
 
   useEffect(() => {
     if (tx.isSuccess) {
@@ -73,7 +72,7 @@ function SplitForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tx.isSuccess]);
 
-  if (supported === false) {
+  if (isFamily ? famAllUnsupported : supported === false) {
     return (
       <Card>
         <Body className="text-surface-grey-2">
@@ -138,22 +137,48 @@ function SplitForm() {
         </span>
       </div>
 
-      <div className="mt-6">
-        <ActionButton
-          isLoading={tx.isBusy}
-          disabled={!dirty || supported === undefined}
-          onClick={() => setSplit((100 - give) * 100)}
-        >
-          Update split
-        </ActionButton>
-      </div>
+      {isFamily ? (
+        <>
+          <div className="mt-6">
+            {/* chainless: the fan-out targets each chain itself, so no
+                switch-to-active-chain gating — only connect gating. */}
+            <ActionButton
+              chainless
+              isLoading={fam.anyBusy}
+              disabled={famPending.length === 0 || fam.anyBusy}
+              onClick={() => void fam.setSplitEverywhere(targetKeepBps)}
+            >
+              {famPending.length > 1
+                ? `Update split on ${famPending.length} chains`
+                : "Update split"}
+            </ActionButton>
+          </div>
+          <FamilySplitStatus
+            rows={fam.rows}
+            targetKeepBps={targetKeepBps}
+            onRetry={(chainId) => void fam.setSplitOn(chainId, targetKeepBps)}
+          />
+        </>
+      ) : (
+        <>
+          <div className="mt-6">
+            <ActionButton
+              isLoading={tx.isBusy}
+              disabled={!dirty || supported === undefined}
+              onClick={() => setSplit(targetKeepBps)}
+            >
+              Update split
+            </ActionButton>
+          </div>
 
-      <TxStatus
-        status={tx.status}
-        hash={tx.hash}
-        error={tx.error}
-        successLabel="Split updated"
-      />
+          <TxStatus
+            status={tx.status}
+            hash={tx.hash}
+            error={tx.error}
+            successLabel="Split updated"
+          />
+        </>
+      )}
 
       <Body className="text-surface-grey mt-6 text-sm">
         Applies from now on — yield already earned keeps your previous split.
