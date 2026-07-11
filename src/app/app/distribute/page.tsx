@@ -14,9 +14,13 @@ import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
 import { useLiveYieldDetails } from "@/hooks/use-live-yield";
 import { useApy } from "@/hooks/use-apy";
 import { useActiveChain } from "@/hooks/use-chain";
+import { useFamily } from "@/hooks/use-family";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { ProgressBar } from "@/components/dapp/ui";
 import { LiveYield } from "@/components/dapp/live-yield";
+import { shortChainName } from "@/lib/chains";
+import { useActiveChainId } from "@/components/instance-provider";
+import { FamilyDistributeCard } from "./_components/family-distribute-card";
 
 export default function DistributePage() {
   return (
@@ -42,6 +46,8 @@ function Distribute() {
   const { live, ratePerMs } = useLiveYieldDetails();
   const apy = useApy();
   const { blockTimeSeconds } = useActiveChain();
+  const family = useFamily();
+  const chainId = useActiveChainId();
   const fmt = useAmountFormatter();
 
   const totalVotes = useMemo(
@@ -129,8 +135,16 @@ function Distribute() {
         />
       </div>
 
+      {/* Family instances: every sibling chain's pot + its own Distribute.
+          The single-chain readiness card below stays as this chain's detail. */}
+      {family.isFamily && <FamilyDistributeCard family={family} />}
+
       <Card>
-        <Caption className="text-surface-grey-2">Readiness</Caption>
+        <Caption className="text-surface-grey-2">
+          {family.isFamily
+            ? `Readiness on ${shortChainName(chainId)} — this chain`
+            : "Readiness"}
+        </Caption>
         <ul className="mt-3 space-y-2">
           {checks.map((c) => (
             <li key={c.label} className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isAddress, zeroAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { Body, Button, Caption } from "@breadcoop/ui";
@@ -10,6 +10,7 @@ import {
   ArrowsClockwise,
   X,
   CheckCircle,
+  Globe,
 } from "@phosphor-icons/react";
 import {
   Card,
@@ -41,8 +42,11 @@ import {
 } from "@/hooks/use-recipient-voting";
 import { shortenAddress } from "@/lib/format";
 import { addressUrl, shortChainName } from "@/lib/chains";
-import { useActiveChainId } from "@/components/instance-provider";
-import { useFamily } from "@/hooks/use-family";
+import { useActiveChainId, useInstance } from "@/components/instance-provider";
+import { publicClientFor } from "@/lib/instance";
+import { recipientRegistryAbi } from "@/lib/abis";
+import { useFamily, type FamilyState } from "@/hooks/use-family";
+import { useCrossChainRegistryUpdate } from "@/hooks/use-cross-chain-registry-update";
 import {
   useCrossChainProposals,
   useSiblingProposalExpiry,
@@ -87,7 +91,7 @@ function RecipientsRouter() {
       <DemocraticRecipients />
     );
   }
-  return <AdminRecipients />;
+  return <AdminRecipients family={family} />;
 }
 
 const lc = (a: string) => a.toLowerCase();
@@ -98,8 +102,33 @@ const sortAsc = (arr: Address[]) =>
     BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0,
   );
 
-function AdminRecipients() {
+/** Per-chain copy for the family auto-sync (same grammar as the Admin page). */
+function syncStateLabel(row: ChainActionRow): string {
+  switch (row.state) {
+    case "confirmed":
+      return "Synced";
+    case "superseded":
+      return "Superseded by a newer sync";
+    case "recipient_mismatch":
+      return "Recipient list out of sync";
+    case "unreachable":
+      return "Couldn't reach chain";
+    case "failed":
+      return row.error ?? "Delivery failed";
+    case "submitted":
+      return "Submitted — confirming…";
+    case "relaying":
+      return "Submitting…";
+    case "signing":
+      return "Waiting for your signature…";
+    default:
+      return "Waiting…";
+  }
+}
+
+function AdminRecipients({ family }: { family: FamilyState }) {
   const chainId = useActiveChainId();
+  const instance = useInstance();
   const { isConnected } = useAccount();
   const { isAdmin } = useRegistryOwner();
   const { recipients, queuedAdditions, queuedRemovals, refetch } =
@@ -114,6 +143,39 @@ function AdminRecipients() {
   const processTx = useProcessQueue();
   const clearTx = useClearQueue();
   const transferTx = useTransferAdmin();
+
+  // Family auto-sync (admin registries — this component only renders for that
+  // kind): after a local membership change lands, push the new set to every
+  // sibling with the same sign-once flow as the Admin page's manual button.
+  const sync = useCrossChainRegistryUpdate(family);
+  const siblingCount = family.perChain.filter(
+    (c) => c.status === "found" && c.chainId !== chainId,
+  ).length;
+  // Queuing adds/removes doesn't change getRecipients — membership only moves
+  // on processQueue, so that's the sync trigger. Keyed on the tx hash so one
+  // completed change fires exactly one sync.
+  const lastSyncedHashRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!processTx.isSuccess || !processTx.hash) return;
+    if (!family.isFamily || siblingCount === 0 || !isAdmin) return;
+    if (lastSyncedHashRef.current === processTx.hash) return;
+    lastSyncedHashRef.current = processTx.hash;
+    void (async () => {
+      try {
+        // Read the just-processed membership straight from the chain — the
+        // wagmi cache may still hold the pre-process list.
+        const fresh = await publicClientFor(chainId).readContract({
+          address: instance.recipientRegistry,
+          abi: recipientRegistryAbi,
+          functionName: "getRecipients",
+        });
+        await sync.sign(fresh);
+      } catch {
+        /* best-effort — the Admin page's manual sync remains available */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processTx.isSuccess, processTx.hash]);
 
   const knownAdds = new Set(
     [...recipients, ...queuedAdditions, ...pendingAdds].map(lc),
@@ -397,6 +459,49 @@ function AdminRecipients() {
               />
             </>
           )}
+        </Card>
+      )}
+
+      {/* Family auto-sync delivery status. Local success stands on its own —
+          a failed sibling delivery is shown (and retryable) without blocking. */}
+      {(sync.phase !== "idle" || sync.error) && (
+        <Card>
+          <Caption className="text-text-standard flex items-center gap-1.5 font-semibold">
+            <Globe size={16} weight="fill" className="text-core-orange" />
+            Syncing recipients everywhere
+          </Caption>
+          {sync.isBusy && (
+            <Caption className="text-surface-grey-2 mt-1 block">
+              Syncing membership to {siblingCount} sibling chain
+              {siblingCount === 1 ? "" : "s"}…
+            </Caption>
+          )}
+          {sync.error && (
+            <Caption className="text-system-red mt-2 block">
+              {sync.error}
+            </Caption>
+          )}
+          <MultiChainActionStatus
+            rows={sync.rows}
+            phase={sync.phase}
+            submitting={sync.submitting}
+            payload={sync.payload}
+            onSubmitOnChain={sync.submitOnChain}
+            onRetryFailed={sync.retryFailed}
+            copy={{
+              stateLabel: syncStateLabel,
+              aggregate: ({ counted, total, phase }) =>
+                phase === "signing"
+                  ? "Confirm in your wallet…"
+                  : phase === "done"
+                    ? `Synced on ${counted} of ${total} chain${
+                        total === 1 ? "" : "s"
+                      }`
+                    : `Syncing ${total} chain${total === 1 ? "" : "s"}…`,
+              copyLabel: "Copy signed sync",
+              copyHint: "Anyone can deliver this — paste it to your community.",
+            }}
+          />
         </Card>
       )}
 
