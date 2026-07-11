@@ -75,7 +75,14 @@ export function PrivyWalletActions({ children }: { children: ReactNode }) {
   const sendSponsored = useCallback(
     async (req: SponsoredTxRequest): Promise<Hex> => {
       // External wallet → normal self-paid write (can't be sponsored).
-      if (!activeIsEmbedded()) return selfPaidWrite(req);
+      // Value-carrying txs (native deposits) also self-pay: Privy's sponsorship
+      // simulation doesn't credit the account's native balance, so ANY op with
+      // value reverts there ("UserOperation reverted during simulation with
+      // reason: 0x") — while the same op passes a public bundler's simulation.
+      // A wallet sending native value holds native funds by definition, so the
+      // (tiny) gas comes from the same balance the deposit UI already reserves.
+      if (!activeIsEmbedded() || (req.value !== undefined && req.value > 0n))
+        return selfPaidWrite(req);
 
       const data = encodeFunctionData({
         abi: req.abi as Parameters<typeof encodeFunctionData>[0]["abi"],
