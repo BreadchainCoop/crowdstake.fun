@@ -1,15 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { decodeEventLog, type Address, type Hex, type Log } from "viem";
-import {
-  useChainId,
-  useWaitForTransactionReceipt,
-  useWriteContract,
-} from "wagmi";
+import { useChainId, useWaitForTransactionReceipt } from "wagmi";
 import { deployerAbi } from "@/lib/abis";
 import { CHAINS } from "@/lib/chains";
 import { parseTxError } from "@/hooks/use-tx";
+import { useWalletActions } from "@/components/wallet/wallet-actions";
 import type { InstanceAddresses } from "@/lib/instance";
 
 export interface DeployParams {
@@ -85,19 +82,26 @@ export function useDeployInstance() {
   const chainId = useChainId();
   const cfg = CHAINS[chainId];
   const deployer = cfg?.deployer ?? null;
-  const {
-    writeContractAsync,
-    data: hash,
-    isPending: isSigning,
-    reset,
-    error: writeError,
-  } = useWriteContract();
+  // Deploys go through the wallet-actions layer like every other write: gas-
+  // sponsored (gasless) on a Privy embedded wallet — which holds no native
+  // token, so a raw self-paid write could never even estimate — else a normal
+  // self-paid wallet tx.
+  const { sendSponsored } = useWalletActions();
+  const [hash, setHash] = useState<Hex | undefined>(undefined);
+  const [isSigning, setIsSigning] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     data: receipt,
     isLoading: isConfirming,
     isSuccess,
     error: receiptError,
   } = useWaitForTransactionReceipt({ hash, chainId });
+
+  const reset = useCallback(() => {
+    setHash(undefined);
+    setIsSigning(false);
+    setSubmitError(null);
+  }, []);
 
   const instance = useMemo<InstanceAddresses | null>(
     () => (receipt ? decodeInstanceFromLogs(receipt.logs) : null),
@@ -110,8 +114,11 @@ export function useDeployInstance() {
         `${cfg?.chain.name ?? `chain ${chainId}`} isn't supported for deploys yet — switch to a supported chain.`,
       );
     }
+    setSubmitError(null);
+    setHash(undefined);
+    setIsSigning(true);
     try {
-      return await writeContractAsync({
+      const h = await sendSponsored({
         chainId,
         address: deployer,
         abi: deployerAbi,
@@ -134,13 +141,19 @@ export function useDeployInstance() {
           },
         ],
       });
+      setHash(h);
+      return h;
     } catch (e) {
-      throw new Error(parseTxError(e));
+      const message = parseTxError(e);
+      setSubmitError(message);
+      throw new Error(message);
+    } finally {
+      setIsSigning(false);
     }
   };
 
   const status: "idle" | "signing" | "confirming" | "success" | "error" =
-    writeError || receiptError
+    submitError || receiptError
       ? "error"
       : isSuccess
         ? "success"
@@ -161,11 +174,7 @@ export function useDeployInstance() {
     status,
     isBusy: isSigning || isConfirming,
     isSuccess,
-    error: writeError
-      ? parseTxError(writeError)
-      : receiptError
-        ? parseTxError(receiptError)
-        : null,
+    error: submitError ?? (receiptError ? parseTxError(receiptError) : null),
     reset,
   };
 }

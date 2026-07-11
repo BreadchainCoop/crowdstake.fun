@@ -42,9 +42,7 @@ export function PrivyWalletActions({ children }: { children: ReactNode }) {
    * provisions, so callers must tolerate `undefined`.
    */
   const preferredWallet = useCallback((): ConnectedWallet | undefined => {
-    return (
-      wallets.find((w) => w.walletClientType === "privy") ?? wallets[0]
-    );
+    return wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   }, [wallets]);
 
   /**

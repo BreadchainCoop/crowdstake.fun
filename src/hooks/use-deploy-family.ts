@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { zeroAddress, type Address, type Hex } from "viem";
-import { useAccount, useSwitchChain, useWriteContract } from "wagmi";
+import { useAccount } from "wagmi";
 import { deployerAbi } from "@/lib/abis";
 import { CHAINS } from "@/lib/chains";
 import { publicClientFor, type InstanceAddresses } from "@/lib/instance";
 import { parseTxError } from "@/hooks/use-tx";
+import { useWalletActions } from "@/components/wallet/wallet-actions";
 import {
   familyIdForConfig,
   loadPendingFamily,
@@ -116,8 +117,10 @@ function serializeParams(cfg: FamilyDeployConfig): PendingFamilyParams {
  */
 export function useDeployFamily(config: FamilyDeployConfig | null) {
   const { address } = useAccount();
-  const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
+  // Writes go through the wallet-actions layer: gas-sponsored (gasless, chain
+  // targeted per call) on a Privy embedded wallet, else a self-paid write that
+  // chain-switches itself — so no explicit switch here.
+  const { sendSponsored } = useWalletActions();
 
   const familyId: Hex | null = config
     ? familyIdForConfig({
@@ -262,9 +265,8 @@ export function useDeployFamily(config: FamilyDeployConfig | null) {
       }
 
       try {
-        await switchChainAsync({ chainId });
         patchRow(chainId, { state: "signing" });
-        const hash = await writeContractAsync({
+        const hash = await sendSponsored({
           chainId,
           address: deployer,
           abi: deployerAbi,
@@ -300,14 +302,7 @@ export function useDeployFamily(config: FamilyDeployConfig | null) {
         persist();
       }
     },
-    [
-      familyId,
-      persist,
-      patchRow,
-      readSibling,
-      switchChainAsync,
-      writeContractAsync,
-    ],
+    [familyId, persist, patchRow, readSibling, sendSponsored],
   );
 
   /** Skip a chain for now (leaves the family resumable from the Deploy page). */

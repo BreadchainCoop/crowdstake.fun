@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button, Caption } from "@breadcoop/ui";
 import { CHAINS, shortChainName, yieldFlavorLabel } from "@/lib/chains";
+import { useWalletActions } from "@/components/wallet/wallet-actions";
 import type { FamilyDeployRow } from "@/hooks/use-deploy-family";
 
 function StateIcon({ state }: { state: FamilyDeployRow["state"] }) {
@@ -71,6 +72,9 @@ export function ChainChecklist({
   onSkip: (chainId: number) => void;
   onUnskip: (chainId: number) => void;
 }) {
+  // Sponsored (embedded) wallets deploy gaslessly — the native-balance
+  // preflight warnings only apply to self-paying wallets.
+  const { sponsored } = useWalletActions();
   return (
     <ul className="space-y-3">
       {rows.map((row) => {
@@ -78,7 +82,8 @@ export function ChainChecklist({
         const blocks = BigInt(
           Math.max(1, Math.ceil(cycleSeconds / (cfg?.blockTimeSeconds ?? 5))),
         );
-        const lowGas = row.balanceWei !== undefined && row.balanceWei === 0n;
+        const lowGas =
+          !sponsored && row.balanceWei !== undefined && row.balanceWei === 0n;
         const inFlight =
           row.state === "checking" ||
           row.state === "signing" ||
@@ -117,7 +122,8 @@ export function ChainChecklist({
                     — fund the wallet before deploying.
                   </Caption>
                 )}
-              {row.balanceWei !== undefined &&
+              {!sponsored &&
+                row.balanceWei !== undefined &&
                 row.balanceWei > 0n &&
                 row.state === "idle" && (
                   <Caption className="text-surface-grey mt-0.5 block">
