@@ -203,7 +203,14 @@ export function useVote() {
         args: [address, points, nonce, signature],
       });
     },
-    [address, a.votingModule, chainId, signTypedDataAsync, run],
+    [
+      address,
+      a.votingModule,
+      a.votingPowerStrategy,
+      chainId,
+      signTypedDataAsync,
+      run,
+    ],
   );
 
   return {
