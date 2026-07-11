@@ -34,6 +34,18 @@ body {
   }
 }
 
+/* --- Telegram Mini App (html.tg-app set by the boot script in layout.tsx) ---
+   Fullscreen mini apps draw under the device status bar / Telegram controls;
+   telegram-web-app.js exposes the insets as CSS vars (0px in the regular
+   presentation and on clients that predate Bot API 8.0, so this is inert
+   outside fullscreen). Scoped under .tg-app so the web build never changes. */
+html.tg-app .tg-safe-top {
+  padding-top: calc(
+    var(--tg-safe-area-inset-top, 0px) +
+      var(--tg-content-safe-area-inset-top, 0px)
+  );
+}
+
 /* --- Yield-slice explainer animations (respect reduced-motion via JS) --- */
 @keyframes fade-in {
   from {
