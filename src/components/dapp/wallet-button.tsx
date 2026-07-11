@@ -15,7 +15,14 @@ function shortAddress(address: string): string {
  * external wallets, gasless) when configured, else a plain injected wallet.
  * Address + connection come from wagmi, so this one component works in both.
  */
-export function WalletButton({ full = false }: { full?: boolean }) {
+export function WalletButton({
+  full = false,
+  size,
+}: {
+  full?: boolean;
+  /** Button size — the nav passes "sm" so it fits the h-16 row. */
+  size?: "sm";
+}) {
   const { address, isConnected } = useAccount();
   const { connect, disconnect } = useWalletActions();
 
@@ -24,7 +31,8 @@ export function WalletButton({ full = false }: { full?: boolean }) {
       <Button
         app="fund"
         variant="primary"
-        className={full ? "w-full" : undefined}
+        size={size}
+        className={full ? "w-full" : "whitespace-nowrap"}
         onClick={connect}
       >
         Connect wallet
@@ -40,6 +48,7 @@ export function WalletButton({ full = false }: { full?: boolean }) {
       <Button
         app="fund"
         variant="secondary"
+        size={size}
         className="px-2"
         onClick={disconnect}
         leftIcon={<SignOut weight="bold" />}
