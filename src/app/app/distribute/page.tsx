@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Body, Caption } from "@breadcoop/ui";
+import { Body, Caption, Heading4 } from "@breadcoop/ui";
 import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import { Card, PageHeader, StatCard } from "@/components/dapp/ui";
 import { ActionButton } from "@/components/dapp/action-button";
@@ -11,6 +11,11 @@ import { useCycle } from "@/hooks/use-cycle";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useVotingState } from "@/hooks/use-voting";
 import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
+import { useLiveYieldDetails } from "@/hooks/use-live-yield";
+import { useApy } from "@/hooks/use-apy";
+import { useActiveChain } from "@/hooks/use-chain";
+import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { ProgressBar } from "@/components/dapp/ui";
 import { LiveYield } from "@/components/dapp/live-yield";
 
 export default function DistributePage() {
@@ -34,11 +39,30 @@ function Distribute() {
   const tokenStats = useTokenStats();
   const { yieldAccrued } = tokenStats;
   const { symbol } = useInstanceToken();
+  const { live, ratePerMs } = useLiveYieldDetails();
+  const apy = useApy();
+  const { blockTimeSeconds } = useActiveChain();
+  const fmt = useAmountFormatter();
 
   const totalVotes = useMemo(
     () => voting.distribution.reduce((a, b) => a + b, 0n),
     [voting.distribution],
   );
+
+  // Projected pot at cycle end: current accrual + measured rate × time left
+  // (crowdstaking-v2's "Est. after 30 days", generalized to any cycle length).
+  const projected = useMemo(() => {
+    if (live === undefined) return undefined;
+    if (cycle.isComplete || ratePerMs <= 0) return live;
+    const remainingMs = Number(cycle.blocksUntilNext) * blockTimeSeconds * 1000;
+    return live + BigInt(Math.floor(ratePerMs * remainingMs));
+  }, [
+    live,
+    ratePerMs,
+    cycle.isComplete,
+    cycle.blocksUntilNext,
+    blockTimeSeconds,
+  ]);
 
   const checks = [
     { label: "Cycle complete", ok: cycle.isComplete },
@@ -74,9 +98,34 @@ function Distribute() {
           accent
         />
         <StatCard
-          label="Cycle"
-          value={`#${cycle.cycleNumber?.toString() ?? "—"}`}
-          sub={cycle.isComplete ? "Complete" : "In progress"}
+          label="Projected at cycle end"
+          value={`${fmt(projected)} ${symbol}`}
+          sub={
+            apy !== undefined
+              ? `≈ ${apy.toFixed(1)}% APY, measured live`
+              : "Measuring accrual rate…"
+          }
+        />
+        {/* Not a StatCard: its `sub` renders inside a <p>, where the progress
+            bar's <div> would be invalid HTML (hydration error on load). */}
+        <Card>
+          <Caption className="text-surface-grey-2">Cycle</Caption>
+          <Heading4 className="text-text-standard mt-2">
+            #{cycle.cycleNumber?.toString() ?? "—"}
+          </Heading4>
+          <div className="mt-2">
+            <ProgressBar value={cycle.isComplete ? 1 : cycle.progress} />
+          </div>
+          <Caption className="text-surface-grey mt-1 block">
+            {cycle.isComplete
+              ? "Complete — distribution can run"
+              : `${Math.round(cycle.progress * 100)}% elapsed`}
+          </Caption>
+        </Card>
+        <StatCard
+          label="Recipients"
+          value={recipients.length}
+          sub="Will share this round"
         />
       </div>
 

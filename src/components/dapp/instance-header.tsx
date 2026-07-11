@@ -6,6 +6,7 @@ import {
   ArrowsClockwise,
   Coins,
   Gavel,
+  Percent,
   ShieldCheck,
   TrendUp,
   UsersThree,
@@ -16,7 +17,15 @@ import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useCycle } from "@/hooks/use-cycle";
 import { useRegistryKind } from "@/hooks/use-recipient-voting";
-import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { useApy } from "@/hooks/use-apy";
+import { useFamily } from "@/hooks/use-family";
+import { useFamilyStats } from "@/hooks/use-family-stats";
+import {
+  useAmountFormatter,
+  useDemoMode,
+  DEMO_MULTIPLIER,
+} from "@/components/demo-mode-provider";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** cs2-style stat pill: orange-outlined chip with an icon + label + value. */
@@ -56,8 +65,18 @@ export function InstanceHeader() {
   const cycle = useCycle();
   const { kind } = useRegistryKind();
   const fmt = useAmountFormatter();
+  const apy = useApy();
+  const family = useFamily();
+  const fstats = useFamilyStats(family);
+  const { demo } = useDemoMode();
 
   const democratic = kind === "voting";
+  // Families: headline the whole community (all chains summed, 18-dp
+  // normalized), not just the chain being viewed.
+  const familyMode = family.isFamily && fstats.totalStaked18 !== undefined;
+  const fmt18 = (v: bigint | undefined) =>
+    formatAmount(v !== undefined && demo ? v * DEMO_MULTIPLIER : v, 4, 18);
+  const chainsNote = familyMode ? ` · ${fstats.chains} chains` : "";
 
   return (
     <div className="border-paper-2 bg-paper-0 mb-8 rounded-2xl border p-5 sm:p-6">
@@ -91,11 +110,26 @@ export function InstanceHeader() {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2.5">
-        <Chip icon={<Coins size={18} weight="fill" />} label="Total staked">
-          {fmt(totalSupply)} {symbol}
+        <Chip
+          icon={<Coins size={18} weight="fill" />}
+          label={`Total staked${chainsNote}`}
+        >
+          {familyMode
+            ? `${fmt18(fstats.totalStaked18)} ${symbol}`
+            : `${fmt(totalSupply)} ${symbol}`}
         </Chip>
-        <Chip icon={<TrendUp size={18} weight="fill" />} label="Live yield">
-          <LiveYield symbol={symbol} />
+        <Chip
+          icon={<TrendUp size={18} weight="fill" />}
+          label={`Live yield${chainsNote}`}
+        >
+          {familyMode ? (
+            `${fmt18(fstats.yieldAccrued18)} ${symbol}`
+          ) : (
+            <LiveYield symbol={symbol} />
+          )}
+        </Chip>
+        <Chip icon={<Percent size={18} weight="fill" />} label="APY">
+          {apy !== undefined ? `≈ ${apy.toFixed(1)}%` : "—"}
         </Chip>
         <Chip icon={<UsersThree size={18} weight="fill" />} label="Recipients">
           {recipients.length}
