@@ -21,6 +21,7 @@ import {
   loadActiveManager,
   loadKnownInstances,
   resolveInstance,
+  resolveInstanceLabel,
   saveActiveManager,
   saveKnownInstances,
   type InstanceAddresses,
@@ -89,8 +90,12 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
         return;
       }
       const addresses = await resolveInstance(dm, chainId); // may throw
+      // Label shared links by the community's token name, not a hex address.
+      const label =
+        (await resolveInstanceLabel(addresses.token, chainId)) ??
+        shortenAddress(dm, 4);
       if (cancelled) return;
-      const inst = { label: shortenAddress(dm, 4), chainId, addresses };
+      const inst = { label, chainId, addresses };
       setKnown((prev) => {
         const next = [...prev, inst];
         saveKnownInstances(next);

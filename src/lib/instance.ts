@@ -14,7 +14,7 @@ import {
   type InstanceAddresses,
 } from "@/lib/chains";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import { distributionManagerAbi, votingModuleAbi } from "@/lib/abis";
+import { distributionManagerAbi, tokenAbi, votingModuleAbi } from "@/lib/abis";
 
 export type { InstanceAddresses } from "@/lib/chains";
 
@@ -139,6 +139,27 @@ export async function resolveInstance(
     distributionStrategy: getAddress(strategy as Address),
     votingPowerStrategy: getAddress(vpStrategies[0]),
   };
+}
+
+/**
+ * Human label for a resolved instance: its token's on-chain name. Null when
+ * the token has no usable name (fail-soft — callers fall back to a shortened
+ * address).
+ */
+export async function resolveInstanceLabel(
+  token: Address,
+  chainId: number,
+): Promise<string | null> {
+  try {
+    const name = (await publicClientFor(chainId).readContract({
+      address: token,
+      abi: tokenAbi,
+      functionName: "name",
+    })) as string;
+    return name.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /* --------------------------- localStorage helpers -------------------------- */
