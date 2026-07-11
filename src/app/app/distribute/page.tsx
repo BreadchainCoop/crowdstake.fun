@@ -15,7 +15,11 @@ import { useLiveYieldDetails } from "@/hooks/use-live-yield";
 import { useApy } from "@/hooks/use-apy";
 import { useActiveChain } from "@/hooks/use-chain";
 import { useFamily } from "@/hooks/use-family";
-import { useAmountFormatter } from "@/components/demo-mode-provider";
+import { useFamilyStats } from "@/hooks/use-family-stats";
+import {
+  useAmountFormatter,
+  useAmountFormatter18,
+} from "@/components/demo-mode-provider";
 import { ProgressBar } from "@/components/dapp/ui";
 import { LiveYield } from "@/components/dapp/live-yield";
 import { shortChainName } from "@/lib/chains";
@@ -44,11 +48,25 @@ function Distribute() {
   const { yieldAccrued } = tokenStats;
   const { symbol } = useInstanceToken();
   const { live, ratePerMs } = useLiveYieldDetails();
-  const apy = useApy();
   const { blockTimeSeconds } = useActiveChain();
   const family = useFamily();
   const chainId = useActiveChainId();
   const fmt = useAmountFormatter();
+  const fmt18 = useAmountFormatter18();
+  // Families: the headline pot is the WHOLE community's (the viewed chain can
+  // be empty while siblings accrue — the per-chain card below has the split);
+  // APY likewise rates all chains.
+  const fstats = useFamilyStats(family);
+  const familyMode = family.isFamily && fstats.yieldAccrued18 !== undefined;
+  const apy = useApy(
+    family.isFamily
+      ? {
+          familyId: family.familyId,
+          ratePerMs: fstats.ratePerMs,
+          totalStaked18: fstats.totalStaked18,
+        }
+      : undefined,
+  );
 
   const totalVotes = useMemo(
     () => voting.distribution.reduce((a, b) => a + b, 0n),
@@ -98,17 +116,33 @@ function Distribute() {
     <div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2">
         <StatCard
-          label="Accrued yield"
-          value={<LiveYield symbol={symbol} />}
-          sub="To be distributed"
+          label={
+            familyMode
+              ? `Accrued yield · ${fstats.chains} chains`
+              : "Accrued yield"
+          }
+          value={
+            familyMode ? (
+              `${fmt18(fstats.yieldAccrued18, 6)} ${symbol}`
+            ) : (
+              <LiveYield symbol={symbol} />
+            )
+          }
+          sub={
+            familyMode ? "To be distributed, per chain" : "To be distributed"
+          }
           accent
         />
         <StatCard
-          label="Projected at cycle end"
+          label={
+            familyMode
+              ? `Projected at cycle end on ${shortChainName(chainId)}`
+              : "Projected at cycle end"
+          }
           value={`${fmt(projected)} ${symbol}`}
           sub={
             apy !== undefined
-              ? `≈ ${apy.toFixed(1)}% APY, measured live`
+              ? `≈ ${apy.toFixed(1)}% APY${familyMode ? " family-wide" : ""}, measured live`
               : "Measuring accrual rate…"
           }
         />
