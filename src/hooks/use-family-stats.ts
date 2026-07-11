@@ -26,7 +26,8 @@ export interface FamilyStats {
 }
 
 const POLL_MS = 12_000; // match the single-chain token stats cadence
-const scaleTo18 = (value: bigint, decimals: number) =>
+/** Normalize a base-unit amount to 18 decimals (6-dp USDC mirrors ↔ 18-dp native). */
+export const scaleTo18 = (value: bigint, decimals: number) =>
   decimals >= 18 ? value : value * 10n ** BigInt(18 - decimals);
 
 /** Serialize the family membership so effects key on content, not identity. */

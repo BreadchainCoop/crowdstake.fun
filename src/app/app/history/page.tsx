@@ -15,7 +15,8 @@ import {
   type RecipientSummary,
 } from "@/hooks/use-distribution-history";
 import { addressUrl, shortChainName, txUrl } from "@/lib/chains";
-import { formatAmount, shortenAddress } from "@/lib/format";
+import { toDecimal } from "@/lib/distribution-history";
+import { formatAmount, formatPercent, shortenAddress } from "@/lib/format";
 import { useInstanceToken } from "@/hooks/use-token";
 
 /** ~decimal number → grouped string (family total across stablecoin chains). */
@@ -171,6 +172,7 @@ export default function HistoryPage() {
               <RoundRow
                 key={`${round.chainId}-${round.txHash}`}
                 round={round}
+                allTimeNormalized={history.totalNormalized}
               />
             ))}
           </div>
@@ -233,9 +235,21 @@ function RecipientRow({
   );
 }
 
-function RoundRow({ round }: { round: EnrichedRound }) {
+function RoundRow({
+  round,
+  allTimeNormalized,
+}: {
+  round: EnrichedRound;
+  allTimeNormalized: number;
+}) {
   const [open, setOpen] = useState(false);
   const panelId = `round-${round.chainId}-${round.txHash}`;
+  // This round's weight in everything ever distributed (normalized — rounds on
+  // 6-dp chains compare fairly against 18-dp ones).
+  const shareOfAllTime =
+    allTimeNormalized > 0
+      ? toDecimal(round.total, round.decimals) / allTimeNormalized
+      : 0;
   return (
     <Card className="!p-0">
       <button
@@ -252,7 +266,8 @@ function RoundRow({ round }: { round: EnrichedRound }) {
           <div className="text-surface-grey text-xs">
             {fmtDate(round.timestamp)} · {shortChainName(round.chainId)} ·{" "}
             {round.recipients.length} recipient
-            {round.recipients.length === 1 ? "" : "s"}
+            {round.recipients.length === 1 ? "" : "s"} ·{" "}
+            {formatPercent(shareOfAllTime)} of everything distributed
           </div>
         </div>
         <CaretDown
@@ -262,25 +277,41 @@ function RoundRow({ round }: { round: EnrichedRound }) {
       </button>
       {open && (
         <div id={panelId} className="border-paper-2 border-t px-5 py-3">
-          <ul className="space-y-1.5">
-            {round.recipients.map((x) => (
-              <li
-                key={x.recipient}
-                className="flex items-center justify-between text-sm"
-              >
-                <a
-                  href={addressUrl(x.recipient, round.chainId)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-surface-grey-2 hover:text-core-orange font-mono text-xs"
-                >
-                  {shortenAddress(x.recipient)}
-                </a>
-                <span className="text-text-standard">
-                  {formatAmount(x.amount, 4, round.decimals)} {round.symbol}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-2.5">
+            {round.recipients.map((x) => {
+              // Exact bigint ratio (4-dp) — Number() on raw wei loses precision.
+              const share =
+                round.total > 0n
+                  ? Number((x.amount * 10_000n) / round.total) / 10_000
+                  : 0;
+              return (
+                <li key={x.recipient} className="text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <a
+                      href={addressUrl(x.recipient, round.chainId)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-surface-grey-2 hover:text-core-orange font-mono text-xs"
+                    >
+                      {shortenAddress(x.recipient)}
+                    </a>
+                    <span className="text-text-standard">
+                      {formatAmount(x.amount, 4, round.decimals)} {round.symbol}
+                      <span className="text-surface-grey ml-2 text-xs tabular-nums">
+                        {formatPercent(share)}
+                      </span>
+                    </span>
+                  </div>
+                  {/* Share of this round — same hand-rolled bar as "By chain". */}
+                  <div className="bg-paper-2 mt-1 h-1.5 w-full overflow-hidden rounded-full">
+                    <div
+                      className="bg-core-orange h-full rounded-full"
+                      style={{ width: `${Math.max(1, share * 100)}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <a
             href={txUrl(round.txHash, round.chainId)}

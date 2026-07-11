@@ -12,7 +12,7 @@ import {
   type DistributionRound,
   type DistributionTarget,
 } from "@/lib/distribution-history";
-import { useFamily } from "@/hooks/use-family";
+import { useFamily, type FamilyState } from "@/hooks/use-family";
 
 /** Yield-token display metadata for one chain. */
 interface TokenMeta {
@@ -170,7 +170,15 @@ function aggregate(
  * the scanned window further into the past.
  */
 export function useDistributionHistory() {
-  const family = useFamily();
+  return useDistributionHistoryForFamily(useFamily());
+}
+
+/**
+ * Same, but reusing an already-loaded family — components that call useFamily
+ * for other stats (e.g. the instance header) pass it in instead of fanning the
+ * sibling resolution out a second time.
+ */
+export function useDistributionHistoryForFamily(family: FamilyState) {
   const instance = useInstance();
   const activeChainId = useActiveChainId();
 
