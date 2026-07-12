@@ -134,7 +134,9 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
 
     // ============ Initialization ============
 
-    /// @dev Initializes the distribution manager
+    /// @dev Initializes the distribution manager (classic token path). The yield module defaults
+    ///      to the base token — byte-identical to the pre-pool-mode behavior. Kept so existing
+    ///      concrete initializers and beacons stay unchanged.
     /// @param _cycleManager Address of the cycle manager
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _baseToken Address of the base token with yield
@@ -147,15 +149,39 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         address _votingModule,
         address _owner
     ) internal onlyInitializing {
+        // yieldModule == address(0) → defaults to baseToken, exactly as the classic token path did.
+        __AbstractDistributionManager_init(
+            _cycleManager, _recipientRegistry, _baseToken, _votingModule, address(0), _owner
+        );
+    }
+
+    /// @dev Initializes the distribution manager with the yield module fixed at construction.
+    /// @dev POOL MODE: the yield-bearing surface (the StakePool) is distinct from the base token
+    ///      that gets distributed (the UNDERLYING asset), so the deployer wires them apart at init:
+    ///      baseToken = underlying, yieldModule = pool. Fixing the yield module here (rather than
+    ///      via a post-init owner setter) removes any owner-controlled lever to repoint yield after
+    ///      deployment — the address is immutable for the life of the proxy (review S1).
+    /// @param _yieldModule Address of the yield module; address(0) defaults to _baseToken (token mode).
+    function __AbstractDistributionManager_init(
+        address _cycleManager,
+        address _recipientRegistry,
+        address _baseToken,
+        address _votingModule,
+        address _yieldModule,
+        address _owner
+    ) internal onlyInitializing {
         __Ownable_init(_owner);
-        __AbstractDistributionManager_init_unchained(_cycleManager, _recipientRegistry, _baseToken, _votingModule);
+        __AbstractDistributionManager_init_unchained(
+            _cycleManager, _recipientRegistry, _baseToken, _votingModule, _yieldModule
+        );
     }
 
     function __AbstractDistributionManager_init_unchained(
         address _cycleManager,
         address _recipientRegistry,
         address _baseToken,
-        address _votingModule
+        address _votingModule,
+        address _yieldModule
     ) internal onlyInitializing {
         if (_cycleManager == address(0)) revert ZeroAddress();
         if (_recipientRegistry == address(0)) revert ZeroAddress();
@@ -168,8 +194,9 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         $.baseToken = IERC20(_baseToken);
         $.votingModule = IVotingModule(_votingModule);
 
-        // Assume base token implements IYieldModule
-        $.yieldModule = IYieldModule(_baseToken);
+        // Default (token path): the base token IS the yield module — byte-identical to before.
+        // Pool mode: the deployer passes the pool explicitly, and it is now fixed for good.
+        $.yieldModule = IYieldModule(_yieldModule == address(0) ? _baseToken : _yieldModule);
     }
 
     /// @notice Checks if distribution is ready

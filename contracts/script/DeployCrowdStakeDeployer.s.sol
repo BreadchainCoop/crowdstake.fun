@@ -16,6 +16,8 @@ import {AdminRecipientRegistry} from "../src/implementation/registries/AdminReci
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
 import {StableYield} from "../src/implementation/token/StableYield.sol";
+import {PoolNativeYield} from "../src/implementation/pool/PoolNativeYield.sol";
+import {PoolStableYield} from "../src/implementation/pool/PoolStableYield.sol";
 
 /// @notice Fresh, self-contained deploy of the ONE canonical CrowdStakeDeployer plus its
 ///         own CrowdStakeFactory and beacons. The token + distribution-manager impls now
@@ -45,39 +47,34 @@ contract DeployCrowdStakeDeployer is Script {
 
         CrowdStakeFactory factory = new CrowdStakeFactory(me);
 
-        address cycleBeacon = address(new UpgradeableBeacon(address(new CycleModule()), me));
-        address adminRegBeacon = address(new UpgradeableBeacon(address(new AdminRecipientRegistry()), me));
-        address votingRegBeacon = address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), me));
-        address tokenBeacon = address(new UpgradeableBeacon(_tokenImpl(asset, yieldVault), me));
-        address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), me));
-        address multiDistBeacon = address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), me));
-        address stratBeacon = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), me));
-        address equalStratBeacon = address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), me));
-        address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), me));
-
-        address[] memory beacons = new address[](9);
-        beacons[0] = cycleBeacon;
-        beacons[1] = adminRegBeacon;
-        beacons[2] = votingRegBeacon;
-        beacons[3] = tokenBeacon;
-        beacons[4] = distBeacon;
-        beacons[5] = multiDistBeacon;
-        beacons[6] = stratBeacon;
-        beacons[7] = equalStratBeacon;
-        beacons[8] = votingBeacon;
+        // Beacons packed straight into the array (avoids ~10 named stack locals → stack-too-deep).
+        // Index order MUST match the CrowdStakeDeployer constructor argument order below.
+        address[] memory beacons = new address[](10);
+        beacons[0] = address(new UpgradeableBeacon(address(new CycleModule()), me)); // cycle
+        beacons[1] = address(new UpgradeableBeacon(address(new AdminRecipientRegistry()), me)); // admin registry
+        beacons[2] = address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), me)); // voting registry
+        beacons[3] = address(new UpgradeableBeacon(_tokenImpl(asset, yieldVault), me)); // token
+        // Pool-mode impl matching the same YIELD_KIND (native → PoolNativeYield, stable → PoolStableYield).
+        beacons[4] = address(new UpgradeableBeacon(_poolImpl(asset, yieldVault), me)); // pool
+        beacons[5] = address(new UpgradeableBeacon(address(new BaseDistributionManager()), me)); // dist manager
+        beacons[6] = address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), me)); // multi dist
+        beacons[7] = address(new UpgradeableBeacon(address(new VotingDistributionStrategy()), me)); // voting strategy
+        beacons[8] = address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), me)); // equal strategy
+        beacons[9] = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), me)); // voting module
         factory.allowlistBeacons(beacons);
 
         CrowdStakeDeployer d = new CrowdStakeDeployer(
             address(factory),
-            cycleBeacon,
-            adminRegBeacon,
-            votingRegBeacon,
-            tokenBeacon,
-            distBeacon,
-            multiDistBeacon,
-            stratBeacon,
-            equalStratBeacon,
-            votingBeacon
+            beacons[0],
+            beacons[1],
+            beacons[2],
+            beacons[3],
+            beacons[4],
+            beacons[5],
+            beacons[6],
+            beacons[7],
+            beacons[8],
+            beacons[9]
         );
 
         vm.stopBroadcast();
@@ -96,5 +93,14 @@ contract DeployCrowdStakeDeployer is Script {
     /// @dev Deploy the token implementation matching YIELD_KIND (broadcast-safe).
     function _tokenImpl(address asset, address yieldVault) internal returns (address) {
         return _stable() ? address(new StableYield(asset, yieldVault)) : address(new SexyDaiYield(asset, yieldVault));
+    }
+
+    /// @dev Deploy the pool-mode implementation matching YIELD_KIND (broadcast-safe). Mirrors
+    ///      _tokenImpl: PoolStableYield for "stable", PoolNativeYield otherwise.
+    function _poolImpl(address asset, address yieldVault) internal returns (address) {
+        return
+            _stable()
+                ? address(new PoolStableYield(asset, yieldVault))
+                : address(new PoolNativeYield(asset, yieldVault));
     }
 }

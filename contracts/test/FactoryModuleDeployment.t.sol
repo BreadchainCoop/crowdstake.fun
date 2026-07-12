@@ -228,8 +228,8 @@ contract FactoryModuleDeploymentTest is Test {
         vm.etch(mockVotingModule, hex"00");
         vm.etch(mockStrategy, hex"00");
 
-        bytes memory payload = abi.encodeWithSelector(
-            BaseDistributionManager.initialize.selector,
+        bytes memory payload = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address,address)",
             cycleAddr,
             registryAddr,
             mockBaseToken,
@@ -267,8 +267,8 @@ contract FactoryModuleDeploymentTest is Test {
         strategies[0] = IDistributionStrategy(mockStrategy1);
         strategies[1] = IDistributionStrategy(mockStrategy2);
 
-        bytes memory payload = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory payload = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             cycleAddr,
             registryAddr,
             mockBaseToken,
@@ -282,6 +282,81 @@ contract FactoryModuleDeploymentTest is Test {
         assertEq(address(manager.cycleManager()), cycleAddr);
         assertEq(address(manager.recipientRegistry()), registryAddr);
         assertEq(manager.getStrategyCount(), 2);
+    }
+
+    // ============ review S1: the yield module is fixed at DM initialization ============
+
+    /// @dev The classic 6-arg initializer defaults the yield module to the base token — byte-identical
+    ///      to the pre-pool-mode behavior. Guards against a regression in the token path.
+    function test_S1_ClassicInitializerDefaultsYieldModuleToBaseToken() public {
+        address dm = _initMultiDm(address(0)); // 6-arg form (no yield module)
+        assertEq(address(MultiStrategyDistributionManager(dm).yieldModule()), MOCK_BASE_TOKEN, "yieldModule=baseToken");
+        assertEq(address(MultiStrategyDistributionManager(dm).baseToken()), MOCK_BASE_TOKEN, "baseToken unchanged");
+    }
+
+    /// @dev The 7-arg (pool-mode) initializer fixes the yield module to the address passed at init —
+    ///      distinct from the base token — and there is no setter to change it afterwards (S1).
+    function test_S1_PoolInitializerFixesYieldModuleAtInit() public {
+        address dm = _initMultiDm(MOCK_POOL); // 7-arg form with an explicit yield module
+        assertEq(address(MultiStrategyDistributionManager(dm).yieldModule()), MOCK_POOL, "yieldModule=pool");
+        assertEq(address(MultiStrategyDistributionManager(dm).baseToken()), MOCK_BASE_TOKEN, "baseToken=underlying");
+    }
+
+    /// @dev The 7-arg initializer with a zero yield module resolves to the base token — same as the
+    ///      classic path, so the token mode can flow through the pool-aware initializer unchanged.
+    function test_S1_PoolInitializerZeroYieldModuleDefaultsToBaseToken() public {
+        address dm = _initMultiDm7(address(0));
+        assertEq(address(MultiStrategyDistributionManager(dm).yieldModule()), MOCK_BASE_TOKEN, "zero => baseToken");
+    }
+
+    address internal constant MOCK_BASE_TOKEN = address(0xBA5E);
+    address internal constant MOCK_POOL = address(0xB007); // stands in for a StakePool in pool mode
+
+    /// @dev Deploys a MultiStrategyDistributionManager proxy. If `yieldModule` is zero, uses the
+    ///      classic 6-arg initializer; otherwise the 7-arg pool-mode initializer.
+    function _initMultiDm(address yieldModule) internal returns (address) {
+        return yieldModule == address(0) ? _initMultiDm6() : _initMultiDm7(yieldModule);
+    }
+
+    function _initMultiDm6() internal returns (address) {
+        (address cycleAddr, address registryAddr) = _cycleAndRegistry("s1-6");
+        vm.etch(MOCK_BASE_TOKEN, hex"00");
+        IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
+        bytes memory payload = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
+            cycleAddr,
+            registryAddr,
+            MOCK_BASE_TOKEN,
+            address(0xBEEF), // placeholder votingModule
+            none,
+            owner
+        );
+        return factory.create(multiDistManagerBeacon, payload, keccak256("s1-6-salt"));
+    }
+
+    function _initMultiDm7(address yieldModule) internal returns (address) {
+        (address cycleAddr, address registryAddr) = _cycleAndRegistry("s1-7");
+        vm.etch(MOCK_BASE_TOKEN, hex"00");
+        IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
+        bytes memory payload = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address,address[],address)",
+            cycleAddr,
+            registryAddr,
+            MOCK_BASE_TOKEN,
+            address(0xBEEF), // placeholder votingModule
+            yieldModule,
+            none,
+            owner
+        );
+        return factory.create(multiDistManagerBeacon, payload, keccak256(abi.encodePacked("s1-7-salt", yieldModule)));
+    }
+
+    function _cycleAndRegistry(bytes32 tag) internal returns (address cycleAddr, address registryAddr) {
+        bytes memory cyclePayload = abi.encodeWithSelector(AbstractCycleModule.initialize.selector, 1000, owner);
+        cycleAddr = factory.create(cycleModuleBeacon, cyclePayload, keccak256(abi.encodePacked(tag, "cycle")));
+        bytes memory registryPayload = abi.encodeWithSignature("initialize(address)", owner);
+        registryAddr =
+            factory.create(adminRegistryBeacon, registryPayload, keccak256(abi.encodePacked(tag, "registry")));
     }
 
     // ============ when computing addresses ============

@@ -224,8 +224,10 @@ contract Deploy is Script {
         //     references in step 5d, then transfer ownership to the intended owner.
         distributionManager = factory.create(
             baseDistManagerBeacon,
-            abi.encodeWithSelector(
-                BaseDistributionManager.initialize.selector,
+            // encodeWithSignature: `initialize` is overloaded (7-arg yield-module form), so
+            // `.selector` is ambiguous. This is the classic 6-arg token-mode initializer.
+            abi.encodeWithSignature(
+                "initialize(address,address,address,address,address,address)",
                 cycleModule,
                 registry,
                 p.baseToken,

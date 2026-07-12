@@ -45,8 +45,8 @@ contract DistributionCycleIntegrationTest is Test {
         vm.etch(mockVotingModule, hex"00");
         vm.etch(mockStrategy, hex"00");
 
-        bytes memory managerInit = abi.encodeWithSelector(
-            BaseDistributionManager.initialize.selector,
+        bytes memory managerInit = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address,address)",
             address(cycleModule),
             mockRegistry,
             mockBaseToken,
@@ -122,8 +122,8 @@ contract DistributionCycleIntegrationTest is Test {
             abi.encodeWithSelector(AbstractCycleModule.initialize.selector, CYCLE_LENGTH, owner);
         CycleModule freshCycle = CycleModule(address(new ERC1967Proxy(address(freshCycleImpl), freshCycleInit)));
 
-        bytes memory managerInit = abi.encodeWithSelector(
-            BaseDistributionManager.initialize.selector,
+        bytes memory managerInit = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address,address)",
             address(freshCycle),
             mockRegistry,
             mockBaseToken,
