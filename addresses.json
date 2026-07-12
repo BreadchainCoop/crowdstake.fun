@@ -2,10 +2,10 @@
   "version": 1,
   "chains": {
     "100": {
-      "deployer": "0xd9dbc941c5e66d1cc67c6612d221263ed1a27c55",
-      "factory": "0xe283f07dfb0a462940198882ae69adf0b7b5811a",
-      "commit": "7ff25e0572f3c8a821544d77bd97fe6973dab138",
-      "updatedAt": "2026-07-11T00:46:44Z"
+      "deployer": "0x47ca7c1cda33d72cf94fd27444900b97d2d8f11c",
+      "factory": "0x5204d1bae73250f3fe101718c9e1855f34ebb40a",
+      "commit": "9c7b8ad257c7d39014d4c69262483ac5aa1be844",
+      "updatedAt": "2026-07-12T04:31:10Z"
     },
     "42161": {
       "deployer": "0xbde69cd8cba0d15942111e51af13bf9685fdbc33",
