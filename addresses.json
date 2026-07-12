@@ -14,10 +14,10 @@
       "updatedAt": "2026-07-12T04:30:06Z"
     },
     "10": {
-      "deployer": "0xcf1fe91a1946e56d12c2b685a18cc3d7c1f0c361",
-      "factory": "0xbd01a0f13d06227cf0c1752e685d1ee3281fe908",
-      "commit": "7ff25e0572f3c8a821544d77bd97fe6973dab138",
-      "updatedAt": "2026-07-11T00:46:50Z"
+      "deployer": "0x914b0ac88384a9ccb7d0d61d35e5edee60860900",
+      "factory": "0xd4184f7084bc27c645713631241e16500511f429",
+      "commit": "9c7b8ad257c7d39014d4c69262483ac5aa1be844",
+      "updatedAt": "2026-07-12T04:34:53Z"
     }
   }
 }
