@@ -17,6 +17,7 @@ import { formatAmount, parseAmount } from "@/lib/format";
 import { shortChainName, txUrl } from "@/lib/chains";
 import { useWalletActions } from "@/components/wallet/wallet-actions";
 import type { FamilyState } from "@/hooks/use-family";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import {
   useFamilyDeposit,
   type DepositAllocation,
@@ -34,6 +35,8 @@ const SPONSORED_NATIVE_RESERVE = 10n ** 15n; // ~0.001 native
 /**
  * Multi-asset family mint: deposit into a community token across every chain it
  * lives on, in whatever asset you hold on each. One panel, per-chain amounts.
+ * Pool-mode families deposit the same way (identical calldata) — only the
+ * "mint"/"you receive" framing changes, since no token is issued.
  */
 export function FamilyDeposit({
   family,
@@ -43,6 +46,7 @@ export function FamilyDeposit({
   tokenSymbol: string;
 }) {
   const { sponsored } = useWalletActions();
+  const { isPool } = useInstanceKind();
   const dep = useFamilyDeposit(family);
   // Per-chain input + asset mode (native chains can pick native or wrapped).
   const [amounts, setAmounts] = useState<Record<number, string>>({});
@@ -110,11 +114,14 @@ export function FamilyDeposit({
     <Card>
       <Caption className="text-surface-grey-2 flex items-center gap-1.5">
         <Globe size={14} weight="fill" className="text-core-orange" />
-        Mint {tokenSymbol} across your chains
+        {isPool
+          ? "Deposit across your chains"
+          : `Mint ${tokenSymbol} across your chains`}
       </Caption>
       <Body className="text-surface-grey mt-1 text-sm">
-        Deposit whatever you hold on each chain — you mint {tokenSymbol} on
-        every chain from your local balance there.
+        {isPool
+          ? "Deposit whatever you hold on each chain — each chain's deposit comes from your local balance there."
+          : `Deposit whatever you hold on each chain — you mint ${tokenSymbol} on every chain from your local balance there.`}
       </Body>
 
       <ul className="mt-4 space-y-4">
@@ -195,7 +202,7 @@ export function FamilyDeposit({
                 {over && (
                   <Caption className="text-system-red">Exceeds balance</Caption>
                 )}
-                {row && <DepositRowStatus row={row} />}
+                {row && <DepositRowStatus row={row} pool={isPool} />}
               </div>
             </li>
           );
@@ -204,7 +211,7 @@ export function FamilyDeposit({
 
       <div className="bg-paper-1 mt-5 flex items-center justify-between rounded-xl px-4 py-3">
         <Caption className="text-surface-grey-2">
-          You mint{" "}
+          {isPool ? "You deposit" : "You mint"}{" "}
           {activeCount > 0
             ? `on ${activeCount} chain${activeCount === 1 ? "" : "s"}`
             : "—"}
@@ -213,8 +220,10 @@ export function FamilyDeposit({
           ≈{" "}
           {totalNormalized.toLocaleString("en-US", {
             maximumFractionDigits: 2,
-          })}{" "}
-          {tokenSymbol}
+          })}
+          {/* Pools have no ticker, and per-chain deposit assets can differ —
+              a bare normalized total is the only honest suffix-less sum. */}
+          {isPool ? "" : ` ${tokenSymbol}`}
         </span>
       </div>
 
@@ -234,7 +243,13 @@ export function FamilyDeposit({
             ? { disabled: true }
             : {})}
         >
-          {activeCount > 1 ? `Mint on ${activeCount} chains` : "Mint"}
+          {isPool
+            ? activeCount > 1
+              ? `Deposit on ${activeCount} chains`
+              : "Deposit"
+            : activeCount > 1
+              ? `Mint on ${activeCount} chains`
+              : "Mint"}
         </Button>
         {settled && anyFailed && (
           <Button
@@ -252,7 +267,7 @@ export function FamilyDeposit({
   );
 }
 
-function DepositRowStatus({ row }: { row: DepositRow }) {
+function DepositRowStatus({ row, pool }: { row: DepositRow; pool: boolean }) {
   if (row.state === "approving")
     return (
       <Caption className="text-surface-grey-2 flex items-center gap-1">
@@ -273,7 +288,7 @@ function DepositRowStatus({ row }: { row: DepositRow }) {
         rel="noreferrer"
         className="text-system-green flex items-center gap-1 text-xs font-semibold hover:underline"
       >
-        <CheckCircle size={13} weight="fill" /> Minted{" "}
+        <CheckCircle size={13} weight="fill" /> {pool ? "Deposited" : "Minted"}{" "}
         <ArrowSquareOut size={11} />
       </a>
     );

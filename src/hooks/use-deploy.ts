@@ -1,13 +1,76 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { decodeEventLog, type Address, type Hex, type Log } from "viem";
-import { useChainId, useWaitForTransactionReceipt } from "wagmi";
+import {
+  BaseError,
+  ContractFunctionRevertedError,
+  decodeEventLog,
+  type Address,
+  type Hex,
+  type Log,
+} from "viem";
+import {
+  useChainId,
+  useReadContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { deployerAbi } from "@/lib/abis";
 import { CHAINS } from "@/lib/chains";
 import { parseTxError } from "@/hooks/use-tx";
 import { useWalletActions } from "@/components/wallet/wallet-actions";
 import type { InstanceAddresses } from "@/lib/instance";
+
+/** True when a read failed because the contract REVERTED (vs a flaky RPC). */
+function isRevert(error: unknown): boolean {
+  return (
+    error instanceof BaseError &&
+    error.walk((e) => e instanceof ContractFunctionRevertedError) !== null
+  );
+}
+
+export interface DeployerPoolSupport {
+  /** true = deployer exposes supportsPoolMode() (a 14-field pool deploy works);
+   *  false = it predates pool mode (deploys MUST issue a token); undefined while
+   *  the probe is in flight or on a chain with no deployer. */
+  supported: boolean | undefined;
+  /** The probe is still resolving (hydration-safe: undefined until it lands). */
+  isPending: boolean;
+}
+
+/**
+ * Feature-detect whether a chain's pinned deployer understands pool mode.
+ *
+ * Appending `issueToken` to deploy()'s Params changed its SELECTOR, so the
+ * new 14-field call REVERTS on the OLD live deployers. Until pool-capable
+ * deployers ship, the wizard must probe first: `supportsPoolMode()` reads true
+ * on a capable deployer and REVERTS on an old one (the same probe-and-revert
+ * pattern as useYieldSplit's `supported`). A revert IS the answer (unsupported
+ * — don't retry it), but a transient RPC failure isn't: without retry it would
+ * wrongly report "supported" on a capable chain and let a reverting deploy
+ * through, so classify with BaseError.walk and retry non-revert errors.
+ */
+export function useDeployerPoolSupport(chainId: number): DeployerPoolSupport {
+  const deployer = CHAINS[chainId]?.deployer ?? undefined;
+  const read = useReadContract({
+    address: deployer,
+    abi: deployerAbi,
+    functionName: "supportsPoolMode",
+    chainId,
+    query: {
+      enabled: Boolean(deployer),
+      retry: (failureCount, error) => !isRevert(error) && failureCount < 2,
+      staleTime: Infinity,
+    },
+  });
+  // No deployer on this chain → nothing to probe (undefined, not pending).
+  if (!deployer) return { supported: undefined, isPending: false };
+  const supported = read.isError
+    ? false
+    : read.data !== undefined
+      ? Boolean(read.data)
+      : undefined;
+  return { supported, isPending: read.isPending };
+}
 
 export interface DeployParams {
   owner: Address;
@@ -27,6 +90,9 @@ export interface DeployParams {
   bannerImageURI?: string;
   // Multi-chain family instance (see lib/families.ts). Default false = classic.
   crossChain?: boolean;
+  // Issue a transferable ERC-20? Default FALSE = pool mode (a StakePool sits
+  // at the instance's token slot — deposits tracked, no token minted).
+  issueToken?: boolean;
 }
 
 /** Decode the deployed instance out of a receipt's SystemDeployed event. */
@@ -138,6 +204,9 @@ export function useDeployInstance() {
             tokenImageURI: p.tokenImageURI ?? "",
             bannerImageURI: p.bannerImageURI ?? "",
             crossChain: p.crossChain ?? false,
+            // Default FALSE = pool mode (no token issued) — the struct's
+            // zero value, matching the contract's own default.
+            issueToken: p.issueToken ?? false,
           },
         ],
       });

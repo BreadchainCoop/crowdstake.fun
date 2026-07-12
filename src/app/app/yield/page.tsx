@@ -10,6 +10,7 @@ import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { useBaseAssetSymbol } from "@/hooks/use-chain";
 import { useFamily, type FamilyState } from "@/hooks/use-family";
 import { useFamilyYieldSplit } from "@/hooks/use-family-yield-split";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { FamilySplitStatus } from "@/app/app/yield/_components/family-split-status";
 import {
   useClaimKeptYield,
@@ -195,6 +196,8 @@ function SplitForm({ family }: { family: FamilyState }) {
 
 function KeptYieldCard() {
   const { symbol } = useInstanceToken();
+  // Pool mode: kept yield pays out in the underlying — nothing is minted.
+  const { isPool } = useInstanceKind();
   const baseSym = useBaseAssetSymbol();
   const { supported } = useYieldSplit();
   const kept = useKeptYield();
@@ -237,8 +240,9 @@ function KeptYieldCard() {
       />
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Claiming mints your kept yield as {symbol}, redeemable 1:1 for {baseSym}{" "}
-        on the withdraw page.
+        {isPool
+          ? `Claiming pays your kept yield out in ${symbol}.`
+          : `Claiming mints your kept yield as ${symbol}, redeemable 1:1 for ${baseSym} on the withdraw page.`}
       </Body>
     </Card>
   );

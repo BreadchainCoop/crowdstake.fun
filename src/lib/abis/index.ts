@@ -1,4 +1,5 @@
 export { tokenAbi } from "./token";
+export { poolAbi } from "./pool";
 export { distributionManagerAbi } from "./distribution-manager";
 export { cycleModuleAbi } from "./cycle-module";
 export { votingModuleAbi } from "./voting-module";

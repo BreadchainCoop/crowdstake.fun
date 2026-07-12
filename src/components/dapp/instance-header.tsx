@@ -15,6 +15,7 @@ import {
 import { parseUnits } from "viem";
 import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
 import { LiveYield } from "@/components/dapp/live-yield";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useCycle } from "@/hooks/use-cycle";
@@ -68,6 +69,14 @@ function Chip({
  */
 export function InstanceHeader() {
   const { name, symbol, decimals } = useInstanceToken();
+  // Pool instances have no ticker of their own — symbol() is the UNDERLYING
+  // asset's, so it still suffixes amounts, but the $TICKER identity row and
+  // the Transfer-derived Backers chip (pools emit no Transfer logs) are hidden.
+  // Gate those TOKEN-asserting surfaces on `kind === "token"` (NOT `!isPool`):
+  // while the probe is undefined they must render NEUTRAL, else a pool would
+  // flash a $TICKER row and a Backers chip for a frame before the probe lands.
+  const { kind: instanceKind } = useInstanceKind();
+  const isToken = instanceKind === "token";
   const { totalSupply } = useTokenStats();
   const { recipients } = useRecipients();
   const cycle = useCycle();
@@ -79,7 +88,9 @@ export function InstanceHeader() {
   // Unique holders across every family chain (union — one person on two
   // chains is one backer). Counted from a bounded Transfer-log window, so
   // communities older than the lookback undercount until backfill exists.
-  const backers = useBackers(family);
+  // Only scan once the probe confirms a TOKEN — pools emit no Transfer logs, so
+  // scanning one is a doomed query (and the chip is hidden anyway).
+  const backers = useBackers(family, isToken);
   // Total funding generated — v2's flagship number: everything EVER distributed
   // (all chains) + what's accruing right now. Mounting the header kicks off the
   // history event scan, but it shares the history page's localStorage cache, so
@@ -132,9 +143,11 @@ export function InstanceHeader() {
             {name || symbol || "Crowdstaking instance"}
           </Heading3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-surface-grey-2 font-mono text-sm">
-              ${symbol}
-            </span>
+            {isToken && (
+              <span className="text-surface-grey-2 font-mono text-sm">
+                ${symbol}
+              </span>
+            )}
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -181,15 +194,21 @@ export function InstanceHeader() {
         <Chip icon={<UsersThree size={18} weight="fill" />} label="Recipients">
           {recipients.length}
         </Chip>
-        <Chip
-          icon={<UsersFour size={18} weight="fill" />}
-          label="Backers"
-          title="Unique holders, counted from recent on-chain transfers. Communities older than the scanned window may show fewer backers than they really have."
-        >
-          {backers.count !== undefined
-            ? `${backers.partial || backers.capped ? "≈ " : ""}${backers.count}`
-            : "—"}
-        </Chip>
+        {/* Backer counts come from Transfer logs — pools emit none, so the
+            chip would flatline at 0 and imply transfers exist. Gate on
+            `kind === "token"` so it stays hidden until the probe confirms a
+            token (undefined renders nothing, not a premature "0" chip). */}
+        {isToken && (
+          <Chip
+            icon={<UsersFour size={18} weight="fill" />}
+            label="Backers"
+            title="Unique holders, counted from recent on-chain transfers. Communities older than the scanned window may show fewer backers than they really have."
+          >
+            {backers.count !== undefined
+              ? `${backers.partial || backers.capped ? "≈ " : ""}${backers.count}`
+              : "—"}
+          </Chip>
+        )}
         <Chip icon={<ArrowsClockwise size={18} weight="fill" />} label="Cycle">
           <span className="flex items-center gap-1.5">
             #{cycle.cycleNumber?.toString() ?? "—"}

@@ -14,6 +14,7 @@ import { useWalletActions } from "@/components/wallet/wallet-actions";
 import { useAmountFormatter } from "@/components/demo-mode-provider";
 import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 import { useFamily } from "@/hooks/use-family";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { FamilyDeposit } from "@/app/app/deposit/_components/family-deposit";
 import {
   useApproveWrapped,
@@ -27,6 +28,8 @@ import {
 
 export default function DepositPage() {
   const { symbol } = useInstanceToken();
+  // Pool mode: nothing is minted — a deposit is just a deposit.
+  const { isPool } = useInstanceKind();
   const native = useNativeSymbol();
   const { yieldKind, wrappedSymbol } = useActiveChain();
   const family = useFamily();
@@ -40,11 +43,18 @@ export default function DepositPage() {
       <PageHeader
         title="Deposit"
         subtitle={
+          // Check `resolving` FIRST: while the family (and thus its mode) is
+          // still loading, a pool family would otherwise flash the token
+          // "mint {symbol} 1:1" copy before resolving to the pool subtitle.
           resolving
             ? `Deposit to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
-            : isFamily
-              ? `Mint ${symbol} across the chains this community lives on — deposit whatever you hold on each. Your principal stays withdrawable; only the interest is distributed.`
-              : `Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
+            : isPool
+              ? isFamily
+                ? "Deposit across the chains this community lives on — whatever you hold on each. Your principal stays withdrawable; only the interest is distributed."
+                : `Deposit ${depositSym} — your principal stays fully withdrawable, only the interest is distributed.`
+              : isFamily
+                ? `Mint ${symbol} across the chains this community lives on — deposit whatever you hold on each. Your principal stays withdrawable; only the interest is distributed.`
+                : `Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
         }
       />
       {resolving ? (
@@ -79,6 +89,12 @@ function DepositForm() {
   const [amount, setAmount] = useState("");
 
   const { symbol, decimals } = useInstanceToken();
+  // Pool mode: no token arrives — hide the "You receive" framing entirely.
+  // `isPool` drives the neutral "Your deposit:" copy (safe default while the
+  // probe is undefined); the token-ASSERTING "You receive X {symbol}" row is
+  // gated on `kind === "token"` so a pool never flashes it pre-resolution.
+  const { kind, isPool } = useInstanceKind();
+  const isToken = kind === "token";
   const nativeSym = useNativeSymbol();
   const hasWrapped = Boolean(wrappedToken);
   // The native toggle only makes sense when the instance accepts native.
@@ -161,12 +177,17 @@ function DepositForm() {
         decimals={depositDecimals}
       />
 
-      <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
-        <Caption className="text-surface-grey-2">You receive</Caption>
-        <span className="font-breadDisplay text-text-standard font-bold">
-          {parsed ? fmt(parsed) : "0"} {symbol}
-        </span>
-      </div>
+      {/* Pools mint nothing back — a deposit is a deposit, so no receive row.
+          Render only once the probe confirms a TOKEN (undefined stays neutral,
+          so a pool never flashes "You receive X" before the probe resolves). */}
+      {isToken && (
+        <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
+          <Caption className="text-surface-grey-2">You receive</Caption>
+          <span className="font-breadDisplay text-text-standard font-bold">
+            {parsed ? fmt(parsed) : "0"} {symbol}
+          </span>
+        </div>
+      )}
 
       {overBalance && (
         <Caption className="text-system-red mt-2 block">
@@ -196,7 +217,7 @@ function DepositForm() {
       />
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Your {symbol} balance:{" "}
+        {isPool ? "Your deposit:" : `Your ${symbol} balance:`}{" "}
         <span className="text-text-standard font-semibold">
           {fmt(stake.data)} {symbol}
         </span>

@@ -25,10 +25,19 @@ export interface BackersState {
  * Takes the caller's already-loaded family (the header calls useFamily for its
  * other stats — don't fan the family resolution out twice).
  *
+ * `enabled` gates the scans: backers are reconstructed from ERC-20 Transfer
+ * logs, which POOLS never emit, so the header passes `kind === "token"` to keep
+ * this hook from firing a doomed Transfer scan on a pool (and to stay neutral
+ * while the kind probe is still resolving). Disabled → no scans, count
+ * undefined, isLoading false.
+ *
  * CAVEAT: counts reflect the scanned block window; tokens older than the
  * lookback undercount until a "load older"-style extension exists.
  */
-export function useBackers(family: FamilyState): BackersState {
+export function useBackers(
+  family: FamilyState,
+  enabled: boolean,
+): BackersState {
   const instance = useInstance();
   const activeChainId = useActiveChainId();
   const [state, setState] = useState<BackersState>({
@@ -54,6 +63,13 @@ export function useBackers(family: FamilyState): BackersState {
     .join("|");
 
   useEffect(() => {
+    // Disabled (e.g. a pool, or the kind probe hasn't resolved to "token"):
+    // never scan, and drop any in-flight loading state so "—" isn't shown as
+    // a stuck spinner.
+    if (!enabled) {
+      setState({ isLoading: false, partial: false, capped: false });
+      return;
+    }
     if (family.isLoading || targets.length === 0) return;
     let cancelled = false;
     setState((s) => ({ ...s, isLoading: true }));
@@ -98,7 +114,7 @@ export function useBackers(family: FamilyState): BackersState {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetKey, family.isLoading]);
+  }, [enabled, targetKey, family.isLoading]);
 
   return state;
 }
