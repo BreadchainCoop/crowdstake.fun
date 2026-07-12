@@ -142,6 +142,7 @@ async function main(): Promise<void> {
         tokenImageURI: "",
         bannerImageURI: "",
         crossChain: false, // CLASSIC — familyId stays 0, onlyClassic paths open
+        issueToken: true, // transferable ERC-20 — recasting exercises the token path
       },
     ],
   });

@@ -22,6 +22,7 @@ import {
   useFamilyStats,
 } from "@/hooks/use-family-stats";
 import { useApy } from "@/hooks/use-apy";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { useVoteCount } from "@/hooks/use-vote-count";
 import { shortChainName } from "@/lib/chains";
 import { useCycle } from "@/hooks/use-cycle";
@@ -47,6 +48,9 @@ export default function PortfolioPage() {
   const { isReady } = useDistributionReady();
   const isRecipient = useIsRecipient();
   const { symbol: tokenSymbol } = useInstanceToken();
+  // Pool instances issue no token: the position is just "your deposit"
+  // (symbol() is the underlying asset's, so amounts still read naturally).
+  const { isPool } = useInstanceKind();
   const fmt = useAmountFormatter();
   const fmt18 = useAmountFormatter18();
   const nativeSym = useNativeSymbol();
@@ -119,16 +123,24 @@ export default function PortfolioPage() {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label={
-            familyMode
-              ? `Your ${tokenSymbol} · all chains`
-              : `Your ${tokenSymbol}`
+            isPool
+              ? familyMode
+                ? "Your deposit · all chains"
+                : "Your deposit"
+              : familyMode
+                ? `Your ${tokenSymbol} · all chains`
+                : `Your ${tokenSymbol}`
           }
           value={
             familyMode
               ? `${fmt18(fpos.balance18)} ${tokenSymbol}`
               : `${fmt(balance.data)} ${tokenSymbol}`
           }
-          sub={balanceBreakdown ?? `Redeemable 1:1 for ${baseSym}`}
+          sub={
+            balanceBreakdown ??
+            // A pool deposit IS the base asset — nothing to redeem it for.
+            (isPool ? "Withdrawable any time" : `Redeemable 1:1 for ${baseSym}`)
+          }
           accent
         />
         <StatCard

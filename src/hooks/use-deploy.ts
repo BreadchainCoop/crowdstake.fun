@@ -27,6 +27,9 @@ export interface DeployParams {
   bannerImageURI?: string;
   // Multi-chain family instance (see lib/families.ts). Default false = classic.
   crossChain?: boolean;
+  // Issue a transferable ERC-20? Default FALSE = pool mode (a StakePool sits
+  // at the instance's token slot — deposits tracked, no token minted).
+  issueToken?: boolean;
 }
 
 /** Decode the deployed instance out of a receipt's SystemDeployed event. */
@@ -138,6 +141,9 @@ export function useDeployInstance() {
             tokenImageURI: p.tokenImageURI ?? "",
             bannerImageURI: p.bannerImageURI ?? "",
             crossChain: p.crossChain ?? false,
+            // Default FALSE = pool mode (no token issued) — the struct's
+            // zero value, matching the contract's own default.
+            issueToken: p.issueToken ?? false,
           },
         ],
       });

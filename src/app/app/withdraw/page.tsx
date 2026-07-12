@@ -9,6 +9,7 @@ import { TxStatus } from "@/components/dapp/tx-status";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { useActiveChain, useNativeSymbol } from "@/hooks/use-chain";
 import { useFamily } from "@/hooks/use-family";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { FamilyWithdraw } from "@/app/app/withdraw/_components/family-withdraw";
 import {
   useInstanceToken,
@@ -25,6 +26,8 @@ function useRedeemSymbol() {
 
 export default function WithdrawPage() {
   const { symbol } = useInstanceToken();
+  // Pool mode: there's nothing to burn — withdrawing just pays the deposit out.
+  const { isPool } = useInstanceKind();
   const redeemSym = useRedeemSymbol();
   const family = useFamily();
   const isFamily = family.isFamily && !family.isLoading;
@@ -35,9 +38,13 @@ export default function WithdrawPage() {
       <PageHeader
         title="Withdraw"
         subtitle={
-          isFamily
-            ? `Burn ${symbol} to redeem your principal 1:1 on every chain you hold it. Your stake is always fully withdrawable.`
-            : `Burn ${symbol} to redeem your ${redeemSym} principal 1:1. Your stake is always fully withdrawable.`
+          isPool
+            ? isFamily
+              ? "Withdraw your deposit on every chain you hold one. Your stake is always fully withdrawable."
+              : `Withdraw your ${redeemSym} deposit any time. Your stake is always fully withdrawable.`
+            : isFamily
+              ? `Burn ${symbol} to redeem your principal 1:1 on every chain you hold it. Your stake is always fully withdrawable.`
+              : `Burn ${symbol} to redeem your ${redeemSym} principal 1:1. Your stake is always fully withdrawable.`
         }
       />
       {/* Family mode: the token lives on several chains, so withdrawing the
@@ -57,6 +64,7 @@ export default function WithdrawPage() {
 function WithdrawForm() {
   const [amount, setAmount] = useState("");
   const { symbol, decimals } = useInstanceToken();
+  const { isPool } = useInstanceKind();
   const redeemSym = useRedeemSymbol();
   const balance = useTokenBalance();
   const { withdraw, ...tx } = useWithdraw();
@@ -94,7 +102,9 @@ function WithdrawForm() {
 
       {overBalance && (
         <Caption className="text-system-red mt-2 block">
-          Amount exceeds your {symbol} balance.
+          {isPool
+            ? "Amount exceeds your deposit."
+            : `Amount exceeds your ${symbol} balance.`}
         </Caption>
       )}
 

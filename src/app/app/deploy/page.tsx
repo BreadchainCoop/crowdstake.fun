@@ -72,6 +72,12 @@ function DeployForm() {
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
+  // Pool (no token) vs classic token instance. POOL IS THE DEFAULT: most
+  // communities just want a shared deposit pot, and a transferable ERC-20 is
+  // the opt-in. The mode is NOT committed into the familyId, so a multi-chain
+  // run keeps every sibling consistent by feeding this ONE flag to each
+  // chain's deploy (see use-deploy-family) — consistency is enforced here.
+  const [issueToken, setIssueToken] = useState(false);
   const [cycleSeconds, setCycleSeconds] = useState(0);
   const [owner, setOwner] = useState("");
 
@@ -118,6 +124,9 @@ function DeployForm() {
     const p = record.params;
     setName(p.tokenName);
     setSymbol(p.tokenSymbol);
+    // Records saved before pool mode existed were all token deploys — a
+    // missing flag means TRUE here (new deploys default to pool = false).
+    setIssueToken(p.issueToken ?? true);
     setOwner(p.owner);
     setMaxPoints(p.maxVotingPoints);
     setCycleSeconds(p.cycleSeconds);
@@ -209,6 +218,11 @@ function DeployForm() {
     [democratic, expiryValid, cleanExpiry],
   );
 
+  // Pool mode issues no token: the pool's symbol() is the UNDERLYING asset's
+  // (WXDAI/USDC), so the wizard hides the symbol field and passes "" in the
+  // struct — a deterministic value, keeping salts and familyIds stable.
+  const effectiveSymbol = issueToken ? symbol.trim() : "";
+
   // Shared salt for the whole run — deterministic default, custom override.
   // When extending an existing family, the salt is LOCKED to the stored value so
   // the deterministic familyId matches its siblings.
@@ -218,9 +232,9 @@ function DeployForm() {
     // A stable default keyed on the config so re-mounts don't reshuffle it, plus
     // per-form entropy so distinct deploys never collide on the factory CREATE2.
     return keccak256(
-      toHex(`${name.trim()}|${symbol.trim()}|${cycleSeconds}|${ownerValue}`),
+      toHex(`${name.trim()}|${effectiveSymbol}|${cycleSeconds}|${ownerValue}`),
     );
-  }, [extend, customSalt, name, symbol, cycleSeconds, ownerValue]);
+  }, [extend, customSalt, name, effectiveSymbol, cycleSeconds, ownerValue]);
 
   // familyId is CREATOR-scoped on-chain (CrowdStakeDeployer.deploy derives it
   // from msg.sender), so the creator dimension is the CONNECTED WALLET — never
@@ -231,7 +245,7 @@ function DeployForm() {
       creator: address,
       salt,
       tokenName: name.trim(),
-      tokenSymbol: symbol.trim(),
+      tokenSymbol: effectiveSymbol,
       maxVotingPoints: pointsValid ? BigInt(cleanPoints) : 0n,
       registryKind: registryCode,
       distributionKind: distributionCode,
@@ -243,7 +257,7 @@ function DeployForm() {
     address,
     salt,
     name,
-    symbol,
+    effectiveSymbol,
     pointsValid,
     cleanPoints,
     registryCode,
@@ -262,7 +276,7 @@ function DeployForm() {
       creator: address,
       owner: ownerValue as Address,
       tokenName: name.trim(),
-      tokenSymbol: symbol.trim(),
+      tokenSymbol: effectiveSymbol,
       maxVotingPoints: pointsValid ? BigInt(cleanPoints) : 0n,
       registryKind: registryCode,
       distributionKind: distributionCode,
@@ -270,6 +284,7 @@ function DeployForm() {
       proposalExpiry: proposalExpirySeconds,
       tokenImageURI: tokenImg.trim(),
       bannerImageURI: bannerImg.trim(),
+      issueToken,
       cycleSeconds,
       salt,
       chainIds: selectedChains,
@@ -283,7 +298,8 @@ function DeployForm() {
     address,
     ownerValue,
     name,
-    symbol,
+    effectiveSymbol,
+    issueToken,
     pointsValid,
     cleanPoints,
     registryCode,
@@ -309,7 +325,8 @@ function DeployForm() {
 
   const commonValid =
     name.trim().length > 0 &&
-    symbol.trim().length > 0 &&
+    // Pools have no ticker of their own — the symbol field is hidden.
+    (!issueToken || symbol.trim().length > 0) &&
     cycleValid &&
     pointsValid &&
     ownerValid &&
@@ -367,7 +384,9 @@ function DeployForm() {
           rightIcon={<ArrowRight weight="bold" />}
           onClick={() => {
             addInstance({
-              label: symbol.trim() || "New instance",
+              // Pools have no ticker — label them by community name.
+              label:
+                (issueToken ? symbol.trim() : name.trim()) || "New instance",
               chainId: single.chainId,
               addresses: inst,
             });
@@ -391,7 +410,7 @@ function DeployForm() {
           <dl className="mt-3 space-y-2">
             {(
               [
-                ["Token", inst.token],
+                [issueToken ? "Token" : "Pool", inst.token],
                 ["Distribution Manager", inst.distributionManager],
                 ["Cycle Module", inst.cycleModule],
                 ["Voting Module", inst.votingModule],
@@ -424,7 +443,7 @@ function DeployForm() {
       ? keccak256(toHex(customSalt.trim()))
       : keccak256(
           toHex(
-            `${name.trim()}|${symbol.trim()}|${cycleSeconds}|${ownerValue}|${crypto.randomUUID()}`,
+            `${name.trim()}|${effectiveSymbol}|${cycleSeconds}|${ownerValue}|${crypto.randomUUID()}`,
           ),
         );
     void single.deploy({
@@ -434,7 +453,7 @@ function DeployForm() {
         CHAINS[singleChainId]?.blockTimeSeconds ?? 5,
       ),
       tokenName: name.trim(),
-      tokenSymbol: symbol.trim(),
+      tokenSymbol: effectiveSymbol,
       maxVotingPoints: BigInt(cleanPoints),
       salt: classicSalt,
       registryKind: registryCode,
@@ -444,6 +463,7 @@ function DeployForm() {
       tokenImageURI: tokenImg.trim(),
       bannerImageURI: bannerImg.trim(),
       crossChain: false,
+      issueToken,
     });
   };
 
@@ -470,16 +490,50 @@ function DeployForm() {
         </div>
       )}
 
-      <Field label="Token name">
+      <div className="mb-4">
+        <Caption className="text-surface-grey-2 mb-1.5 block">
+          Staking mode
+        </Caption>
+        <div className="border-paper-2 inline-flex rounded-xl border p-1">
+          {(
+            [
+              [false, "No token (pool)"],
+              [true, "Issue a token"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setIssueToken(mode)}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+                issueToken === mode
+                  ? "bg-core-orange text-white"
+                  : "text-surface-grey-2 hover:text-text-standard"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Caption className="text-surface-grey mt-1.5 block">
+          {issueToken
+            ? "Depositors receive a transferable ERC-20, redeemable 1:1 for the deposit asset."
+            : "No token is issued — deposits are simply tracked, withdrawable any time."}
+        </Caption>
+      </div>
+
+      <Field label={issueToken ? "Token name" : "Community name"}>
         <Input
           value={name}
           onChange={setName}
           placeholder="Acme Community Stake"
         />
       </Field>
-      <Field label="Token symbol">
-        <Input value={symbol} onChange={setSymbol} placeholder="ACME" />
-      </Field>
+      {issueToken && (
+        <Field label="Token symbol">
+          <Input value={symbol} onChange={setSymbol} placeholder="ACME" />
+        </Field>
+      )}
 
       <div className="mb-4">
         <Caption className="text-surface-grey-2 mb-1.5 block">Chains</Caption>
@@ -712,7 +766,9 @@ function DeployForm() {
           onUseFamily={() => {
             const primaryChainId =
               familyConfig?.primaryChainId ?? singleChainId;
-            const label = symbol.trim() || "New family";
+            // Pools have no ticker — label them by community name.
+            const label =
+              (issueToken ? symbol.trim() : name.trim()) || "New family";
             const withInstances = family.deployedRows.filter((r) => r.instance);
             const primary =
               withInstances.find((r) => r.chainId === primaryChainId) ??
@@ -796,9 +852,9 @@ function DeployForm() {
       )}
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Deploys the full system — token, cycle module, voting module + power,
-        recipient registry, and a distribution manager — wired and owned by you.
-        Yield is distributed{" "}
+        Deploys the full system — {issueToken ? "token" : "deposit pool"}, cycle
+        module, voting module + power, recipient registry, and a distribution
+        manager — wired and owned by you. Yield is distributed{" "}
         {distributionKind === "proportional"
           ? "proportionally to community votes"
           : distributionKind === "equal"

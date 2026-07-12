@@ -16,6 +16,7 @@ import { useApy } from "@/hooks/use-apy";
 import { useActiveChain } from "@/hooks/use-chain";
 import { useFamily } from "@/hooks/use-family";
 import { useFamilyStats } from "@/hooks/use-family-stats";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import {
   useAmountFormatter,
   useAmountFormatter18,
@@ -47,6 +48,8 @@ function Distribute() {
   const tokenStats = useTokenStats();
   const { yieldAccrued } = tokenStats;
   const { symbol } = useInstanceToken();
+  // Pool mode: yield is paid out in the underlying asset, not minted as a token.
+  const { isPool } = useInstanceKind();
   const { live, ratePerMs } = useLiveYieldDetails();
   const { blockTimeSeconds } = useActiveChain();
   const family = useFamily();
@@ -231,9 +234,9 @@ function Distribute() {
       </Card>
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Distribution claims the protocol&apos;s accrued yield as freshly minted{" "}
-        {symbol}, splits it across recipients proportionally to their votes, and
-        starts a new cycle — all in one transaction.
+        {isPool
+          ? `Distribution pays the accrued yield out in ${symbol}, splits it across recipients proportionally to their votes, and starts a new cycle — all in one transaction.`
+          : `Distribution claims the protocol's accrued yield as freshly minted ${symbol}, splits it across recipients proportionally to their votes, and starts a new cycle — all in one transaction.`}
       </Body>
     </div>
   );

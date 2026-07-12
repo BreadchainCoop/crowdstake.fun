@@ -52,6 +52,13 @@ export interface FamilyDeployConfig {
   proposalExpiry: bigint;
   tokenImageURI: string;
   bannerImageURI: string;
+  /**
+   * Issue a transferable ERC-20 (true) or run in pool mode (false — the
+   * default: no token, deposits tracked in the underlying). ONE flag for the
+   * whole run: familyId does NOT commit the mode, so cross-chain consistency
+   * is enforced HERE by sending the same shared config to every chain.
+   */
+  issueToken: boolean;
   /** ONE duration; each chain's cycleLength derives from its block time. */
   cycleSeconds: number;
   /** Shared salt for the whole run (drives the familyId). */
@@ -104,6 +111,7 @@ function serializeParams(cfg: FamilyDeployConfig): PendingFamilyParams {
     proposalExpiry: cfg.proposalExpiry.toString(),
     tokenImageURI: cfg.tokenImageURI,
     bannerImageURI: cfg.bannerImageURI,
+    issueToken: cfg.issueToken,
   };
 }
 
@@ -286,6 +294,9 @@ export function useDeployFamily(config: FamilyDeployConfig | null) {
               tokenImageURI: cfg.tokenImageURI,
               bannerImageURI: cfg.bannerImageURI,
               crossChain: true,
+              // Same mode on EVERY chain of the family (not committed into
+              // the familyId — the shared config is the consistency guarantee).
+              issueToken: cfg.issueToken,
             },
           ],
         });

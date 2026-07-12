@@ -1,5 +1,6 @@
 "use client";
 
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { useInstanceMetadata } from "@/hooks/use-instance-metadata";
 import { useInstanceToken } from "@/hooks/use-token";
 import { SafeImage } from "@/components/dapp/safe-image";
@@ -20,15 +21,19 @@ export function InstanceHeaderBanner() {
   );
 }
 
-/** The active instance's token image, falling back to a symbol-initial disc. */
+/** The active instance's token image, falling back to an initial disc. */
 export function InstanceTokenBadge({ className }: { className?: string }) {
   const { tokenImageURI } = useInstanceMetadata();
-  const { symbol } = useInstanceToken();
+  const { name, symbol } = useInstanceToken();
+  const { isPool } = useInstanceKind();
+  // Pools carry the UNDERLYING's symbol (every Gnosis pool would badge "W") —
+  // their identity is the community name. Token instances keep the ticker.
+  const label = isPool ? name || symbol : symbol;
   const box = cn("h-10 w-10 shrink-0 rounded-full object-cover", className);
   return (
     <SafeImage
       uri={tokenImageURI}
-      alt={`${symbol} token`}
+      alt={isPool ? `${label} pool` : `${label} token`}
       className={box}
       fallback={
         <div
@@ -37,7 +42,7 @@ export function InstanceTokenBadge({ className }: { className?: string }) {
             "bg-core-orange/15 text-core-orange flex items-center justify-center text-sm font-bold",
           )}
         >
-          {symbol.slice(0, 1).toUpperCase()}
+          {(label || "?").slice(0, 1).toUpperCase()}
         </div>
       }
     />

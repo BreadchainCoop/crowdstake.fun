@@ -290,6 +290,15 @@ export interface PendingFamilyParams {
   proposalExpiry: string;
   tokenImageURI: string;
   bannerImageURI: string;
+  /**
+   * Issue a transferable ERC-20 (true) or pool mode (false). Optional because
+   * records saved BEFORE pool mode existed all deployed tokens — readers must
+   * treat a missing value as TRUE so resuming/extending an old family keeps
+   * its mode (new deploys default to false = pool). Not part of the familyId:
+   * cross-chain mode consistency is enforced by the deploy wizard's shared
+   * config, not the id derivation.
+   */
+  issueToken?: boolean;
 }
 
 /**

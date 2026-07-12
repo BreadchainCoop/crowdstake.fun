@@ -15,6 +15,7 @@ import {
 import { parseUnits } from "viem";
 import { InstanceTokenBadge } from "@/components/dapp/instance-branding";
 import { LiveYield } from "@/components/dapp/live-yield";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { useInstanceToken, useTokenStats } from "@/hooks/use-token";
 import { useRecipients } from "@/hooks/use-recipients";
 import { useCycle } from "@/hooks/use-cycle";
@@ -68,6 +69,10 @@ function Chip({
  */
 export function InstanceHeader() {
   const { name, symbol, decimals } = useInstanceToken();
+  // Pool instances have no ticker of their own — symbol() is the UNDERLYING
+  // asset's, so it still suffixes amounts, but the $TICKER identity row and
+  // the Transfer-derived Backers chip (pools emit no Transfer logs) are hidden.
+  const { isPool } = useInstanceKind();
   const { totalSupply } = useTokenStats();
   const { recipients } = useRecipients();
   const cycle = useCycle();
@@ -132,9 +137,11 @@ export function InstanceHeader() {
             {name || symbol || "Crowdstaking instance"}
           </Heading3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-surface-grey-2 font-mono text-sm">
-              ${symbol}
-            </span>
+            {!isPool && (
+              <span className="text-surface-grey-2 font-mono text-sm">
+                ${symbol}
+              </span>
+            )}
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -181,15 +188,19 @@ export function InstanceHeader() {
         <Chip icon={<UsersThree size={18} weight="fill" />} label="Recipients">
           {recipients.length}
         </Chip>
-        <Chip
-          icon={<UsersFour size={18} weight="fill" />}
-          label="Backers"
-          title="Unique holders, counted from recent on-chain transfers. Communities older than the scanned window may show fewer backers than they really have."
-        >
-          {backers.count !== undefined
-            ? `${backers.partial || backers.capped ? "≈ " : ""}${backers.count}`
-            : "—"}
-        </Chip>
+        {/* Backer counts come from Transfer logs — pools emit none, so the
+            chip would flatline at 0 and imply transfers exist. Hide it. */}
+        {!isPool && (
+          <Chip
+            icon={<UsersFour size={18} weight="fill" />}
+            label="Backers"
+            title="Unique holders, counted from recent on-chain transfers. Communities older than the scanned window may show fewer backers than they really have."
+          >
+            {backers.count !== undefined
+              ? `${backers.partial || backers.capped ? "≈ " : ""}${backers.count}`
+              : "—"}
+          </Chip>
+        )}
         <Chip icon={<ArrowsClockwise size={18} weight="fill" />} label="Cycle">
           <span className="flex items-center gap-1.5">
             #{cycle.cycleNumber?.toString() ?? "—"}

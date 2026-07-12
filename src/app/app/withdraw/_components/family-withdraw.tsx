@@ -16,6 +16,7 @@ import { GasModeNote } from "@/components/dapp/gas-mode-note";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { shortChainName, txUrl } from "@/lib/chains";
 import { useActiveChainId } from "@/components/instance-provider";
+import { useInstanceKind } from "@/hooks/use-instance-kind";
 import { useInstanceToken } from "@/hooks/use-token";
 import {
   useFamilyWithdraw,
@@ -32,6 +33,9 @@ import type { FamilyState } from "@/hooks/use-family";
 export function FamilyWithdraw({ family }: { family: FamilyState }) {
   const activeChainId = useActiveChainId();
   const { symbol } = useInstanceToken();
+  // Pool mode: same burn calldata, but the copy says "withdraw" — there is no
+  // token to burn, only a deposit to pay out.
+  const { isPool } = useInstanceKind();
   const { rows, withdrawOn, withdrawAll, anyBusy } = useFamilyWithdraw(family);
   // Per-chain amount inputs, parsed with THAT chain's token decimals.
   const [amounts, setAmounts] = useState<Record<number, string>>({});
@@ -70,7 +74,9 @@ export function FamilyWithdraw({ family }: { family: FamilyState }) {
     <Card>
       <Caption className="text-surface-grey-2 flex items-center gap-1.5">
         <Globe size={14} weight="fill" className="text-core-orange" />
-        Withdraw {symbol} across your chains
+        {isPool
+          ? "Withdraw across your chains"
+          : `Withdraw ${symbol} across your chains`}
       </Caption>
 
       <div className="mt-3">
@@ -86,8 +92,9 @@ export function FamilyWithdraw({ family }: { family: FamilyState }) {
         </ActionButton>
       </div>
       <Caption className="text-surface-grey mt-1.5 block">
-        burns your full balance on every chain — you receive the local asset on
-        each
+        {isPool
+          ? "withdraws your full deposit on every chain — you receive the local asset on each"
+          : "burns your full balance on every chain — you receive the local asset on each"}
       </Caption>
       <div className="mt-1">
         <GasModeNote />
@@ -110,8 +117,10 @@ export function FamilyWithdraw({ family }: { family: FamilyState }) {
       </ul>
 
       <Body className="text-surface-grey mt-6 text-sm">
-        Each withdrawal burns {symbol} on that chain and sends you its base
-        asset 1:1. Your principal is always fully withdrawable.
+        {isPool
+          ? "Each withdrawal pays your deposit on that chain out in its base asset. "
+          : `Each withdrawal burns ${symbol} on that chain and sends you its base asset 1:1. `}
+        Your principal is always fully withdrawable.
       </Body>
     </Card>
   );
