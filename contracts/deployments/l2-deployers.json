@@ -4,8 +4,8 @@
     "42161": {
       "name": "Arbitrum One",
       "yieldKind": "stable",
-      "deployer": "0x4480909dD3fC3ADE8586Dd3758F628A7c9B38A30",
-      "factory": "0xAbC995e02a22AE7134fdAd95bEF0A28505976134",
+      "deployer": "0xbde69CD8cbA0d15942111e51AF13bf9685FDBC33",
+      "factory": "0x85aB847D76378B5B63A79dB9C9c83ea2Cc5B867A",
       "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
       "assetSymbol": "USDC",
       "yieldVault": "0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA",
@@ -14,8 +14,8 @@
     "10": {
       "name": "OP Mainnet",
       "yieldKind": "stable",
-      "deployer": "0xCf1Fe91A1946E56D12c2B685a18Cc3d7c1F0c361",
-      "factory": "0xbD01a0F13d06227cF0c1752E685d1ee3281FE908",
+      "deployer": "0x914b0Ac88384A9Ccb7D0d61d35e5EDee60860900",
+      "factory": "0xD4184F7084bC27c645713631241e16500511F429",
       "asset": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
       "assetSymbol": "USDC",
       "yieldVault": "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59",
