@@ -361,19 +361,24 @@ contract CrowdStakeDeployer {
         // 5-6. Distribution manager + strategies (kind-dependent; deployer-owned, wired below).
         //      The DM's baseToken and the strategy's yieldToken are the distributedAsset (the
         //      underlying in pool mode, the token in token mode).
+        //
+        //      The yield module is fixed at DM initialization (there is no post-init setter — review
+        //      S1). In pool mode the yield-bearing surface (the pool) is distinct from the distributed
+        //      asset (the underlying), so pass the pool as the yield module. Token mode passes
+        //      address(0), which the DM resolves to baseToken — byte-identical to the classic path.
+        address yieldModule = p.issueToken ? address(0) : inst.token;
         if (p.distributionKind == uint8(DistributionKind.Proportional)) {
-            _deployProportional(inst, baseSalt, self, p.owner, distributedAsset);
+            _deployProportional(inst, baseSalt, self, p.owner, distributedAsset, yieldModule);
         } else {
             _deployMulti(
-                inst, baseSalt, self, p.owner, distributedAsset, p.distributionKind == uint8(DistributionKind.Split)
+                inst,
+                baseSalt,
+                self,
+                p.owner,
+                distributedAsset,
+                yieldModule,
+                p.distributionKind == uint8(DistributionKind.Split)
             );
-        }
-
-        // In pool mode the yield-bearing surface (the pool) is distinct from the distributed asset
-        // (the underlying), so point the DM's yield module at the pool. Token mode leaves
-        // yieldModule == baseToken (set in initialize), byte-identical to the classic path.
-        if (!p.issueToken) {
-            AbstractDistributionManager(inst.distributionManager).setYieldModule(inst.token);
         }
 
         // 7. Voting module (familyId = 0 → classic chain-bound instance).
@@ -455,22 +460,28 @@ contract CrowdStakeDeployer {
     ///      setDistributionStrategy once the strategy (which references the manager) exists.
     /// @param distributedAsset The ERC-20 the manager distributes: the token in token mode, the
     ///        UNDERLYING asset in pool mode. Used as both the DM's baseToken and the strategy's
-    ///        yieldToken. In pool mode the DM's yieldModule is repointed to the pool by the caller.
+    ///        yieldToken.
+    /// @param yieldModule The yield source fixed at DM init: the pool in pool mode, or address(0)
+    ///        in token mode (the DM resolves address(0) to baseToken). No post-init setter exists.
     function _deployProportional(
         Instance memory inst,
         bytes32 baseSalt,
         address self,
         address owner,
-        address distributedAsset
+        address distributedAsset,
+        address yieldModule
     ) private {
+        // encodeWithSignature: `initialize` is overloaded (7-arg yield-module form), so `.selector`
+        // is ambiguous. The 7-arg initializer fixes the yield module at construction (review S1).
         inst.distributionManager = FACTORY.create(
             DIST_MANAGER_BEACON,
-            abi.encodeWithSelector(
-                BaseDistributionManager.initialize.selector,
+            abi.encodeWithSignature(
+                "initialize(address,address,address,address,address,address,address)",
                 inst.cycleModule,
                 inst.registry,
                 distributedAsset,
                 self, // placeholder votingModule
+                yieldModule, // pool in pool mode; address(0) → baseToken in token mode
                 address(0), // placeholder strategy
                 self // deployer owns it temporarily
             ),
@@ -494,24 +505,30 @@ contract CrowdStakeDeployer {
     ///      yield is distributed by votes and half equally; otherwise it is purely equal.
     /// @param distributedAsset The ERC-20 the manager distributes: the token in token mode, the
     ///        UNDERLYING asset in pool mode. Used as the DM's baseToken and every strategy's
-    ///        yieldToken. In pool mode the DM's yieldModule is repointed to the pool by the caller.
+    ///        yieldToken.
+    /// @param yieldModule The yield source fixed at DM init: the pool in pool mode, or address(0)
+    ///        in token mode (the DM resolves address(0) to baseToken). No post-init setter exists.
     function _deployMulti(
         Instance memory inst,
         bytes32 baseSalt,
         address self,
         address owner,
         address distributedAsset,
+        address yieldModule,
         bool split
     ) private {
         IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
+        // encodeWithSignature: `initialize` is overloaded (7-arg yield-module form), so `.selector`
+        // is ambiguous. The 7-arg initializer fixes the yield module at construction (review S1).
         inst.distributionManager = FACTORY.create(
             MULTI_DIST_MANAGER_BEACON,
-            abi.encodeWithSelector(
-                MultiStrategyDistributionManager.initialize.selector,
+            abi.encodeWithSignature(
+                "initialize(address,address,address,address,address,address[],address)",
                 inst.cycleModule,
                 inst.registry,
                 distributedAsset,
                 self, // placeholder votingModule
+                yieldModule, // pool in pool mode; address(0) → baseToken in token mode
                 none, // empty; strategies wired below via setStrategies
                 self // deployer owns it temporarily
             ),

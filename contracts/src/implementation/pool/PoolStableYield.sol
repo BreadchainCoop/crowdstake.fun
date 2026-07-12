@@ -57,6 +57,9 @@ contract PoolStableYield is AbstractStakePool {
     }
 
     /// @dev Pull the stablecoin from the depositor and route it into the vault (mirrors StableYield._deposit).
+    /// @dev Fee-on-transfer underlyings are UNSUPPORTED (same as the token path): the ledger credits
+    ///      `amount_`, but a transfer-fee asset would deposit less than `amount_` into the vault, so
+    ///      the ledger supply would over-count the backing. Only use plain-transfer underlyings.
     function _deposit(uint256 amount_) internal override {
         ASSET.safeTransferFrom(msg.sender, address(this), amount_);
         ASSET.safeIncreaseAllowance(address(YIELD_VAULT), amount_);

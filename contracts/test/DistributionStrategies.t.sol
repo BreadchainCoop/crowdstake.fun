@@ -822,8 +822,8 @@ contract MultiStrategyDistributionManagerTest is Test {
 
         // Deploy manager behind proxy
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
-        bytes memory initData = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             address(cycleModule),
             address(registry),
             address(yieldToken),
@@ -880,8 +880,8 @@ contract MultiStrategyDistributionManagerTest is Test {
         MockRecipientRegistry emptyRegistry = new MockRecipientRegistry(emptyRecipients);
 
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
-        bytes memory initData = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             address(cycleModule),
             address(emptyRegistry),
             address(yieldToken),
@@ -916,8 +916,8 @@ contract MultiStrategyDistributionManagerTest is Test {
         iStrategies[1] = IDistributionStrategy(address(s2));
 
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
-        bytes memory initData = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             address(cycleModule),
             address(multiRegistry),
             address(yieldToken),
@@ -989,8 +989,8 @@ contract MultiStrategyDistributionManagerTest is Test {
     function testEmptyInitThenSetStrategies() public {
         IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
-        bytes memory initData = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             address(cycleModule),
             address(registry),
             address(yieldToken),
@@ -1021,8 +1021,8 @@ contract MultiStrategyDistributionManagerTest is Test {
         IDistributionStrategy[] memory strategies = new IDistributionStrategy[](1);
         strategies[0] = IDistributionStrategy(address(0));
         MultiStrategyDistributionManager impl = new MultiStrategyDistributionManager();
-        bytes memory initData = abi.encodeWithSelector(
-            MultiStrategyDistributionManager.initialize.selector,
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,address,address,address[],address)",
             address(cycleModule),
             address(registry),
             address(yieldToken),

@@ -230,6 +230,12 @@ abstract contract AbstractStakePool is IStakePool, IVotesCheckpoints, Initializa
     /// @dev Mirrors AbstractToken.claimYield (AbstractToken.sol:232) but pays the underlying by
     ///      redeeming from the vault instead of minting pool balance. Only the donated portion is
     ///      claimable here; holders' kept shares stay reserved for them.
+    /// @dev INVARIANT: assumes the yield vault is a standard ERC-4626 that rounds convertToAssets
+    ///      DOWN and previewWithdraw UP (sDAI and Morpho conform). yieldAccrued() values the
+    ///      position via the round-down convertToAssets, and _claimUnderlying withdraws exactly
+    ///      `amount_`; because the accrued figure never over-counts, a claim can always be satisfied
+    ///      by a round-up-cost withdraw. A vault that rounds the other way could report more accrued
+    ///      than is withdrawable and brick claims — do NOT wire such a vault in as the yield source.
     function claimYield(uint256 amount_, address receiver_) external virtual {
         AbstractStakePoolStorage storage $ = _getAbstractStakePoolStorage();
         if (msg.sender != $.yieldClaimer) revert OnlyClaimer();

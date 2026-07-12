@@ -53,6 +53,10 @@ contract PoolNativeYield is AbstractStakePool {
     }
 
     /// @dev Pull wxDAI from the depositor and route it into the sDAI vault (mirrors SexyDaiYield._deposit).
+    /// @dev Fee-on-transfer underlyings are UNSUPPORTED (same as the token path): the ledger credits
+    ///      `amount_`, but a transfer-fee asset would deposit less than `amount_` into the vault, so
+    ///      the ledger supply would over-count the backing. wxDAI is a plain 1:1 wrapper, so this
+    ///      holds; do not repoint this pool at a fee-charging wrapped-native token.
     function _deposit(uint256 amount_) internal override {
         IERC20(address(WX_DAI)).safeTransferFrom(msg.sender, address(this), amount_);
         IERC20(address(WX_DAI)).safeIncreaseAllowance(address(SEXY_DAI), amount_);

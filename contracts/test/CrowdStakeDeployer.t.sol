@@ -183,6 +183,69 @@ contract CrowdStakeDeployerTest is Test {
         assertTrue(IStakePool(i.token).isPool(), "zero-value issueToken => pool mode");
     }
 
+    // ---- Review S1: the yield module is fixed at DM init; no post-init setter exists ----
+
+    /// @dev The removed owner-only `setYieldModule(address)` (selector 0xbe3df19f) is gone from the
+    ///      shared beacon-proxied DM base. A call to that selector hits no function and, absent a
+    ///      payable fallback, reverts — while the yieldModule wired at init is untouched. This is the
+    ///      core S1 mitigation: no live token instance's owner can ever be handed a distribution-
+    ///      bricking lever if an existing DM beacon is pointed at this implementation.
+    function test_S1_SetYieldModuleSelectorNoLongerExists() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("s1-gone");
+        p.issueToken = false; // pool mode: yieldModule = pool, baseToken = underlying
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+
+        address dm = i.distributionManager;
+        address before = address(AbstractDistributionManager(dm).yieldModule());
+        assertEq(before, i.token, "precondition: yieldModule = pool");
+
+        // Old setter selector, as any caller (even a future owner) would encode it.
+        bytes memory oldSetter = abi.encodeWithSignature("setYieldModule(address)", address(0xDEAD));
+        assertEq(bytes4(oldSetter), bytes4(0xbe3df19f), "old selector pinned");
+
+        // As the final owner: the call finds no such function and reverts (no fallback).
+        vm.prank(OWNER);
+        (bool ok,) = dm.call(oldSetter);
+        assertFalse(ok, "setYieldModule(address) no longer exists -> reverts");
+
+        // And the yield module is exactly what init fixed it to — no state changed.
+        assertEq(address(AbstractDistributionManager(dm).yieldModule()), before, "yieldModule unchanged");
+    }
+
+    /// @dev End-to-end: in pool mode the yield module is fixed at DM initialization and the owner
+    ///      cannot repoint it by ANY path (there is no setter, and re-initialize reverts). Proves the
+    ///      pool wiring works purely through the initializer, not a post-deploy owner call.
+    function test_S1_PoolModeYieldModuleFixedAtInit_OwnerCannotRepoint() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("s1-fixed");
+        p.issueToken = false; // POOL MODE
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+
+        // The pool wiring was set purely at init: yieldModule = pool, baseToken = underlying.
+        assertEq(address(AbstractDistributionManager(i.distributionManager).yieldModule()), i.token, "init: pool");
+        assertEq(address(AbstractDistributionManager(i.distributionManager).baseToken()), WXDAI, "init: underlying");
+        assertEq(IOwnable(i.distributionManager).owner(), OWNER, "owner is final owner, not deployer");
+
+        // The owner cannot re-run initialize to repoint the yield module (initializer is spent).
+        vm.prank(OWNER);
+        (bool reinitOk,) = i.distributionManager
+            .call(
+                abi.encodeWithSignature(
+                    "initialize(address,address,address,address,address,address,address)",
+                    i.cycleModule,
+                    i.registry,
+                    WXDAI,
+                    i.votingModule,
+                    address(0xDEAD), // attacker-chosen yield module
+                    address(0),
+                    OWNER
+                )
+            );
+        assertFalse(reinitOk, "re-initialize reverts (InvalidInitialization)");
+
+        // Yield module is still the pool the deployer fixed at init.
+        assertEq(address(AbstractDistributionManager(i.distributionManager).yieldModule()), i.token, "still the pool");
+    }
+
     // ---- Backward-compatible legacy deploy (pinned IPFS frontends) ----
 
     /// @dev The pre-pool-mode 13-field selector (0xfd759538) still deploys a classic TOKEN instance.
