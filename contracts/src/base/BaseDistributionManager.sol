@@ -53,7 +53,9 @@ contract BaseDistributionManager is AbstractDistributionManager, ReentrancyGuard
     /// @notice Emitted when the distribution strategy is set or changed
     event StrategySet(address indexed strategy);
 
-    /// @notice Initializes the BaseDistributionManager with a single distribution strategy
+    /// @notice Initializes the BaseDistributionManager with a single distribution strategy.
+    /// @dev Classic token path: the yield module defaults to the base token. Byte-identical to
+    ///      the pre-pool-mode initializer — existing beacons/instances are unaffected.
     /// @param _cycleManager Address of the cycle manager
     /// @param _recipientRegistry Address of the recipient registry
     /// @param _baseToken Address of the base token with yield
@@ -68,8 +70,42 @@ contract BaseDistributionManager is AbstractDistributionManager, ReentrancyGuard
         address _strategy,
         address _owner
     ) external initializer {
+        // yieldModule defaults to baseToken (token mode), exactly as before.
+        _initialize(_cycleManager, _recipientRegistry, _baseToken, _votingModule, address(0), _strategy, _owner);
+    }
+
+    /// @notice Initializes the BaseDistributionManager with the yield module fixed at construction.
+    /// @dev POOL MODE overload: the deployer passes the pool as `_yieldModule` at proxy creation, so
+    ///      the yield source is immutable for the life of the proxy — there is NO post-init owner
+    ///      setter to repoint it (review S1). Passing address(0) is identical to the classic
+    ///      initializer (yieldModule = baseToken).
+    /// @param _yieldModule Address of the yield module; address(0) defaults to _baseToken.
+    function initialize(
+        address _cycleManager,
+        address _recipientRegistry,
+        address _baseToken,
+        address _votingModule,
+        address _yieldModule,
+        address _strategy,
+        address _owner
+    ) external initializer {
+        _initialize(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _yieldModule, _strategy, _owner);
+    }
+
+    /// @dev Shared initializer body for both overloads.
+    function _initialize(
+        address _cycleManager,
+        address _recipientRegistry,
+        address _baseToken,
+        address _votingModule,
+        address _yieldModule,
+        address _strategy,
+        address _owner
+    ) private {
         // Initialize parent AbstractDistributionManager
-        __AbstractDistributionManager_init(_cycleManager, _recipientRegistry, _baseToken, _votingModule, _owner);
+        __AbstractDistributionManager_init(
+            _cycleManager, _recipientRegistry, _baseToken, _votingModule, _yieldModule, _owner
+        );
         __ReentrancyGuard_init();
 
         // Set the single strategy

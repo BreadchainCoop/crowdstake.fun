@@ -10,16 +10,23 @@ import {EqualDistributionStrategy} from "./implementation/strategies/EqualDistri
 import {AdminRecipientRegistry} from "./implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "./implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "./implementation/token/SexyDaiYield.sol";
-import {AbstractToken} from "./abstract/AbstractToken.sol";
 import {TimeWeightedVotingPower} from "./implementation/TimeWeightedVotingPower.sol";
 import {IVotingPowerStrategy} from "./interfaces/IVotingPowerStrategy.sol";
 import {IVotesCheckpoints} from "./interfaces/IVotesCheckpoints.sol";
 import {IDistributionStrategy} from "./interfaces/IDistributionStrategy.sol";
+import {IStakePool} from "./interfaces/IStakePool.sol";
 
 /// @notice Minimal view of CrowdStakeFactory's deployment entrypoints.
 interface ICrowdStakeFactory {
     function create(address beacon, bytes calldata payload, bytes32 salt) external returns (address);
     function createToken(address beacon, bytes calldata payload, bytes32 salt) external returns (address);
+}
+
+/// @notice The subset shared by the token (AbstractToken) and the pool (AbstractStakePool) that
+///         the deployer wires identically, so mode branching stays confined to construction.
+interface IYieldSurface {
+    function setYieldClaimer(address yieldClaimer) external;
+    function transferOwnership(address newOwner) external;
 }
 
 /// @title CrowdStakeDeployer
@@ -41,6 +48,7 @@ contract CrowdStakeDeployer {
     address public immutable REGISTRY_BEACON; // AdminRecipientRegistry
     address public immutable VOTING_REGISTRY_BEACON; // VotingRecipientRegistry
     address public immutable TOKEN_BEACON;
+    address public immutable POOL_BEACON; // StakePool (pool mode; matches TOKEN_BEACON's yield kind)
     address public immutable DIST_MANAGER_BEACON; // BaseDistributionManager (single strategy)
     address public immutable MULTI_DIST_MANAGER_BEACON; // MultiStrategyDistributionManager
     address public immutable STRATEGY_BEACON; // VotingDistributionStrategy
@@ -86,6 +94,33 @@ contract CrowdStakeDeployer {
         // Cross-chain family: true = this instance joins the familyIdOf(...) family and its
         // voting module accepts ONLY chain-agnostic castCrossChainVote ballots.
         bool crossChain;
+        // Token vs pool mode. ZERO VALUE (false) = POOL MODE = default: NO token is issued,
+        // deposits are ledger entries in a StakePool, and distributions pay the UNDERLYING asset.
+        // true = classic token mode (a SexyDaiYield/StableYield ERC-20 is minted), byte-identical
+        // to the pre-pool-mode deploy path.
+        bool issueToken;
+    }
+
+    /// @notice The PRE-pool-mode Params layout (13 fields, no issueToken). Kept ONLY so pinned,
+    ///         per-instance IPFS frontends that encode the OLD `deploy` selector (0xfd759538) still
+    ///         work against this deployer instead of hard-reverting on the changed selector.
+    /// @dev Field order MUST stay byte-identical to the historical Params. The {deploy} overload
+    ///      that takes this fills issueToken = true (classic token mode) and delegates to the new
+    ///      path, so a legacy call deploys exactly the classic token instance it always did.
+    struct LegacyParams {
+        address owner;
+        uint256 cycleLength;
+        string tokenName;
+        string tokenSymbol;
+        uint256 maxVotingPoints;
+        bytes32 salt;
+        uint8 registryKind;
+        address[] initialRecipients;
+        uint256 proposalExpiry;
+        uint8 distributionKind;
+        string tokenImageURI;
+        string bannerImageURI;
+        bool crossChain;
     }
 
     struct Instance {
@@ -124,6 +159,7 @@ contract CrowdStakeDeployer {
         address registryBeacon,
         address votingRegistryBeacon,
         address tokenBeacon,
+        address poolBeacon,
         address distManagerBeacon,
         address multiDistManagerBeacon,
         address strategyBeacon,
@@ -135,11 +171,22 @@ contract CrowdStakeDeployer {
         REGISTRY_BEACON = registryBeacon;
         VOTING_REGISTRY_BEACON = votingRegistryBeacon;
         TOKEN_BEACON = tokenBeacon;
+        POOL_BEACON = poolBeacon;
         DIST_MANAGER_BEACON = distManagerBeacon;
         MULTI_DIST_MANAGER_BEACON = multiDistManagerBeacon;
         STRATEGY_BEACON = strategyBeacon;
         EQUAL_STRATEGY_BEACON = equalStrategyBeacon;
         VOTING_BEACON = votingBeacon;
+    }
+
+    /// @notice On-chain capability probe: this deployer understands pool mode (the issueToken
+    ///         toggle) and exposes a POOL_BEACON.
+    /// @dev Appending `issueToken` to Params changed deploy()'s selector (0xfd759538 → 0x1be9a993),
+    ///      so a new-ABI call against an OLD deployer reverts. The deploy wizard calls this probe to
+    ///      decide whether to surface the pool toggle; old deployers lack the function and the
+    ///      staticcall reverts, which the wizard reads as "no pool mode".
+    function supportsPoolMode() external pure returns (bool) {
+        return true;
     }
 
     /// @notice The deterministic identity a deploy(p) with p.crossChain would create/extend.
@@ -197,7 +244,14 @@ contract CrowdStakeDeployer {
     }
 
     /// @notice Deploy a full, working CrowdStake instance in one transaction.
-    function deploy(Params calldata p) external returns (Instance memory inst) {
+    function deploy(Params calldata p) external returns (Instance memory) {
+        return _deploy(p, msg.sender);
+    }
+
+    /// @dev Shared deploy body. `creator` is the ORIGINAL caller (msg.sender of the public
+    ///      entrypoint) so family scoping/salting/events stay correct even when invoked through the
+    ///      legacy overload — never read msg.sender here (it would be `this` on a self-call).
+    function _deploy(Params memory p, address creator) internal returns (Instance memory inst) {
         if (p.owner == address(0)) revert ZeroOwner();
         if (p.cycleLength == 0) revert ZeroCycleLength();
         if (p.registryKind > uint8(RegistryKind.Voting)) revert InvalidRegistryKind();
@@ -209,13 +263,17 @@ contract CrowdStakeDeployer {
             if (p.proposalExpiry == 0) revert ZeroProposalExpiry();
         }
 
+        // NOTE: familyId derivation is intentionally NOT a function of issueToken (token vs pool
+        // mode). Enforcing that every sibling in a cross-chain family shares the same mode is the
+        // deploy wizard's job, not the on-chain derivation's — keeping issueToken out of the
+        // family id preserves byte-identical family ids for existing token-mode families.
         bytes32 familyId;
         if (p.crossChain) {
             // Voting-kind families commit their founding cohort + expiry; admin-kind stays on the
             // base derivation (byte-identical to today).
             if (p.registryKind == uint8(RegistryKind.Voting)) {
                 familyId = votingFamilyIdOf(
-                    msg.sender,
+                    creator,
                     p.salt,
                     p.tokenName,
                     p.tokenSymbol,
@@ -226,19 +284,13 @@ contract CrowdStakeDeployer {
                 );
             } else {
                 familyId = familyIdOf(
-                    msg.sender,
-                    p.salt,
-                    p.tokenName,
-                    p.tokenSymbol,
-                    p.maxVotingPoints,
-                    p.registryKind,
-                    p.distributionKind
+                    creator, p.salt, p.tokenName, p.tokenSymbol, p.maxVotingPoints, p.registryKind, p.distributionKind
                 );
             }
             if (familyInstances[familyId].votingModule != address(0)) revert FamilyAlreadyDeployed();
         }
 
-        bytes32 baseSalt = keccak256(abi.encodePacked(p.salt, msg.sender));
+        bytes32 baseSalt = keccak256(abi.encodePacked(p.salt, creator));
         address self = address(this);
 
         // 1. Cycle module (deployer-owned for wiring).
@@ -271,22 +323,62 @@ contract CrowdStakeDeployer {
             );
         }
 
-        // 3. Token (deployer-owned so it can set the yield claimer).
-        inst.token = FACTORY.createToken(
-            TOKEN_BEACON,
-            abi.encodeWithSelector(SexyDaiYield.initialize.selector, p.tokenName, p.tokenSymbol, self),
-            keccak256(abi.encodePacked(baseSalt, "token"))
-        );
+        // 3. Yield surface (deployer-owned so it can set the yield claimer).
+        //    - Token mode (issueToken == true): a SexyDaiYield/StableYield ERC-20 is minted.
+        //    - Pool mode (issueToken == false, the ZERO-VALUE default): a StakePool records ledger
+        //      entries and issues NO token. `inst.token` carries the POOL address here — intentional:
+        //      the frontend treats inst.token as the balance/yield surface regardless of mode.
+        //    Both impls share the initialize(string,string,address) shape and both implement
+        //    IVotesCheckpoints, so steps 4/7 and the yield-claimer wiring are mode-agnostic.
+        //
+        //    The asset the DistributionManager claims and distributes:
+        //      - token mode: the token itself (yieldModule == baseToken, as in the classic path).
+        //      - pool mode:  the UNDERLYING asset (WXDAI/USDC). The pool is the yield source, but
+        //                    baseToken = underlying so recipients receive the real asset.
+        address distributedAsset;
+        if (p.issueToken) {
+            inst.token = FACTORY.createToken(
+                TOKEN_BEACON,
+                abi.encodeWithSelector(SexyDaiYield.initialize.selector, p.tokenName, p.tokenSymbol, self),
+                keccak256(abi.encodePacked(baseSalt, "token"))
+            );
+            distributedAsset = inst.token;
+        } else {
+            inst.token = FACTORY.createToken(
+                POOL_BEACON,
+                abi.encodeWithSignature("initialize(string,string,address)", p.tokenName, p.tokenSymbol, self),
+                keccak256(abi.encodePacked(baseSalt, "token"))
+            );
+            distributedAsset = IStakePool(inst.token).underlyingAsset();
+        }
 
-        // 4. Time-weighted voting power (immutable; deployed directly).
+        // 4. Time-weighted voting power (immutable; deployed directly). Reads only
+        //    numCheckpoints/checkpoints via IVotesCheckpoints, which both the token (ERC20Votes)
+        //    and the pool implement identically — so the SAME strategy is used unchanged.
         inst.votingPowerStrategy =
             address(new TimeWeightedVotingPower(IVotesCheckpoints(inst.token), AbstractCycleModule(inst.cycleModule)));
 
         // 5-6. Distribution manager + strategies (kind-dependent; deployer-owned, wired below).
+        //      The DM's baseToken and the strategy's yieldToken are the distributedAsset (the
+        //      underlying in pool mode, the token in token mode).
+        //
+        //      The yield module is fixed at DM initialization (there is no post-init setter — review
+        //      S1). In pool mode the yield-bearing surface (the pool) is distinct from the distributed
+        //      asset (the underlying), so pass the pool as the yield module. Token mode passes
+        //      address(0), which the DM resolves to baseToken — byte-identical to the classic path.
+        address yieldModule = p.issueToken ? address(0) : inst.token;
         if (p.distributionKind == uint8(DistributionKind.Proportional)) {
-            _deployProportional(inst, baseSalt, self, p.owner);
+            _deployProportional(inst, baseSalt, self, p.owner, distributedAsset, yieldModule);
         } else {
-            _deployMulti(inst, baseSalt, self, p.owner, p.distributionKind == uint8(DistributionKind.Split));
+            _deployMulti(
+                inst,
+                baseSalt,
+                self,
+                p.owner,
+                distributedAsset,
+                yieldModule,
+                p.distributionKind == uint8(DistributionKind.Split)
+            );
         }
 
         // 7. Voting module (familyId = 0 → classic chain-bound instance).
@@ -306,10 +398,11 @@ contract CrowdStakeDeployer {
             keccak256(abi.encodePacked(baseSalt, "voting"))
         );
 
-        // Wire shared references + authorise the manager as the token's yield claimer.
+        // Wire shared references + authorise the manager as the yield surface's yield claimer.
+        // setYieldClaimer(address) has the same signature on the token and the pool.
         AbstractDistributionManager(inst.distributionManager).setVotingModule(inst.votingModule);
         AbstractCycleModule(inst.cycleModule).setDistributionManager(inst.distributionManager);
-        AbstractToken(inst.token).setYieldClaimer(inst.distributionManager);
+        IYieldSurface(inst.token).setYieldClaimer(inst.distributionManager);
 
         // Seed instance artwork on the distribution manager while still owner-of-record.
         if (bytes(p.tokenImageURI).length != 0 || bytes(p.bannerImageURI).length != 0) {
@@ -317,31 +410,78 @@ contract CrowdStakeDeployer {
         }
 
         // Hand the temporarily-owned contracts to the final owner.
-        AbstractToken(inst.token).transferOwnership(p.owner);
+        // transferOwnership(address) has the same signature on the token and the pool.
+        IYieldSurface(inst.token).transferOwnership(p.owner);
         AbstractDistributionManager(inst.distributionManager).transferOwnership(p.owner);
         AbstractCycleModule(inst.cycleModule).transferOwnership(p.owner);
 
         // Record the family sibling only after full wiring, so a resolved instance is usable.
         if (p.crossChain) {
             familyInstances[familyId] = inst;
-            emit FamilyDeployed(familyId, msg.sender, p.owner);
+            emit FamilyDeployed(familyId, creator, p.owner);
         }
 
-        emit SystemDeployed(p.owner, msg.sender, p.salt, inst);
+        emit SystemDeployed(p.owner, creator, p.salt, inst);
+    }
+
+    /// @notice Backward-compatible deploy for callers encoding the PRE-pool-mode ABI.
+    /// @dev Pinned, per-instance IPFS frontends encode the old `deploy((...13 fields...))` selector
+    ///      (0xfd759538). Appending issueToken changed the primary {deploy} selector to 0x1be9a993,
+    ///      so without this overload those frozen frontends would hard-revert. This overload accepts
+    ///      the legacy 13-field struct, sets issueToken = true (classic token mode — what those
+    ///      frontends always got), and forwards to the new path. Result is byte-identical to a
+    ///      pre-pool-mode deploy.
+    function deploy(LegacyParams calldata legacy) external returns (Instance memory) {
+        // Delegate through the internal body (NOT this.deploy) so msg.sender — the family
+        // creator/salt — is the original caller, not the deployer.
+        return _deploy(
+            Params({
+                owner: legacy.owner,
+                cycleLength: legacy.cycleLength,
+                tokenName: legacy.tokenName,
+                tokenSymbol: legacy.tokenSymbol,
+                maxVotingPoints: legacy.maxVotingPoints,
+                salt: legacy.salt,
+                registryKind: legacy.registryKind,
+                initialRecipients: legacy.initialRecipients,
+                proposalExpiry: legacy.proposalExpiry,
+                distributionKind: legacy.distributionKind,
+                tokenImageURI: legacy.tokenImageURI,
+                bannerImageURI: legacy.bannerImageURI,
+                crossChain: legacy.crossChain,
+                issueToken: true // legacy callers always got a classic token instance
+            }),
+            msg.sender
+        );
     }
 
     /// @dev Proportional: BaseDistributionManager (single strategy) + VotingDistributionStrategy.
     ///      The manager is created with a placeholder strategy, then wired via
     ///      setDistributionStrategy once the strategy (which references the manager) exists.
-    function _deployProportional(Instance memory inst, bytes32 baseSalt, address self, address owner) private {
+    /// @param distributedAsset The ERC-20 the manager distributes: the token in token mode, the
+    ///        UNDERLYING asset in pool mode. Used as both the DM's baseToken and the strategy's
+    ///        yieldToken.
+    /// @param yieldModule The yield source fixed at DM init: the pool in pool mode, or address(0)
+    ///        in token mode (the DM resolves address(0) to baseToken). No post-init setter exists.
+    function _deployProportional(
+        Instance memory inst,
+        bytes32 baseSalt,
+        address self,
+        address owner,
+        address distributedAsset,
+        address yieldModule
+    ) private {
+        // encodeWithSignature: `initialize` is overloaded (7-arg yield-module form), so `.selector`
+        // is ambiguous. The 7-arg initializer fixes the yield module at construction (review S1).
         inst.distributionManager = FACTORY.create(
             DIST_MANAGER_BEACON,
-            abi.encodeWithSelector(
-                BaseDistributionManager.initialize.selector,
+            abi.encodeWithSignature(
+                "initialize(address,address,address,address,address,address,address)",
                 inst.cycleModule,
                 inst.registry,
-                inst.token,
+                distributedAsset,
                 self, // placeholder votingModule
+                yieldModule, // pool in pool mode; address(0) → baseToken in token mode
                 address(0), // placeholder strategy
                 self // deployer owns it temporarily
             ),
@@ -351,7 +491,7 @@ contract CrowdStakeDeployer {
         inst.distributionStrategy = FACTORY.create(
             STRATEGY_BEACON,
             abi.encodeWithSelector(
-                VotingDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+                VotingDistributionStrategy.initialize.selector, distributedAsset, inst.distributionManager, owner
             ),
             keccak256(abi.encodePacked(baseSalt, "strategy"))
         );
@@ -363,16 +503,32 @@ contract CrowdStakeDeployer {
     ///      with an empty strategy set, then wired via setStrategies once the strategies (which
     ///      reference the manager) exist. `split` adds a VotingDistributionStrategy so half the
     ///      yield is distributed by votes and half equally; otherwise it is purely equal.
-    function _deployMulti(Instance memory inst, bytes32 baseSalt, address self, address owner, bool split) private {
+    /// @param distributedAsset The ERC-20 the manager distributes: the token in token mode, the
+    ///        UNDERLYING asset in pool mode. Used as the DM's baseToken and every strategy's
+    ///        yieldToken.
+    /// @param yieldModule The yield source fixed at DM init: the pool in pool mode, or address(0)
+    ///        in token mode (the DM resolves address(0) to baseToken). No post-init setter exists.
+    function _deployMulti(
+        Instance memory inst,
+        bytes32 baseSalt,
+        address self,
+        address owner,
+        address distributedAsset,
+        address yieldModule,
+        bool split
+    ) private {
         IDistributionStrategy[] memory none = new IDistributionStrategy[](0);
+        // encodeWithSignature: `initialize` is overloaded (7-arg yield-module form), so `.selector`
+        // is ambiguous. The 7-arg initializer fixes the yield module at construction (review S1).
         inst.distributionManager = FACTORY.create(
             MULTI_DIST_MANAGER_BEACON,
-            abi.encodeWithSelector(
-                MultiStrategyDistributionManager.initialize.selector,
+            abi.encodeWithSignature(
+                "initialize(address,address,address,address,address,address[],address)",
                 inst.cycleModule,
                 inst.registry,
-                inst.token,
+                distributedAsset,
                 self, // placeholder votingModule
+                yieldModule, // pool in pool mode; address(0) → baseToken in token mode
                 none, // empty; strategies wired below via setStrategies
                 self // deployer owns it temporarily
             ),
@@ -382,7 +538,7 @@ contract CrowdStakeDeployer {
         address equalStrat = FACTORY.create(
             EQUAL_STRATEGY_BEACON,
             abi.encodeWithSelector(
-                EqualDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+                EqualDistributionStrategy.initialize.selector, distributedAsset, inst.distributionManager, owner
             ),
             keccak256(abi.encodePacked(baseSalt, "equal-strategy"))
         );
@@ -393,7 +549,7 @@ contract CrowdStakeDeployer {
             inst.distributionStrategy = FACTORY.create(
                 STRATEGY_BEACON,
                 abi.encodeWithSelector(
-                    VotingDistributionStrategy.initialize.selector, inst.token, inst.distributionManager, owner
+                    VotingDistributionStrategy.initialize.selector, distributedAsset, inst.distributionManager, owner
                 ),
                 keccak256(abi.encodePacked(baseSalt, "strategy"))
             );
