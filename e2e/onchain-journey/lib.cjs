@@ -59,6 +59,7 @@ const distAbi = parseAbi([
   "function recipientRegistry() view returns (address)",
   "function baseToken() view returns (address)",
   "function distributionStrategy() view returns (address)",
+  "function yieldModule() view returns (address)",
 ]);
 const registryAbi = parseAbi([
   "function getRecipients() view returns (address[])",
@@ -150,7 +151,10 @@ const vreg = {
 // Resolve a full instance from its distribution manager, the same way the app
 // does (src/lib/instance.ts).
 async function resolveInstance(distributionManager) {
-  const [cycleModule, votingModule, recipientRegistry, token, strategy] =
+  // Token slot = yieldModule (the StakePool on pool instances; defaults to the
+  // token itself on token instances) — baseToken is the payout asset, which on
+  // pools is the UNDERLYING (WXDAI), not the instance. Mirrors src/lib/instance.ts.
+  const [cycleModule, votingModule, recipientRegistry, baseToken, strategy] =
     await Promise.all([
       read(distributionManager, distAbi, "cycleManager", []),
       read(distributionManager, distAbi, "votingModule", []),
@@ -158,6 +162,11 @@ async function resolveInstance(distributionManager) {
       read(distributionManager, distAbi, "baseToken", []),
       read(distributionManager, distAbi, "distributionStrategy", []),
     ]);
+  const ym = await read(distributionManager, distAbi, "yieldModule", []).catch(
+    () => null,
+  );
+  const token =
+    ym && ym !== "0x0000000000000000000000000000000000000000" ? ym : baseToken;
   const vps = await read(
     votingModule,
     votingAbi,
@@ -176,12 +185,21 @@ async function resolveInstance(distributionManager) {
 }
 
 // The most recent instance deployed by `owner` via the deployer (decoded).
-async function latestDeployedInstance(owner) {
+// Pass `sinceBlock` (snapshot BEFORE submitting the deploy) whenever a prior
+// journey may have deployed on the same fork — without it, polling can match
+// a STALE instance owned by the same signer before the new tx lands, and the
+// journey silently runs every subsequent step against the wrong instance.
+async function latestDeployedInstance(owner, sinceBlock) {
   // Deploys happen in the post-fork session (recent blocks). Bound the range:
   // `fromBlock: "earliest"` spans ~47M blocks, which forked RPC backends
   // (e.g. QuickNode) reject via their eth_getLogs range cap.
   const latest = await pub.getBlockNumber();
-  const fromBlock = latest > 5000n ? latest - 5000n : 0n;
+  const fromBlock =
+    sinceBlock !== undefined
+      ? sinceBlock + 1n
+      : latest > 5000n
+        ? latest - 5000n
+        : 0n;
   const logs = await pub.getLogs({
     address: A.deployer,
     fromBlock,

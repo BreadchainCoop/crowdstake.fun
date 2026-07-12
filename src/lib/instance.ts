@@ -1,4 +1,8 @@
 import {
+  AbiDecodingZeroDataError,
+  BaseError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
   createPublicClient,
   getAddress,
   http,
@@ -112,14 +116,53 @@ export async function resolveInstance(
     address: distributionManager,
     abi: distributionManagerAbi,
   } as const;
-  const [cycleModule, votingModule, recipientRegistry, token, strategy] =
-    await Promise.all([
-      client.readContract({ ...base, functionName: "cycleManager" }),
-      client.readContract({ ...base, functionName: "votingModule" }),
-      client.readContract({ ...base, functionName: "recipientRegistry" }),
-      client.readContract({ ...base, functionName: "baseToken" }),
-      client.readContract({ ...base, functionName: "distributionStrategy" }),
-    ]);
+  const [
+    cycleModule,
+    votingModule,
+    recipientRegistry,
+    baseToken,
+    strategy,
+    yieldModule,
+  ] = await Promise.all([
+    client.readContract({ ...base, functionName: "cycleManager" }),
+    client.readContract({ ...base, functionName: "votingModule" }),
+    client.readContract({ ...base, functionName: "recipientRegistry" }),
+    client.readContract({ ...base, functionName: "baseToken" }),
+    client.readContract({ ...base, functionName: "distributionStrategy" }),
+    // The instance's token slot is the DM's YIELD MODULE, not its baseToken:
+    // on a pool instance baseToken is the UNDERLYING asset the DM pays out
+    // (WXDAI/USDC) while yieldModule is the StakePool — resolving baseToken
+    // here would hand ?i= visitors WXDAI as the "community token". On token
+    // instances yieldModule defaults to the token itself (verified against the
+    // live v1 DM), so it's correct universally. Fall back to baseToken ONLY
+    // when the getter is genuinely absent (a pre-yield-module DM: revert or
+    // empty return data) — a TRANSIENT failure must rethrow and abort the
+    // whole resolution instead: callers don't persist on a throw, whereas a
+    // silent baseToken fallback would save a pool instance as its underlying
+    // (WXDAI) in localStorage, where it is never re-resolved.
+    client
+      .readContract({ ...base, functionName: "yieldModule" })
+      .catch((error) => {
+        if (
+          error instanceof BaseError &&
+          error.walk(
+            (e) =>
+              e instanceof ContractFunctionRevertedError ||
+              e instanceof ContractFunctionZeroDataError ||
+              e instanceof AbiDecodingZeroDataError,
+          ) !== null
+        ) {
+          return null; // getter missing — legacy DM, baseToken IS the token
+        }
+        throw error; // transport/RPC failure — fail the resolution wholesale
+      }),
+  ]);
+  const zero = "0x0000000000000000000000000000000000000000";
+  const token = (
+    yieldModule && (yieldModule as Address).toLowerCase() !== zero
+      ? yieldModule
+      : baseToken
+  ) as Address;
   const vpStrategies = (await client.readContract({
     address: votingModule as Address,
     abi: votingModuleAbi,

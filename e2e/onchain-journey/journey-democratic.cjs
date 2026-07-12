@@ -6,7 +6,7 @@
 const { chromium } = require("playwright");
 const { installShim } = require("./inject.cjs");
 const L = require("./lib.cjs");
-const { vreg, resolveInstance, latestDeployedInstance, account } = L;
+const { vreg, resolveInstance, latestDeployedInstance, account, pub } = L;
 
 function resolveChromium() {
   if (process.env.PW_EXECUTABLE_PATH) return process.env.PW_EXECUTABLE_PATH;
@@ -85,7 +85,7 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   await page.waitForTimeout(2500);
   ok(
     (await page
-      .getByRole("button", { name: "Connect Wallet", exact: true })
+      .getByRole("button", { name: "Connect wallet", exact: true })
       .count()) === 0,
     "connected via env-key shim",
   );
@@ -93,18 +93,22 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   head("2) DEPLOY a democratic instance (founder = signer)");
   await page.goto(BASE + "/app/deploy", { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
+  // Pool mode is the wizard default — this journey tests the classic token path.
+  await click("Issue a token");
+  await page.waitForTimeout(300);
   await page.getByPlaceholder("Acme Community Stake").fill("Co-op Fund");
   await page.getByPlaceholder("ACME", { exact: true }).fill("COOP");
   await page.getByPlaceholder("e.g. 24").fill("5");
   await page.getByRole("combobox").selectOption("minutes");
   await click("Democratic"); // registry-kind toggle
   await page.waitForTimeout(500);
+  const bDeploy = await pub.getBlockNumber();
   await click("Deploy instance");
   // Wait for the LATEST deployed instance to be a DEMOCRATIC one — proposalExpiry
   // only succeeds on a voting registry (other runs may have deployed admin ones).
   const found = await waitFor(
     async () => {
-      const d = await latestDeployedInstance(ADDR);
+      const d = await latestDeployedInstance(ADDR, bDeploy);
       if (!d) return undefined;
       const inst = await resolveInstance(d.distributionManager);
       try {

@@ -1,0 +1,12 @@
+{
+  "name": "crowdstake-docs-gifs",
+  "private": true,
+  "description": "Records the /docs walkthrough GIFs against a local anvil fork (see README.md)",
+  "scripts": {
+    "record": "bash run.sh"
+  },
+  "devDependencies": {
+    "gifenc": "^1.0.3",
+    "pngjs": "^7.0.0"
+  }
+}

@@ -117,6 +117,49 @@ export function InstanceProvider({ children }: { children: ReactNode }) {
             setActiveManager(shared);
             saveActiveManager(shared);
           }
+          // Heal in the background: saved records are otherwise never
+          // re-resolved, so one that was persisted with a wrong token slot
+          // (e.g. a pool instance saved as its underlying before the
+          // yieldModule-based resolution, or by a transient mis-read) would
+          // stay poisoned forever. Reopening its share link — the same path
+          // that saved it — refreshes it.
+          const cur = loaded.find(
+            (i) =>
+              i.addresses.distributionManager.toLowerCase() ===
+              shared.toLowerCase(),
+          );
+          // Never "heal" the built-in default — its addresses are baked at
+          // build time (env-pinnable) and are not derived from resolution.
+          const isDefault =
+            shared.toLowerCase() ===
+            DEFAULT_INSTANCE.addresses.distributionManager.toLowerCase();
+          if (cur && !isDefault) {
+            void resolveInstance(shared, cur.chainId)
+              .then(async (fresh) => {
+                if (
+                  fresh.token.toLowerCase() ===
+                  cur.addresses.token.toLowerCase()
+                )
+                  return;
+                const label =
+                  (await resolveInstanceLabel(fresh.token, cur.chainId)) ??
+                  cur.label;
+                if (cancelled) return;
+                setKnown((prev) => {
+                  const next = prev.map((i) =>
+                    i.addresses.distributionManager.toLowerCase() ===
+                    shared.toLowerCase()
+                      ? { ...i, label, addresses: fresh }
+                      : i,
+                  );
+                  saveKnownInstances(next);
+                  return next;
+                });
+              })
+              .catch(() => {
+                /* transient — the record stays as-is until the next open */
+              });
+          }
           return;
         }
         const cid = chainParam(window.location.search) ?? DEFAULT_CHAIN_ID;

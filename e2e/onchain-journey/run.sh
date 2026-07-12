@@ -58,6 +58,9 @@ echo "▸ running journey (admin path + full lifecycle)"
 node "$HERE/journey.cjs"
 CODE=$?
 
+echo "▸ running pool journey (default no-token deploy + all flows)"
+node "$HERE/journey-pool.cjs" || CODE=1
+
 echo "▸ running democratic journey (recipient-voted registry)"
 node "$HERE/journey-democratic.cjs" || CODE=1
 

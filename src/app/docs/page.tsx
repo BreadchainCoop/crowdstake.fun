@@ -141,11 +141,11 @@ const FLOWS: Flow[] = [
     icon: <Rocket weight="duotone" />,
     title: "Deploy your own instance",
     blurb:
-      "Launch a complete, self-owned Crowdstaking system on Gnosis in a single transaction via the CrowdStakeDeployer. You become the admin of every contract.",
+      "Launch a complete, self-owned Crowdstaking system in a single transaction via the CrowdStakeDeployer. You become the admin of every contract.",
     steps: [
-      "Name your token and symbol, and set a cycle length in blocks (~5s each on Gnosis).",
-      "Optionally set an owner (defaults to your address).",
-      "Deploy — token, cycle module, voting module + power, recipient registry, and distribution manager are wired and handed to you.",
+      "Pick a staking mode: by default no token is issued — deposits are simply tracked and withdrawable. Or opt into a transferable ERC-20, redeemable 1:1.",
+      "Name your community and set a cycle length (a duration — the wizard converts it to blocks).",
+      "Deploy — cycle module, voting module + power, recipient registry, and distribution manager are wired and handed to you.",
     ],
     media: "deploy.gif",
   },
@@ -234,11 +234,12 @@ export default function DocsPage() {
             <span className="text-text-standard font-semibold">
               About these recordings.
             </span>{" "}
-            The clips are real UI walkthroughs captured against the live
-            dashboard reading on-chain Gnosis state. The wallet-signing step is
-            shown up to the confirmation prompt; the signed transactions
-            themselves (deposit, vote, distribute, deploy, admin) are verified
-            on-chain — see the live system addresses at the bottom of this page.
+            The clips drive the real dashboard end to end — every transaction
+            shown (deposit, vote, distribute, deploy, admin) is a real
+            transaction, executed and confirmed against a forked copy of Gnosis
+            Chain state, so the flows run exactly as they do on mainnet without
+            spending real funds. The live system addresses are at the bottom of
+            this page.
           </Body>
         </div>
       </div>

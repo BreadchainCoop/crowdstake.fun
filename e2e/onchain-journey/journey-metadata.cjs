@@ -6,7 +6,7 @@
 const { chromium } = require("playwright");
 const { installShim } = require("./inject.cjs");
 const L = require("./lib.cjs");
-const { meta, resolveInstance, latestDeployedInstance, account } = L;
+const { meta, resolveInstance, latestDeployedInstance, account, pub } = L;
 
 function resolveChromium() {
   if (process.env.PW_EXECUTABLE_PATH) return process.env.PW_EXECUTABLE_PATH;
@@ -89,7 +89,7 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   await page.waitForTimeout(2500);
   ok(
     (await page
-      .getByRole("button", { name: "Connect Wallet", exact: true })
+      .getByRole("button", { name: "Connect wallet", exact: true })
       .count()) === 0,
     "connected via env-key shim",
   );
@@ -97,6 +97,9 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
   head("2) DEPLOY an instance with artwork");
   await page.goto(BASE + "/app/deploy", { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
+  // Pool mode is the wizard default — this journey tests the classic token path.
+  await click("Issue a token");
+  await page.waitForTimeout(300);
   await page.getByPlaceholder("Acme Community Stake").fill("Art Co");
   await page.getByPlaceholder("ACME", { exact: true }).fill("ART");
   await page.getByPlaceholder("e.g. 24").fill("5");
@@ -108,12 +111,13 @@ const click = (name) => page.getByRole("button", { name, exact: true }).click();
     .getByPlaceholder("Header/banner image — https:// or ipfs://")
     .fill(BANNER_IMG);
   await page.waitForTimeout(400);
+  const bDeploy = await pub.getBlockNumber();
   await click("Deploy instance");
 
   // Wait for the latest deployed instance whose metadata matches what we sent.
   const inst = await waitFor(
     async () => {
-      const d = await latestDeployedInstance(ADDR);
+      const d = await latestDeployedInstance(ADDR, bDeploy);
       if (!d) return undefined;
       const i = await resolveInstance(d.distributionManager);
       try {

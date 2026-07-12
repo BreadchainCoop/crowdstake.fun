@@ -122,8 +122,8 @@ const wxBalance = (a) =>
 
   head("A1) connect (env key, no wallet prompt)");
   await goto("/app", 2500);
-  if (await btn("Connect Wallet").count()) {
-    await btn("Connect Wallet").first().click();
+  if (await btn("Connect wallet").count()) {
+    await btn("Connect wallet").first().click();
     await page.waitForTimeout(1500);
     await page
       .getByRole("button", { name: "Crowdstake Test" })
@@ -133,7 +133,7 @@ const wxBalance = (a) =>
     await page.waitForTimeout(3000);
   }
   await page.waitForTimeout(1000);
-  ok((await btn("Connect Wallet").count()) === 0, "connected (no prompt)");
+  ok((await btn("Connect wallet").count()) === 0, "connected (no prompt)");
   ok(
     (await page.getByRole("button", { name: /Switch to/i }).count()) === 0,
     "on Gnosis (chain 100)",
@@ -252,15 +252,20 @@ const wxBalance = (a) =>
   /* ===================== B. DEPLOY + SWITCH ====================== */
   head("B. DEPLOY A SELF-OWNED INSTANCE");
   await goto("/app/deploy");
+  // The wizard now DEFAULTS to pool mode (no token, symbol field hidden) —
+  // this journey exercises the classic path, so pick "Issue a token" first.
+  await click("Issue a token");
+  await page.waitForTimeout(300);
   await page.getByPlaceholder("Acme Community Stake").fill("Riverside Mutual");
   await page.getByPlaceholder("ACME", { exact: true }).fill("RVR");
   // Cycle length is now a duration; 5 min ≈ 60 blocks @5s — short for the fork.
   await page.getByPlaceholder("e.g. 24").fill("5");
   await page.getByRole("combobox").selectOption("minutes");
   await page.waitForTimeout(400);
+  const bDeploy = await pub.getBlockNumber();
   await click("Deploy instance");
   const deployed = await waitFor(
-    () => latestDeployedInstance(ADDR),
+    () => latestDeployedInstance(ADDR, bDeploy),
     (v) => v !== null,
     90000,
   );
