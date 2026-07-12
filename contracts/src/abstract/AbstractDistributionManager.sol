@@ -106,6 +106,9 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
     /// @notice Emitted when the voting module is set or changed
     event VotingModuleSet(address indexed votingModule);
 
+    /// @notice Emitted when the yield module is set independently of the base token (pool mode)
+    event YieldModuleSet(address indexed yieldModule);
+
     /// @notice Emitted when the instance image metadata changes
     event InstanceMetadataSet(string tokenImageURI, string bannerImageURI);
 
@@ -120,6 +123,18 @@ abstract contract AbstractDistributionManager is Initializable, OwnableUpgradeab
         if (_votingModule == address(0)) revert ZeroAddress();
         _getAbstractDistributionManagerStorage().votingModule = IVotingModule(_votingModule);
         emit VotingModuleSet(_votingModule);
+    }
+
+    /// @notice Sets the yield module independently of the base token.
+    /// @dev In the default token path yieldModule == baseToken (set in initialize). In POOL MODE
+    ///      the yield-bearing surface (the StakePool) is distinct from the base token that gets
+    ///      distributed (the UNDERLYING asset), so the deployer wires them apart: baseToken =
+    ///      underlying, yieldModule = pool. Owner-only; the deployer owns the manager while wiring.
+    /// @param _yieldModule Address of the yield module (the pool in pool mode)
+    function setYieldModule(address _yieldModule) external onlyOwner {
+        if (_yieldModule == address(0)) revert ZeroAddress();
+        _getAbstractDistributionManagerStorage().yieldModule = IYieldModule(_yieldModule);
+        emit YieldModuleSet(_yieldModule);
     }
 
     /// @notice Set the instance's token + banner image URIs (owner only). The

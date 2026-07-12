@@ -17,7 +17,9 @@ import {EqualDistributionStrategy} from "../src/implementation/strategies/EqualD
 import {AdminRecipientRegistry} from "../src/implementation/registries/AdminRecipientRegistry.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {SexyDaiYield} from "../src/implementation/token/SexyDaiYield.sol";
+import {PoolNativeYield} from "../src/implementation/pool/PoolNativeYield.sol";
 import {AbstractToken} from "../src/abstract/AbstractToken.sol";
+import {IStakePool} from "../src/interfaces/IStakePool.sol";
 
 interface IOwnable {
     function owner() external view returns (address);
@@ -47,6 +49,7 @@ contract CrowdStakeDeployerTest is Test {
         address votingRegistryBeacon =
             address(new UpgradeableBeacon(address(new VotingRecipientRegistry()), address(this)));
         address tokenBeacon = address(new UpgradeableBeacon(address(new SexyDaiYield(WXDAI, SXDAI)), address(this)));
+        address poolBeacon = address(new UpgradeableBeacon(address(new PoolNativeYield(WXDAI, SXDAI)), address(this)));
         address distBeacon = address(new UpgradeableBeacon(address(new BaseDistributionManager()), address(this)));
         address multiDistBeacon =
             address(new UpgradeableBeacon(address(new MultiStrategyDistributionManager()), address(this)));
@@ -55,16 +58,17 @@ contract CrowdStakeDeployerTest is Test {
             address(new UpgradeableBeacon(address(new EqualDistributionStrategy()), address(this)));
         address votingBeacon = address(new UpgradeableBeacon(address(new BasisPointsVotingModule()), address(this)));
 
-        address[] memory beacons = new address[](9);
+        address[] memory beacons = new address[](10);
         beacons[0] = cycleBeacon;
         beacons[1] = registryBeacon;
         beacons[2] = votingRegistryBeacon;
         beacons[3] = tokenBeacon;
-        beacons[4] = distBeacon;
-        beacons[5] = multiDistBeacon;
-        beacons[6] = stratBeacon;
-        beacons[7] = equalStratBeacon;
-        beacons[8] = votingBeacon;
+        beacons[4] = poolBeacon;
+        beacons[5] = distBeacon;
+        beacons[6] = multiDistBeacon;
+        beacons[7] = stratBeacon;
+        beacons[8] = equalStratBeacon;
+        beacons[9] = votingBeacon;
         factory.allowlistBeacons(beacons);
 
         deployer = new CrowdStakeDeployer(
@@ -73,6 +77,7 @@ contract CrowdStakeDeployerTest is Test {
             registryBeacon,
             votingRegistryBeacon,
             tokenBeacon,
+            poolBeacon,
             distBeacon,
             multiDistBeacon,
             stratBeacon,
@@ -95,7 +100,8 @@ contract CrowdStakeDeployerTest is Test {
             distributionKind: 0, // proportional
             tokenImageURI: "",
             bannerImageURI: "",
-            crossChain: false
+            crossChain: false,
+            issueToken: true // token mode (these shared helpers keep asserting classic token behavior)
         });
     }
 
@@ -117,7 +123,8 @@ contract CrowdStakeDeployerTest is Test {
             distributionKind: 0, // proportional
             tokenImageURI: "",
             bannerImageURI: "",
-            crossChain: false
+            crossChain: false,
+            issueToken: true // token mode (these shared helpers keep asserting classic token behavior)
         });
     }
 
@@ -127,6 +134,116 @@ contract CrowdStakeDeployerTest is Test {
         assertEq(AdminRecipientRegistry(i.registry).getRecipientCount(), 0, "admin starts empty");
         assertEq(AbstractToken(i.token).yieldClaimer(), i.distributionManager, "yieldClaimer wired");
         assertEq(AbstractCycleModule(i.cycleModule).getCurrentCycle(), 1, "cycle #1");
+    }
+
+    // ---- Pool mode (issueToken toggle) ----
+
+    /// @dev supportsPoolMode() is the on-chain capability probe the wizard gates the toggle on.
+    function test_SupportsPoolModeProbe() public view {
+        assertTrue(deployer.supportsPoolMode(), "deployer advertises pool-mode support");
+    }
+
+    /// @dev issueToken=false (the zero-value default) deploys a pool, not a token, and wires the
+    ///      DM's yieldModule = pool while baseToken = the underlying asset.
+    function test_DeploysPoolInstance() public {
+        CrowdStakeDeployer.Params memory p = _adminParams("pool-1");
+        p.issueToken = false; // POOL MODE
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+
+        assertTrue(IStakePool(i.token).isPool(), "instance.token is a pool");
+        assertEq(IStakePool(i.token).yieldClaimer(), i.distributionManager, "pool yieldClaimer wired");
+        // DM distributes the underlying (WXDAI here), reads yield from the pool.
+        assertEq(address(AbstractDistributionManager(i.distributionManager).baseToken()), WXDAI, "baseToken=underlying");
+        assertEq(
+            address(AbstractDistributionManager(i.distributionManager).yieldModule()), i.token, "yieldModule=the pool"
+        );
+        assertEq(IOwnable(i.token).owner(), OWNER, "pool handed to final owner");
+    }
+
+    /// @dev The default Params.issueToken zero-value is pool mode.
+    function test_DefaultIssueTokenZeroValueIsPoolMode() public {
+        // Build params WITHOUT touching issueToken → it defaults to false → pool.
+        CrowdStakeDeployer.Params memory p = CrowdStakeDeployer.Params({
+            owner: OWNER,
+            cycleLength: 100,
+            tokenName: "Default",
+            tokenSymbol: "DFLT",
+            maxVotingPoints: 10_000,
+            salt: "default-mode",
+            registryKind: 0,
+            initialRecipients: new address[](0),
+            proposalExpiry: 0,
+            distributionKind: 0,
+            tokenImageURI: "",
+            bannerImageURI: "",
+            crossChain: false,
+            issueToken: false
+        });
+        CrowdStakeDeployer.Instance memory i = deployer.deploy(p);
+        assertTrue(IStakePool(i.token).isPool(), "zero-value issueToken => pool mode");
+    }
+
+    // ---- Backward-compatible legacy deploy (pinned IPFS frontends) ----
+
+    /// @dev The pre-pool-mode 13-field selector (0xfd759538) still deploys a classic TOKEN instance.
+    ///      Encoded as raw legacy calldata to prove a frozen frontend's bytes still work.
+    function test_LegacySelectorDeploysClassicToken() public {
+        CrowdStakeDeployer.LegacyParams memory legacy = CrowdStakeDeployer.LegacyParams({
+            owner: OWNER,
+            cycleLength: 100,
+            tokenName: "Legacy Stake",
+            tokenSymbol: "LEGA",
+            maxVotingPoints: 10_000,
+            salt: "legacy-1",
+            registryKind: 0,
+            initialRecipients: new address[](0),
+            proposalExpiry: 0,
+            distributionKind: 0,
+            tokenImageURI: "",
+            bannerImageURI: "",
+            crossChain: false
+        });
+
+        // Raw calldata with the OLD selector, as a pinned frontend would ABI-encode it.
+        bytes memory callData = abi.encodeWithSelector(bytes4(0xfd759538), legacy);
+        (bool ok, bytes memory ret) = address(deployer).call(callData);
+        assertTrue(ok, "legacy-selector call succeeds against the new deployer");
+
+        CrowdStakeDeployer.Instance memory i = abi.decode(ret, (CrowdStakeDeployer.Instance));
+        // Classic token: it is NOT a pool (no isPool()), and yieldModule == baseToken == token.
+        (bool isPoolOk,) = i.token.call(abi.encodeWithSignature("isPool()"));
+        assertFalse(isPoolOk, "legacy deploy yields a classic token, not a pool");
+        assertEq(AbstractToken(i.token).yieldClaimer(), i.distributionManager, "token yieldClaimer wired");
+        assertEq(address(AbstractDistributionManager(i.distributionManager).baseToken()), i.token, "baseToken == token");
+    }
+
+    /// @dev The legacy overload must scope the family to the ORIGINAL caller (msg.sender), not the
+    ///      deployer — proving it delegates through the internal body, not `this.deploy`.
+    function test_LegacyCrossChain_ScopedToOriginalCaller() public {
+        CrowdStakeDeployer.LegacyParams memory legacy = CrowdStakeDeployer.LegacyParams({
+            owner: OWNER,
+            cycleLength: 100,
+            tokenName: "Legacy XChain",
+            tokenSymbol: "LGXC",
+            maxVotingPoints: 10_000,
+            salt: "legacy-xchain",
+            registryKind: 0,
+            initialRecipients: new address[](0),
+            proposalExpiry: 0,
+            distributionKind: 0,
+            tokenImageURI: "",
+            bannerImageURI: "",
+            crossChain: true
+        });
+        bytes32 familyId = deployer.familyIdOf(FOUNDER, "legacy-xchain", "Legacy XChain", "LGXC", 10_000, 0, 0);
+
+        vm.prank(FOUNDER);
+        deployer.deploy(legacy);
+
+        // The sibling is recorded under FOUNDER's familyId, not the deployer's.
+        (,,,,,,, address votingModule) = deployer.familyInstances(familyId);
+        assertTrue(votingModule != address(0), "family scoped to the original caller (FOUNDER)");
+        assertEq(BasisPointsVotingModule(votingModule).familyId(), familyId, "module familyId matches caller-scoped id");
     }
 
     function test_DeploysVotingInstance() public {
