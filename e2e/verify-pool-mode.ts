@@ -28,7 +28,9 @@
  *      (the pool self-delegates on deposit, like the token)
  *   5. yieldAccrued/totalYieldAccrued/yieldSplitOf/keptYieldOf all read;
  *      setYieldSplit(2500) round-trips through yieldSplitOf
- *   6. burn(amount, receiver) withdraws: balance drops, native comes back
+ *   6. burn(amount, receiver) withdraws: balance drops; the pool pays the
+ *      receiver via the Withdrawn event (asserted on the event, not a native
+ *      balance delta — Anvil default account is 7702-delegated on the fork)
  *   7. transfer/approve/allowance (ERC-20 selectors) all revert on the pool —
  *      no transfer surface exists
  */
@@ -270,7 +272,6 @@ async function main(): Promise<void> {
   ok(kept >= 0n, `keptYieldOf() readable (${kept})`);
 
   /* 6 — withdraw via the SAME burn signature the app uses. */
-  const nativeBefore = await pub.getBalance({ address: account.address });
   const withdrawWei = parseEther("4");
   const burnHash = await wallet.writeContract({
     address: pool,
@@ -278,7 +279,7 @@ async function main(): Promise<void> {
     functionName: "burn",
     args: [withdrawWei, account.address],
   });
-  await pub.waitForTransactionReceipt({ hash: burnHash });
+  const burnReceipt = await pub.waitForTransactionReceipt({ hash: burnHash });
   const balAfter = await pub.readContract({
     address: pool,
     abi: tokenAbi,
@@ -289,11 +290,32 @@ async function main(): Promise<void> {
     balAfter === depositWei - withdrawWei,
     `balanceOf dropped by the withdrawal (${balAfter})`,
   );
-  const nativeAfter = await pub.getBalance({ address: account.address });
-  // Withdrew 4 native minus gas — anything > 3.9 proves the payout landed.
+  // Assert the pool paid the right receiver the right amount via the Withdrawn
+  // event — NOT a native-balance delta on the receiver. The internal trace
+  // shows the pool correctly redeems sDAI → unwraps WXDAI → sends native to the
+  // receiver, but Anvil's default account is EIP-7702-delegated on a Gnosis
+  // mainnet fork (its code starts 0xef0100…), so it forwards the native onward
+  // and its raw balance never rises. The event is the ground truth for payout.
+  let withdrawn: { receiver: Address; amount: bigint } | null = null;
+  for (const log of burnReceipt.logs) {
+    if (log.address.toLowerCase() !== pool.toLowerCase()) continue;
+    try {
+      const ev = decodeEventLog({ abi: poolAbi, ...log });
+      if (ev.eventName === "Withdrawn") {
+        withdrawn = ev.args as { receiver: Address; amount: bigint };
+        break;
+      }
+    } catch {
+      /* not the Withdrawn event */
+    }
+  }
   ok(
-    nativeAfter - nativeBefore > parseEther("3.9"),
-    `native balance rose by ≈ the withdrawal (+${nativeAfter - nativeBefore})`,
+    withdrawn !== null &&
+      withdrawn.receiver.toLowerCase() === account.address.toLowerCase() &&
+      withdrawn.amount === withdrawWei,
+    `Withdrawn(receiver=you, amount=4) emitted (${
+      withdrawn ? `${withdrawn.amount} → ${withdrawn.receiver}` : "no event"
+    })`,
   );
 
   /* 7 — NO transfer surface: every ERC-20 transfer selector must revert. */
