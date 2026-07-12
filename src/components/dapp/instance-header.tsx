@@ -72,7 +72,11 @@ export function InstanceHeader() {
   // Pool instances have no ticker of their own — symbol() is the UNDERLYING
   // asset's, so it still suffixes amounts, but the $TICKER identity row and
   // the Transfer-derived Backers chip (pools emit no Transfer logs) are hidden.
-  const { isPool } = useInstanceKind();
+  // Gate those TOKEN-asserting surfaces on `kind === "token"` (NOT `!isPool`):
+  // while the probe is undefined they must render NEUTRAL, else a pool would
+  // flash a $TICKER row and a Backers chip for a frame before the probe lands.
+  const { kind: instanceKind } = useInstanceKind();
+  const isToken = instanceKind === "token";
   const { totalSupply } = useTokenStats();
   const { recipients } = useRecipients();
   const cycle = useCycle();
@@ -84,7 +88,9 @@ export function InstanceHeader() {
   // Unique holders across every family chain (union — one person on two
   // chains is one backer). Counted from a bounded Transfer-log window, so
   // communities older than the lookback undercount until backfill exists.
-  const backers = useBackers(family);
+  // Only scan once the probe confirms a TOKEN — pools emit no Transfer logs, so
+  // scanning one is a doomed query (and the chip is hidden anyway).
+  const backers = useBackers(family, isToken);
   // Total funding generated — v2's flagship number: everything EVER distributed
   // (all chains) + what's accruing right now. Mounting the header kicks off the
   // history event scan, but it shares the history page's localStorage cache, so
@@ -137,7 +143,7 @@ export function InstanceHeader() {
             {name || symbol || "Crowdstaking instance"}
           </Heading3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            {!isPool && (
+            {isToken && (
               <span className="text-surface-grey-2 font-mono text-sm">
                 ${symbol}
               </span>
@@ -189,8 +195,10 @@ export function InstanceHeader() {
           {recipients.length}
         </Chip>
         {/* Backer counts come from Transfer logs — pools emit none, so the
-            chip would flatline at 0 and imply transfers exist. Hide it. */}
-        {!isPool && (
+            chip would flatline at 0 and imply transfers exist. Gate on
+            `kind === "token"` so it stays hidden until the probe confirms a
+            token (undefined renders nothing, not a premature "0" chip). */}
+        {isToken && (
           <Chip
             icon={<UsersFour size={18} weight="fill" />}
             label="Backers"

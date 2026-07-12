@@ -133,7 +133,11 @@ export default function PortfolioPage() {
           }
           value={
             familyMode
-              ? `${fmt18(fpos.balance18)} ${tokenSymbol}`
+              ? // A family's cross-chain sum mixes each chain's underlying
+                // (WXDAI, USDC, …), so for a POOL the ticker suffix would be
+                // dishonest — drop it (family-deposit does the same for its
+                // summed total). Single-chain and token families keep it.
+                `${fmt18(fpos.balance18)}${isPool ? "" : ` ${tokenSymbol}`}`
               : `${fmt(balance.data)} ${tokenSymbol}`
           }
           sub={

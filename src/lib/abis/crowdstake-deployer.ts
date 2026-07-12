@@ -24,6 +24,11 @@ export const deployerAbi = parseAbi([
   "function familyIdOf(address creator, bytes32 salt, string tokenName, string tokenSymbol, uint256 maxVotingPoints, uint8 registryKind, uint8 distributionKind) pure returns (bytes32)",
   "function votingFamilyIdOf(address creator, bytes32 salt, string tokenName, string tokenSymbol, uint256 maxVotingPoints, uint8 distributionKind, address[] initialRecipients, uint256 proposalExpiry) pure returns (bytes32)",
   "function familyInstances(bytes32 familyId) view returns ((address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address secondaryDistributionStrategy, address votingModule))",
+  // Capability flag added alongside the appended `issueToken` param (sibling
+  // contracts branch). Deployers that predate pool mode DON'T expose this — the
+  // read REVERTS, which is exactly how useDeployerPoolSupport detects that a
+  // 14-field deploy() would revert there and forces issueToken=true.
+  "function supportsPoolMode() view returns (bool)",
   "event SystemDeployed(address indexed owner, address indexed deployer, bytes32 indexed salt, (address cycleModule, address registry, address token, address votingPowerStrategy, address distributionManager, address distributionStrategy, address secondaryDistributionStrategy, address votingModule) instance)",
   "event FamilyDeployed(bytes32 indexed familyId, address indexed creator, address indexed owner)",
   "error ZeroOwner()",

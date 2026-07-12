@@ -3,10 +3,11 @@
  * frontend's OWN ABIs — any drift between the dapp and the contracts fails
  * here first. It proves the ABI-compatibility contract the UI leans on: every
  * read/write the app does on `instance.token` (balanceOf/totalSupply/decimals/
- * name/symbol, yieldAccrued/yieldSplitOf/keptYieldOf/setYieldSplit, and the
- * same mint/burn deposit-withdraw signatures) works against a StakePool, the
- * `isPool()` probe feature-detects the kind exactly like useInstanceKind, and
- * the pool exposes NO transfer/approve/allowance surface.
+ * name/symbol, getVotes/delegates, yieldAccrued/yieldSplitOf/keptYieldOf/
+ * setYieldSplit, and the same mint/burn deposit-withdraw signatures) works
+ * against a StakePool, the `isPool()` probe feature-detects the kind exactly
+ * like useInstanceKind, and the pool exposes NO transfer/approve/allowance
+ * surface.
  *
  * Needs a deployer that supports the appended `issueToken` param (the sibling
  * pool-mode contracts branch) — pass its address via DEPLOYER. Run against an
@@ -22,7 +23,9 @@
  *      success+true → "pool" / revert → "token" probe is sound both ways
  *   3. name() is the instance name; symbol() is the UNDERLYING asset's (the
  *      deploy passed "", as the wizard does in pool mode); decimals() readable
- *   4. mint(receiver){value} deposits: balanceOf/totalSupply == the deposit
+ *   4. mint(receiver){value} deposits: balanceOf/totalSupply == the deposit;
+ *      getVotes(depositor) == the balance and delegates(depositor) == self
+ *      (the pool self-delegates on deposit, like the token)
  *   5. yieldAccrued/totalYieldAccrued/yieldSplitOf/keptYieldOf all read;
  *      setYieldSplit(2500) round-trips through yieldSplitOf
  *   6. burn(amount, receiver) withdraws: balance drops, native comes back
@@ -203,6 +206,26 @@ async function main(): Promise<void> {
     functionName: "totalSupply",
   });
   ok(supply === depositWei, `totalSupply == deposit (${supply})`);
+  // Voting-power surface: a pool self-delegates on deposit (no transfer
+  // surface, so votes can't be moved), exactly like the token instance — the
+  // app reads getVotes/delegates on instance.token to show voting power.
+  const votes = await pub.readContract({
+    address: pool,
+    abi: tokenAbi,
+    functionName: "getVotes",
+    args: [account.address],
+  });
+  ok(votes === depositWei, `getVotes() == deposited balance (${votes})`);
+  const delegatee = await pub.readContract({
+    address: pool,
+    abi: tokenAbi,
+    functionName: "delegates",
+    args: [account.address],
+  });
+  ok(
+    delegatee.toLowerCase() === account.address.toLowerCase(),
+    `delegates() == self (${delegatee})`,
+  );
 
   /* 5 — yield surface reads + split round-trip. */
   const yieldAccrued = await pub.readContract({

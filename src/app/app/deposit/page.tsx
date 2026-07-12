@@ -43,12 +43,15 @@ export default function DepositPage() {
       <PageHeader
         title="Deposit"
         subtitle={
-          isPool
-            ? isFamily
-              ? "Deposit across the chains this community lives on — whatever you hold on each. Your principal stays withdrawable; only the interest is distributed."
-              : `Deposit ${depositSym} — your principal stays fully withdrawable, only the interest is distributed.`
-            : resolving
-              ? `Deposit to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
+          // Check `resolving` FIRST: while the family (and thus its mode) is
+          // still loading, a pool family would otherwise flash the token
+          // "mint {symbol} 1:1" copy before resolving to the pool subtitle.
+          resolving
+            ? `Deposit to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
+            : isPool
+              ? isFamily
+                ? "Deposit across the chains this community lives on — whatever you hold on each. Your principal stays withdrawable; only the interest is distributed."
+                : `Deposit ${depositSym} — your principal stays fully withdrawable, only the interest is distributed.`
               : isFamily
                 ? `Mint ${symbol} across the chains this community lives on — deposit whatever you hold on each. Your principal stays withdrawable; only the interest is distributed.`
                 : `Stake ${depositSym} to mint ${symbol} 1:1. Your principal stays fully withdrawable — only the interest is distributed.`
@@ -87,7 +90,11 @@ function DepositForm() {
 
   const { symbol, decimals } = useInstanceToken();
   // Pool mode: no token arrives — hide the "You receive" framing entirely.
-  const { isPool } = useInstanceKind();
+  // `isPool` drives the neutral "Your deposit:" copy (safe default while the
+  // probe is undefined); the token-ASSERTING "You receive X {symbol}" row is
+  // gated on `kind === "token"` so a pool never flashes it pre-resolution.
+  const { kind, isPool } = useInstanceKind();
+  const isToken = kind === "token";
   const nativeSym = useNativeSymbol();
   const hasWrapped = Boolean(wrappedToken);
   // The native toggle only makes sense when the instance accepts native.
@@ -170,8 +177,10 @@ function DepositForm() {
         decimals={depositDecimals}
       />
 
-      {/* Pools mint nothing back — a deposit is a deposit, so no receive row. */}
-      {!isPool && (
+      {/* Pools mint nothing back — a deposit is a deposit, so no receive row.
+          Render only once the probe confirms a TOKEN (undefined stays neutral,
+          so a pool never flashes "You receive X" before the probe resolves). */}
+      {isToken && (
         <div className="bg-paper-1 mt-4 flex items-center justify-between rounded-xl px-4 py-3">
           <Caption className="text-surface-grey-2">You receive</Caption>
           <span className="font-breadDisplay text-text-standard font-bold">

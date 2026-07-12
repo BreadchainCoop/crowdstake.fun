@@ -3,9 +3,10 @@ import { parseAbi } from "viem";
 /**
  * StakePool — the no-token instance kind. The pool is deliberately
  * ABI-compatible with every read the app already does on `instance.token`
- * (balanceOf/totalSupply/decimals/name/symbol, yieldAccrued/totalYieldAccrued,
- * yieldSplitOf/keptYieldOf/claimKeptYield/setYieldSplit, and the same
- * mint/burn deposit-withdraw signatures), so those calls keep using tokenAbi.
+ * (balanceOf/totalSupply/decimals/name/symbol, getVotes/delegates,
+ * yieldAccrued/totalYieldAccrued, yieldSplitOf/keptYieldOf/claimKeptYield/
+ * setYieldSplit, and the same mint/burn deposit-withdraw signatures), so those
+ * calls keep using tokenAbi.
  * This ABI carries only the pool's EXTRA surface: the `isPool()` probe the UI
  * feature-detects the kind with (token instances revert on it — the same
  * pattern as useYieldSplit's `supported`), and the Deposited/Withdrawn events
