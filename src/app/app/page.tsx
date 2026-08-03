@@ -10,11 +10,11 @@ import { InstanceHeader } from "@/components/dapp/instance-header";
 import { OnboardingBanner } from "@/components/dapp/onboarding-banner";
 import {
   useTokenBalance,
-  useVotes,
   useNativeBalance,
   useInstanceToken,
   useYieldSplit,
 } from "@/hooks/use-token";
+import { useCurrentVotingPower } from "@/hooks/use-voting";
 import { useFamily } from "@/hooks/use-family";
 import {
   scaleTo18,
@@ -42,7 +42,7 @@ import {
 export default function PortfolioPage() {
   const { isConnected } = useAccount();
   const balance = useTokenBalance();
-  const votes = useVotes();
+  const votingPower = useCurrentVotingPower();
   const native = useNativeBalance();
   const cycle = useCycle();
   const { isReady } = useDistributionReady();
@@ -151,7 +151,7 @@ export default function PortfolioPage() {
           label={
             familyMode ? "Your voting power · all chains" : "Your voting power"
           }
-          value={familyMode ? fmt18(fpos.votes18) : fmt(votes.data)}
+          value={familyMode ? fmt18(fpos.votes18) : fmt(votingPower.data)}
           sub="Delegated automatically on deposit"
         />
         <StatCard
