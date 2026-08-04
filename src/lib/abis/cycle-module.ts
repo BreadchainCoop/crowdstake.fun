@@ -75,6 +75,13 @@ export const cycleModuleAbi = [
   },
   {
     type: "function",
+    name: "pendingCycleLength",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "renounceOwnership",
     inputs: [],
     outputs: [],
@@ -128,6 +135,19 @@ export const cycleModuleAbi = [
       },
       {
         name: "newLength",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "CycleLengthUpdatePending",
+    inputs: [
+      {
+        name: "pendingLength",
         type: "uint256",
         indexed: false,
         internalType: "uint256",

@@ -49,6 +49,13 @@ export function useCycle() {
     chainId,
     query: LIVE,
   });
+  const pending = useReadContract({
+    address: a.cycleModule,
+    abi: cycleModuleAbi,
+    functionName: "pendingCycleLength",
+    chainId,
+    query: LIVE,
+  });
 
   const cycleLength = length.data;
   const lastStartBlock = lastStart.data;
@@ -65,6 +72,7 @@ export function useCycle() {
   return {
     cycleNumber: cycle.data,
     cycleLength,
+    pendingCycleLength: pending.data,
     lastStartBlock,
     blockNumber,
     isComplete: complete.data ?? false,
@@ -76,6 +84,7 @@ export function useCycle() {
       void complete.refetch();
       void lastStart.refetch();
       void blocksLeft.refetch();
+      void pending.refetch();
     },
   };
 }
