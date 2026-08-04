@@ -22,6 +22,8 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
         uint256 lastCycleStartBlock;
         /// @notice The address authorized to call startNewCycle()
         address distributionManager;
+        /// @notice Cycle length staged for the next cycle (0 = none pending)
+        uint256 pendingCycleLength;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.AbstractCycleModule")) - 1)) & ~bytes32(uint256(0xff))
@@ -54,6 +56,11 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     /// @notice The address authorized to call startNewCycle()
     function distributionManager() public view returns (address) {
         return _getAbstractCycleModuleStorage().distributionManager;
+    }
+
+    /// @notice The cycle length staged for the next cycle (0 = none pending)
+    function pendingCycleLength() public view returns (uint256) {
+        return _getAbstractCycleModuleStorage().pendingCycleLength;
     }
 
     // ============ Errors ============
@@ -92,6 +99,10 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
     /// @param oldLength The previous cycle length
     /// @param newLength The new cycle length
     event CycleLengthUpdated(uint256 oldLength, uint256 newLength);
+
+    /// @notice Emitted when a new cycle length is staged for the next cycle
+    /// @param pendingLength The cycle length that will apply once the next cycle starts
+    event CycleLengthUpdatePending(uint256 pendingLength);
 
     /// @notice Emitted when the module is initialized
     /// @param cycleLength The cycle length in blocks
