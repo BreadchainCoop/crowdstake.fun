@@ -170,6 +170,15 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
         }
 
         AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
+
+        uint256 pending = $.pendingCycleLength;
+        if (pending != 0) {
+            uint256 oldLength = $.cycleLength;
+            $.cycleLength = pending;
+            $.pendingCycleLength = 0;
+            emit CycleLengthUpdated(oldLength, pending);
+        }
+
         $.currentCycle++;
         $.lastCycleStartBlock = block.number;
 
@@ -207,11 +216,9 @@ abstract contract AbstractCycleModule is ICycleModule, OwnableUpgradeable {
             revert InvalidCycleLength();
         }
 
-        AbstractCycleModuleStorage storage $ = _getAbstractCycleModuleStorage();
-        uint256 oldLength = $.cycleLength;
-        $.cycleLength = newCycleLength;
+        _getAbstractCycleModuleStorage().pendingCycleLength = newCycleLength;
 
-        emit CycleLengthUpdated(oldLength, newCycleLength);
+        emit CycleLengthUpdatePending(newCycleLength);
     }
 
     /// @notice Sets the distribution manager address authorized to call startNewCycle()
