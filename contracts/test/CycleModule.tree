@@ -18,6 +18,8 @@ CycleModuleTest
 │   └── it should revert with OnlyDistributionManager
 ├── when starting a new cycle without distribution manager set
 │   └── it should revert with DistributionManagerNotSet
+├── when starting a new cycle with a pending cycle length
+│   └── it should apply the pending length and clear it
 ├── when querying blocks until next cycle
 │   ├── it should return full cycle length at start
 │   ├── it should return remaining blocks partway
@@ -27,7 +29,8 @@ CycleModuleTest
 │   ├── it should return 50 halfway
 │   └── it should return 100 when complete
 ├── when updating cycle length as owner
-│   └── it should update the cycle length
+│   ├── it should stage the pending length
+│   └── it should not affect the in-progress cycle
 ├── when updating cycle length to zero
 │   └── it should revert with InvalidCycleLength
 ├── when updating cycle length as non owner
