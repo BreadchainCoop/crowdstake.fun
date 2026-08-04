@@ -119,7 +119,8 @@ contract CycleFuzz is Test {
         } else {
             vm.prank(owner);
             cycleModule.updateCycleLength(newLen);
-            assertEq(cycleModule.cycleLength(), newLen);
+            assertEq(cycleModule.pendingCycleLength(), newLen);
+            assertEq(cycleModule.cycleLength(), 100);
         }
     }
 
