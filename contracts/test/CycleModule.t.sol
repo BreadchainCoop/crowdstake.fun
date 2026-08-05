@@ -141,6 +141,21 @@ contract CycleModuleTest is Test {
         freshModule.startNewCycle();
     }
 
+    // ============ when starting a new cycle with a pending cycle length ============
+
+    function test_WhenStartingNewCycleWithPendingLength_ItShouldApplyTheLength() public {
+        vm.roll(START_BLOCK + CYCLE_LENGTH);
+        cycleModule.updateCycleLength(50);
+
+        uint256 currentBlock = block.number;
+        vm.prank(distManager);
+        cycleModule.startNewCycle();
+
+        assertEq(cycleModule.cycleLength(), 50);
+        assertEq(cycleModule.pendingCycleLength(), 0);
+        assertEq(cycleModule.lastCycleStartBlock(), currentBlock);
+    }
+
     // ============ when querying blocks until next cycle ============
 
     function test_WhenQueryingBlocksUntilNextCycle_ItShouldReturnFullCycleLengthAtStart() public view {
@@ -175,10 +190,18 @@ contract CycleModuleTest is Test {
 
     // ============ when updating cycle length as owner ============
 
-    function test_WhenUpdatingCycleLengthAsOwner_ItShouldUpdateTheCycleLength() public {
+    function test_WhenUpdatingCycleLengthAsOwner_ItShouldStageThePendingLength() public {
         uint256 newLength = 200;
         cycleModule.updateCycleLength(newLength);
-        assertEq(cycleModule.cycleLength(), newLength);
+        assertEq(cycleModule.pendingCycleLength(), newLength);
+        assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
+    }
+
+    function test_WhenUpdatingCycleLengthAsOwner_ItShouldNotAffectTheInProgressCycle() public {
+        // One block before the original cycle would complete
+        vm.roll(START_BLOCK + CYCLE_LENGTH - 1);
+        cycleModule.updateCycleLength(1);
+        assertFalse(cycleModule.isCycleComplete());
     }
 
     // ============ when updating cycle length to zero ============

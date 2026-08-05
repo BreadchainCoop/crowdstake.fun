@@ -41,6 +41,10 @@ contract MockCycleModule is ICycleModule {
         return 1;
     }
 
+    function pendingCycleLength() external view override returns (uint256) {
+        return 0;
+    }
+
     function distributionManager() external view override returns (address) {
         return address(0);
     }

@@ -291,6 +291,13 @@ function CycleLength() {
             : "—"}
         </span>
       </Body>
+      {cycle.pendingCycleLength !== undefined &&
+        cycle.pendingCycleLength > 0n && (
+          <Caption className="text-system-warning mt-1 block">
+            Pending: {blocksToDuration(cycle.pendingCycleLength, blockTimeSeconds)}{" "}
+            — applies at the start of the next cycle.
+          </Caption>
+        )}
       <div className="mt-3">
         <DurationInput onChange={setSeconds} disabled={tx.isBusy} />
       </div>
@@ -310,13 +317,13 @@ function CycleLength() {
         Update
       </Button>
       <Caption className="text-surface-grey mt-1 block">
-        Applies immediately — it changes when the current cycle ends.
+        Applies to the next cycle — the current cycle is unaffected.
       </Caption>
       <TxStatus
         status={tx.status}
         hash={tx.hash}
         error={tx.error}
-        successLabel="Cycle length updated"
+        successLabel="Cycle length update staged"
       />
     </Card>
   );

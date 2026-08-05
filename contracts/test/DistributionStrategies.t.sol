@@ -140,6 +140,10 @@ contract MockCycleModule is ICycleModule {
     function cycleLength() external pure override returns (uint256) {
         return 200;
     }
+
+    function pendingCycleLength() external pure override returns (uint256) {
+        return 0;
+    }
 }
 
 // ============ Mock Yield Token (ERC20 + IYieldModule combined) ============

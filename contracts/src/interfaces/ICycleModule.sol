@@ -37,6 +37,10 @@ interface ICycleModule {
     /// @return The cycle length in blocks
     function cycleLength() external view returns (uint256);
 
+    /// @notice Gets the cycle length staged for the next cycle (0 = none pending)
+    /// @return The pending cycle length in blocks
+    function pendingCycleLength() external view returns (uint256);
+
     /// @notice Gets the address authorized to call startNewCycle()
     /// @return The distribution manager address
     function distributionManager() external view returns (address);
