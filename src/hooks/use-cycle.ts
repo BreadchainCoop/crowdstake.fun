@@ -81,6 +81,9 @@ export function useCycle() {
     isLoading: cycle.isLoading || length.isLoading,
     refetch: () => {
       void cycle.refetch();
+      // startNewCycle() applies any pending length, so a distribution changes
+      // cycleLength too — without this the UI keeps a stale length (and progress).
+      void length.refetch();
       void complete.refetch();
       void lastStart.refetch();
       void blocksLeft.refetch();

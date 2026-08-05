@@ -323,7 +323,7 @@ function CycleLength() {
         status={tx.status}
         hash={tx.hash}
         error={tx.error}
-        successLabel="Cycle length updated"
+        successLabel="Cycle length update staged"
       />
     </Card>
   );
