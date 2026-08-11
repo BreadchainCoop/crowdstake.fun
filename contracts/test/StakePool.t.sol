@@ -137,8 +137,9 @@ contract StakePoolTest is Test {
     }
 
     function test_FrontendVotingReads_GetVotesAndDelegates() public {
-        // The live frontend reads getVotes/delegates directly on instance.token (portfolio voting
-        // power, admin delegation card, family stats), not only through the strategy.
+        // Pool must expose getVotes/delegates on instance.token (auto self-delegate on
+        // deposit) so admin re-delegation and strategy inputs stay coherent. Portfolio
+        // "Your voting power" reads Voting Power Strategy getCurrentVotingPower instead.
         assertEq(pool.getVotes(alice), 0, "no votes before deposit");
         assertEq(pool.delegates(alice), alice, "auto self-delegated: delegate is the account itself");
 

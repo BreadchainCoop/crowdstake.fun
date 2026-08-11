@@ -209,8 +209,9 @@ async function main(): Promise<void> {
   });
   ok(supply === depositWei, `totalSupply == deposit (${supply})`);
   // Voting-power surface: a pool self-delegates on deposit (no transfer
-  // surface, so votes can't be moved), exactly like the token instance — the
-  // app reads getVotes/delegates on instance.token to show voting power.
+  // surface, so votes can't be moved), exactly like the token instance —
+  // getVotes/delegates remain the token-level inputs the strategy reads.
+  // Portfolio / Vote UI weight uses strategy getCurrentVotingPower, not getVotes.
   const votes = await pub.readContract({
     address: pool,
     abi: tokenAbi,

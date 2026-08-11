@@ -151,9 +151,7 @@ export default function PortfolioPage() {
           label={
             familyMode ? "Your voting power · all chains" : "Your voting power"
           }
-          value={
-            familyMode ? fmt18(fpos.votes18) : fmt(votingPower.data)
-          }
+          value={familyMode ? fmt18(fpos.votes18) : fmt(votingPower.data)}
           sub="Strategy weight used on the Vote page"
         />
         <StatCard

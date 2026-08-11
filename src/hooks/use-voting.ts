@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import {
-  type Address,
-  BaseError,
-  ContractFunctionRevertedError,
-} from "viem";
+import { type Address, BaseError, ContractFunctionRevertedError } from "viem";
 import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
 import { useActiveChainId, useInstance } from "@/components/instance-provider";
