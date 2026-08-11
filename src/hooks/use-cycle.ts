@@ -27,6 +27,7 @@ export function useCycle() {
     abi: cycleModuleAbi,
     functionName: "cycleLength",
     chainId,
+    query: LIVE,
   });
   const lastStart = useReadContract({
     address: a.cycleModule,
