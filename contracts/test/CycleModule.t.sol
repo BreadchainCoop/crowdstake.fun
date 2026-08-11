@@ -141,6 +141,21 @@ contract CycleModuleTest is Test {
         freshModule.startNewCycle();
     }
 
+    // ============ when starting a new cycle with a pending cycle length ============
+
+    function test_WhenStartingNewCycleWithPendingLength_ItShouldApplyTheLength() public {
+        vm.roll(START_BLOCK + CYCLE_LENGTH);
+        cycleModule.updateCycleLength(50);
+
+        uint256 currentBlock = block.number;
+        vm.prank(distManager);
+        cycleModule.startNewCycle();
+
+        assertEq(cycleModule.cycleLength(), 50);
+        assertEq(cycleModule.pendingCycleLength(), 0);
+        assertEq(cycleModule.lastCycleStartBlock(), currentBlock);
+    }
+
     // ============ when querying blocks until next cycle ============
 
     function test_WhenQueryingBlocksUntilNextCycle_ItShouldReturnFullCycleLengthAtStart() public view {
@@ -175,10 +190,24 @@ contract CycleModuleTest is Test {
 
     // ============ when updating cycle length as owner ============
 
-    function test_WhenUpdatingCycleLengthAsOwner_ItShouldUpdateTheCycleLength() public {
+    function test_WhenUpdatingCycleLengthAsOwner_ItShouldStageThePendingLength() public {
         uint256 newLength = 200;
         cycleModule.updateCycleLength(newLength);
-        assertEq(cycleModule.cycleLength(), newLength);
+        assertEq(cycleModule.pendingCycleLength(), newLength);
+        // Live cycle length must stay put so in-progress timing is unchanged.
+        assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
+    }
+
+    /// @notice Repro for #194: shrinking mid-cycle must not flip isCycleComplete.
+    function test_WhenUpdatingCycleLengthAsOwner_ItShouldNotAffectTheInProgressCycle() public {
+        // 15 of 24 blocks into a cycle, then shrink length to 12 — old bug
+        // marked the cycle complete instantly; staged length must not.
+        vm.roll(START_BLOCK + 15);
+        cycleModule.updateCycleLength(12);
+        assertFalse(cycleModule.isCycleComplete());
+        assertEq(cycleModule.cycleLength(), CYCLE_LENGTH);
+        assertEq(cycleModule.pendingCycleLength(), 12);
+        assertEq(cycleModule.getBlocksUntilNextCycle(), CYCLE_LENGTH - 15);
     }
 
     // ============ when updating cycle length to zero ============
