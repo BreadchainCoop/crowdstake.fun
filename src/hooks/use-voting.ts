@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { BaseError, ContractFunctionRevertedError } from "viem";
+import {
+  type Address,
+  BaseError,
+  ContractFunctionRevertedError,
+} from "viem";
 import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { votingModuleAbi, votingPowerAbi } from "@/lib/abis";
 import { useActiveChainId, useInstance } from "@/components/instance-provider";
@@ -14,6 +18,26 @@ import {
 } from "@/lib/vote-signature";
 
 const LIVE = { refetchInterval: 12_000 } as const;
+
+/**
+ * The connected account's actual voting power for the current cycle — the
+ * value the Voting Power Strategy computes and the Voting Module uses to
+ * weight votes (not raw token `getVotes`).
+ */
+export function useCurrentVotingPower(account?: Address) {
+  const a = useInstance();
+  const chainId = useActiveChainId();
+  const { address } = useAccount();
+  const owner = account ?? address;
+  return useReadContract({
+    address: a.votingPowerStrategy,
+    abi: votingPowerAbi,
+    functionName: "getCurrentVotingPower",
+    args: owner ? [owner] : undefined,
+    chainId,
+    query: { enabled: Boolean(owner), ...LIVE },
+  });
+}
 
 /**
  * Everything the vote page needs: current per-recipient vote distribution,
