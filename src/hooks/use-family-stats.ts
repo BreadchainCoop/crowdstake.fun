@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { useAccount } from "wagmi";
-import { tokenAbi } from "@/lib/abis";
+import { tokenAbi, votingPowerAbi } from "@/lib/abis";
 import { publicClientFor } from "@/lib/instance";
 import type { FamilyState } from "@/hooks/use-family";
 
@@ -165,11 +165,39 @@ export function useFamilyStats(family: FamilyState): FamilyStats {
 export interface FamilyPosition {
   /** Σ balanceOf across siblings, normalized to 18 decimals. */
   balance18?: bigint;
-  /** Σ getVotes across siblings, normalized to 18 decimals. */
+  /**
+   * Σ Voting Power Strategy `getCurrentVotingPower` across siblings,
+   * normalized to 18 decimals. This is the weight the Voting Module uses —
+   * not raw `getVotes` (which can diverge while a cycle sits undistributed).
+   */
   votes18?: bigint;
   /** Per-chain balances (18-dp), for the "0.5 on Arbitrum" breakdown. */
   perChain: { chainId: number; balance18: bigint }[];
   partial: boolean;
+}
+
+/** chainId:token:votingPowerStrategy — position reads need the strategy address. */
+function familyPositionMemberKey(family: FamilyState): string {
+  if (!family.isFamily) return "";
+  return family.perChain
+    .filter((c) => c.instance)
+    .map(
+      (c) =>
+        `${c.chainId}:${c.instance!.token.toLowerCase()}:${c.instance!.votingPowerStrategy.toLowerCase()}`,
+    )
+    .sort()
+    .join(",");
+}
+
+function parsePositionMembers(memberKey: string) {
+  return memberKey.split(",").map((m) => {
+    const [chainId, token, votingPowerStrategy] = m.split(":");
+    return {
+      chainId: Number(chainId),
+      token: token as Address,
+      votingPowerStrategy: votingPowerStrategy as Address,
+    };
+  });
 }
 
 /**
@@ -185,7 +213,7 @@ export function useFamilyPosition(family: FamilyState): FamilyPosition {
   });
   const decimalsCache = useRef(new Map<string, number>());
 
-  const memberKey = familyMemberKey(family);
+  const memberKey = familyPositionMemberKey(family);
   const account = address?.toLowerCase() ?? "";
 
   useEffect(() => {
@@ -193,7 +221,7 @@ export function useFamilyPosition(family: FamilyState): FamilyPosition {
       setPos({ perChain: [], partial: false });
       return;
     }
-    const members = parseMembers(memberKey);
+    const members = parsePositionMembers(memberKey);
 
     let cancelled = false;
     const load = async () => {
@@ -211,7 +239,7 @@ export function useFamilyPosition(family: FamilyState): FamilyPosition {
               });
               decimalsCache.current.set(key, decimals);
             }
-            const [balance, votes] = await Promise.all([
+            const [balance, votingPower] = await Promise.all([
               client.readContract({
                 address: m.token,
                 abi: erc20Abi,
@@ -220,9 +248,9 @@ export function useFamilyPosition(family: FamilyState): FamilyPosition {
               }),
               client
                 .readContract({
-                  address: m.token,
-                  abi: tokenAbi,
-                  functionName: "getVotes",
+                  address: m.votingPowerStrategy,
+                  abi: votingPowerAbi,
+                  functionName: "getCurrentVotingPower",
                   args: [account as Address],
                 })
                 .catch(() => 0n) as Promise<bigint>,
@@ -230,7 +258,7 @@ export function useFamilyPosition(family: FamilyState): FamilyPosition {
             return {
               chainId: m.chainId,
               balance18: scaleTo18(balance, decimals),
-              votes18: scaleTo18(votes, decimals),
+              votes18: scaleTo18(votingPower, decimals),
             };
           } catch {
             return null;
