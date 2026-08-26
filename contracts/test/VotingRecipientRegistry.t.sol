@@ -20,6 +20,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
     event VoteCast(uint256 indexed proposalId, address indexed voter);
     event ProposalExecuted(uint256 indexed proposalId);
     event ProposalExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
+    event AtomicExecutionUpdated(bool atomicExecutionEnabled);
 
     function setUp() public {
         VotingRecipientRegistry impl = new VotingRecipientRegistry();
@@ -85,40 +86,29 @@ contract VotingRecipientRegistryTest is TestWrapper {
     }
 
     function test_WhenUnanimousVoteIsReached() external {
-        // it should auto-execute and queue recipient
+        // it should auto-execute and immediately add the recipient (atomic by default)
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
 
         vm.prank(RECIPIENT_2);
         registry.vote(proposalId);
 
-        // Third vote should trigger automatic execution (proposal only, not queue processing)
+        // Third vote triggers automatic execution AND queue processing in the same tx
         vm.prank(RECIPIENT_3);
         vm.expectEmit(true, false, false, false);
         emit ProposalExecuted(proposalId);
         registry.vote(proposalId);
 
-        // Verify proposal is executed but recipient not yet added (still in queue)
         (,,,, bool executed,) = registry.getProposal(proposalId);
         assertTrue(executed);
-        assertFalse(registry.isRecipient(NEW_RECIPIENT)); // Not yet processed
-        assertTrue(registry.isQueuedForAddition(NEW_RECIPIENT)); // Still in queue
-        assertEq(registry.getRecipientCount(), 3); // Original count
-
-        // Process the queue to actually add the recipient
-        vm.expectEmit(true, false, false, false);
-        emit IRecipientRegistry.RecipientAdded(NEW_RECIPIENT);
-        registry.processQueue();
-
-        // Now verify the recipient is actually added
-        assertTrue(registry.isRecipient(NEW_RECIPIENT));
+        assertTrue(registry.isRecipient(NEW_RECIPIENT)); // Already active, no processQueue() needed
+        assertFalse(registry.isQueuedForAddition(NEW_RECIPIENT));
         assertEq(registry.getRecipientCount(), 4);
-        assertFalse(registry.isQueuedForAddition(NEW_RECIPIENT)); // No longer in queue
     }
 
     function test_WhenManuallyExecutingAProposal() external {
-        // it should queue recipient after enough votes
-        // Add a fourth recipient first so we can test manual execution
+        // it should activate the recipient immediately (atomic by default);
+        // a manual processQueue() afterwards is a harmless no-op
         vm.prank(RECIPIENT_1);
         uint256 addProposal = registry.proposeAddition(NEW_RECIPIENT);
         vm.prank(RECIPIENT_2);
@@ -126,8 +116,8 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_3);
         registry.vote(addProposal);
 
-        // Process the queue to actually add the fourth recipient
-        registry.processQueue();
+        assertTrue(registry.isRecipient(NEW_RECIPIENT));
+        registry.processQueue(); // no-op, queue already empty
 
         // Now we have 4 recipients, create an addition proposal
         vm.prank(RECIPIENT_1);
@@ -139,19 +129,14 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_3);
         registry.vote(proposalId);
 
-        // The 3rd vote should auto-execute the proposal (but not process queue)
+        // The 4th vote auto-executes AND processes the queue in the same tx
         vm.prank(NEW_RECIPIENT);
         registry.vote(proposalId);
 
-        // Verify the proposal was executed but recipient not yet added
         (,,,, bool executed,) = registry.getProposal(proposalId);
         assertTrue(executed);
-        assertFalse(registry.isRecipient(address(0x99))); // Not yet processed
-        assertTrue(registry.isQueuedForAddition(address(0x99))); // Still in queue
-
-        // Process queue to actually add the recipient
-        registry.processQueue();
-        assertTrue(registry.isRecipient(address(0x99))); // Now added
+        assertTrue(registry.isRecipient(address(0x99)));
+        registry.processQueue(); // no-op, queue already empty
     }
 
     function test_WhenProposingARemoval() external {
@@ -170,7 +155,7 @@ contract VotingRecipientRegistryTest is TestWrapper {
     }
 
     function test_WhenRemovalReachesThreshold() external {
-        // it should auto-execute and queue for removal
+        // it should auto-execute and immediately remove the recipient (atomic by default)
         vm.prank(RECIPIENT_1);
         uint256 proposalId = registry.proposeRemoval(RECIPIENT_3);
 
@@ -180,22 +165,121 @@ contract VotingRecipientRegistryTest is TestWrapper {
         vm.prank(RECIPIENT_2);
         registry.vote(proposalId);
 
-        // Should auto-execute proposal with 2 votes (but not process queue)
+        // Auto-executes AND processes the queue in the same tx
         (,,,, bool executed,) = registry.getProposal(proposalId);
         assertTrue(executed);
-
-        // Verify recipient is still active (not yet processed)
-        assertTrue(registry.isRecipient(RECIPIENT_3)); // Still active
-        assertTrue(registry.isQueuedForRemoval(RECIPIENT_3)); // Queued for removal
-        assertEq(registry.getRecipientCount(), 3); // Original count
-
-        // Process the queue to actually remove the recipient
-        registry.processQueue();
-
-        // Now verify the recipient is removed
         assertFalse(registry.isRecipient(RECIPIENT_3));
+        assertFalse(registry.isQueuedForRemoval(RECIPIENT_3));
         assertEq(registry.getRecipientCount(), 2);
-        assertFalse(registry.isQueuedForRemoval(RECIPIENT_3)); // No longer queued
+    }
+
+    function test_WhenAtomicExecutionIsDefaultEnabled() external view {
+        // it should read as atomic on an instance that never touched the flag
+        assertTrue(registry.atomicExecutionEnabled());
+    }
+
+    function test_WhenAdminSetsAtomicExecution() external {
+        // it should switch modes and emit the event
+        vm.prank(ADMIN);
+        vm.expectEmit(true, false, false, false);
+        emit AtomicExecutionUpdated(false);
+        registry.setAtomicExecution(false);
+        assertFalse(registry.atomicExecutionEnabled());
+
+        vm.prank(ADMIN);
+        vm.expectEmit(true, false, false, false);
+        emit AtomicExecutionUpdated(true);
+        registry.setAtomicExecution(true);
+        assertTrue(registry.atomicExecutionEnabled());
+    }
+
+    function test_RevertWhen_NonAdminSetsAtomicExecution() external {
+        // it should only allow admin to set atomic execution
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert();
+        registry.setAtomicExecution(false);
+    }
+
+    function test_WhenVoidableModeLeavesQueueOpen() external {
+        // it reproduces the exact problem this flag exists to close: the admin
+        // can cancel a vote every recipient just agreed on unanimously
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(false);
+
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT);
+        vm.prank(RECIPIENT_2);
+        registry.vote(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.vote(proposalId);
+
+        (,,,, bool executed,) = registry.getProposal(proposalId);
+        assertTrue(executed);
+        assertTrue(registry.isQueuedForAddition(NEW_RECIPIENT));
+        assertFalse(registry.isRecipient(NEW_RECIPIENT));
+
+        vm.prank(ADMIN);
+        registry.clearAdditionQueue();
+        assertFalse(registry.isQueuedForAddition(NEW_RECIPIENT));
+        assertFalse(registry.isRecipient(NEW_RECIPIENT)); // Cancelled, never added
+    }
+
+    function test_WhenAtomicModeDrainsPreExistingQueue() external {
+        // it should process entries left over from voidable mode once atomic returns
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(false);
+
+        vm.prank(RECIPIENT_1);
+        uint256 firstProposal = registry.proposeAddition(address(0x50));
+        vm.prank(RECIPIENT_2);
+        registry.vote(firstProposal);
+        vm.prank(RECIPIENT_3);
+        registry.vote(firstProposal);
+        assertTrue(registry.isQueuedForAddition(address(0x50)));
+
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(true);
+
+        vm.prank(RECIPIENT_1);
+        uint256 secondProposal = registry.proposeAddition(address(0x60)); // > 0x50, ascending order holds
+        vm.prank(RECIPIENT_2);
+        registry.vote(secondProposal);
+        vm.prank(RECIPIENT_3);
+        registry.vote(secondProposal);
+
+        assertTrue(registry.isRecipient(address(0x50)));
+        assertTrue(registry.isRecipient(address(0x60)));
+    }
+
+    function test_RevertWhen_VoidableQueueOrderBreaksOnSecondExecution() external {
+        // it should revert with QueueNotSorted — already possible today, independent
+        // of this flag — and recover once the queue is processed
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(false);
+
+        vm.prank(RECIPIENT_1);
+        uint256 firstProposal = registry.proposeAddition(address(0x99));
+        vm.prank(RECIPIENT_2);
+        registry.vote(firstProposal);
+        vm.prank(RECIPIENT_3);
+        registry.vote(firstProposal); // queues 0x99
+
+        vm.prank(RECIPIENT_1);
+        uint256 secondProposal = registry.proposeAddition(address(0x11)); // < 0x99
+        vm.prank(RECIPIENT_2);
+        registry.vote(secondProposal);
+        vm.prank(RECIPIENT_3);
+        vm.expectRevert(IRecipientRegistry.QueueNotSorted.selector);
+        registry.vote(secondProposal);
+
+        // Recovery: no vote is lost, the queue just needs to clear before retrying.
+        // Still voidable mode — the recast queues 0x11 but a second processQueue()
+        // is needed to actually activate it (queue is empty again, so this one succeeds).
+        registry.processQueue();
+        vm.prank(RECIPIENT_3);
+        registry.vote(secondProposal);
+        registry.processQueue();
+        assertTrue(registry.isRecipient(address(0x11)));
     }
 
     function test_WhenAProposalExpires() external {
