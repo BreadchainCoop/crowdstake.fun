@@ -7,14 +7,26 @@ VotingRecipientRegistryTest
 ├── when voting on a proposal
 │   └── it should increment vote count
 ├── when unanimous vote is reached
-│   └── it should auto-execute and queue recipient
+│   └── it should auto-execute and immediately add the recipient (atomic by default)
 ├── when manually executing a proposal
-│   └── it should queue recipient after enough votes
+│   └── it should activate the recipient immediately (atomic by default)
 ├── when proposing a removal
 │   ├── it should create removal proposal
 │   └── it should require fewer votes than addition
 ├── when removal reaches threshold
-│   └── it should auto-execute and queue for removal
+│   └── it should auto-execute and immediately remove the recipient (atomic by default)
+├── when atomic execution is default enabled
+│   └── it should read as atomic on an instance that never touched the flag
+├── when admin sets atomic execution
+│   └── it should switch modes and emit the event
+├── when a non-admin sets atomic execution
+│   └── it should revert
+├── when voidable mode leaves the queue open
+│   └── it should let the admin cancel an already-unanimous vote
+├── when atomic mode drains a pre-existing queue
+│   └── it should process leftover voidable-mode entries too
+├── when the voidable queue order breaks on a second execution
+│   └── it should revert with QueueNotSorted, recoverable after processQueue()
 ├── when a proposal expires
 │   ├── it should reject votes on expired proposals
 │   └── it should reject execution of expired proposals
