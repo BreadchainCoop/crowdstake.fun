@@ -37,6 +37,11 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         uint256 createdAt;
         /// @notice Number of votes required for this proposal to pass, snapshotted at creation
         uint256 requiredVotes;
+        /// @notice Whether execution leaves the queue open, snapshotted at creation
+        /// @dev Stored inverted for the same reason as the registry-level field: appended to an
+        ///      existing struct, so proposals created before the upgrade read zero — which has to
+        ///      mean atomic, the safe behavior.
+        bool voidableExecution;
     }
 
     /// @notice A cross-chain (family) proposal, keyed by its EIP-712 struct hash
@@ -96,6 +101,15 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         /// @notice Ordered list of every cross-chain proposalKey ever created on this chain
         /// @dev Append-only; enables enumeration for indexers/frontends.
         bytes32[] crossChainProposalKeys;
+        /// @notice true = the classic path leaves the queue open (voidable via
+        ///         clearAdditionQueue/clearRemovalQueue) until processQueue() is called
+        ///         separately. false (default, zero value) = atomic: _processQueue() runs
+        ///         immediately after queueing.
+        /// @dev Stored inverted deliberately — a beacon upgrade zeroes any newly added
+        ///      storage field on every already-deployed instance, so the default must be
+        ///      "atomic" without needing a migration. The cross-chain path is unaffected by
+        ///      this flag: it is always atomic, see _executeCrossChainProposal.
+        bool voidableExecutionEnabled;
     }
 
     // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.VotingRecipientRegistry")) - 1)) & ~bytes32(uint256(0xff))
@@ -164,6 +178,11 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @param oldExpiry The previous expiry duration in seconds
     /// @param newExpiry The new expiry duration in seconds
     event ProposalExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
+
+    /// @notice Emitted when the classic-path execution mode is updated
+    /// @dev Cross-chain execution is unaffected — always atomic regardless of this flag.
+    /// @param atomicExecutionEnabled True if the classic path now executes atomically
+    event AtomicExecutionUpdated(bool atomicExecutionEnabled);
 
     /// @notice Emitted when a cross-chain proposal is created on this chain
     /// @dev Re-emits the full signed payload so the relay listener can propagate it to siblings.
@@ -300,6 +319,34 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         emit ProposalExpiryUpdated(oldExpiry, newExpiry);
     }
 
+    /// @notice The instance-wide setting new proposals are created under: atomic execution
+    ///         (default) or a voidable window left open until processQueue() runs separately
+    /// @dev Proposals already created keep the mode captured at their creation — call
+    ///      isProposalAtomic(proposalId) for a specific one. Cross-chain execution is always
+    ///      atomic, regardless of this flag.
+    function atomicExecutionEnabled() public view returns (bool) {
+        return !_getVotingRecipientRegistryStorage().voidableExecutionEnabled;
+    }
+
+    /// @notice Whether a proposal will execute atomically, as captured at its creation
+    /// @dev Later calls to setAtomicExecution do not affect proposals already created, so this
+    ///      is what actually applies to an open proposal.
+    /// @param proposalId The ID of the proposal to inspect
+    function isProposalAtomic(uint256 proposalId) external view returns (bool) {
+        return !_getVotingRecipientRegistryStorage().proposals[proposalId].voidableExecution;
+    }
+
+    /// @notice Switch the classic path between atomic and voidable execution
+    /// @dev Only the admin (owner) can call this function. Applies to proposals created
+    ///      after this call — proposals already open keep the mode they were created under.
+    ///      Does not affect the cross-chain path, which is always atomic.
+    /// @param atomicExecutionEnabled_ True for atomic (no cancellation window), false for
+    ///        the voidable behavior (owner can clear the queue before processQueue() runs)
+    function setAtomicExecution(bool atomicExecutionEnabled_) external onlyOwner {
+        _getVotingRecipientRegistryStorage().voidableExecutionEnabled = !atomicExecutionEnabled_;
+        emit AtomicExecutionUpdated(atomicExecutionEnabled_);
+    }
+
     /// @notice Queue a recipient for addition through the voting process
     /// @dev This creates a proposal instead of directly queueing
     /// @dev Only existing recipients can call this function
@@ -376,6 +423,9 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         proposal.createdAt = block.timestamp;
         AbstractRecipientRegistryStorage storage base = _getAbstractRecipientRegistryStorage();
         proposal.requiredVotes = isAddition ? base.recipients.length : base.recipients.length - 1;
+        // Snapshot the execution mode so a later setAtomicExecution cannot change the rules
+        // a proposal was voted under.
+        proposal.voidableExecution = $.voidableExecutionEnabled;
 
         // Snapshot eligible voters from the current recipient set
         for (uint256 i = 0; i < base.recipients.length; i++) {
@@ -438,11 +488,15 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Internal function to execute a proposal and queue recipients
     /// @dev Marks the proposal as executed to prevent double execution
     /// @dev Queues the candidate for addition or removal based on proposal type
-    /// @dev Queue must be processed separately by calling processQueue()
+    /// @dev Atomic by default: processes the queue in the same call, closing the
+    ///      cancellation window. If the proposal was created while voidable execution was
+    ///      enabled, the queue is left open and must be processed separately by calling
+    ///      processQueue(). The mode is the one captured at creation, not the current one.
     /// @dev Emits ProposalExecuted event after successful execution
     /// @param proposalId The ID of the proposal to execute
     function _executeProposal(uint256 proposalId) internal {
-        Proposal storage proposal = _getVotingRecipientRegistryStorage().proposals[proposalId];
+        VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
+        Proposal storage proposal = $.proposals[proposalId];
         proposal.executed = true;
 
         if (proposal.isAddition) {
@@ -450,6 +504,8 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         } else {
             _queueForRemoval(proposal.candidate);
         }
+
+        if (!proposal.voidableExecution) _processQueue();
 
         emit ProposalExecuted(proposalId);
     }
