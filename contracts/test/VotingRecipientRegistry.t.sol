@@ -282,6 +282,50 @@ contract VotingRecipientRegistryTest is TestWrapper {
         assertTrue(registry.isRecipient(address(0x11)));
     }
 
+    function test_WhenAtomicProposalOutlivesAFlipToVoidable() external {
+        // it should execute atomically, using the mode captured at creation
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT); // born atomic (default)
+        assertTrue(registry.isProposalAtomic(proposalId));
+
+        vm.prank(RECIPIENT_2);
+        registry.vote(proposalId);
+
+        // Admin reopens the cancellation window with two votes already cast — too late
+        // for this proposal, which keeps the rules it was voted under.
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(false);
+        assertTrue(registry.isProposalAtomic(proposalId));
+
+        vm.prank(RECIPIENT_3);
+        registry.vote(proposalId);
+
+        assertTrue(registry.isRecipient(NEW_RECIPIENT));
+        assertFalse(registry.isQueuedForAddition(NEW_RECIPIENT));
+    }
+
+    function test_WhenVoidableProposalOutlivesAFlipToAtomic() external {
+        // it should stay queued, using the mode captured at creation
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(false);
+
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeAddition(NEW_RECIPIENT); // born voidable
+        assertFalse(registry.isProposalAtomic(proposalId));
+
+        vm.prank(ADMIN);
+        registry.setAtomicExecution(true);
+        assertFalse(registry.isProposalAtomic(proposalId));
+
+        vm.prank(RECIPIENT_2);
+        registry.vote(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.vote(proposalId);
+
+        assertTrue(registry.isQueuedForAddition(NEW_RECIPIENT));
+        assertFalse(registry.isRecipient(NEW_RECIPIENT));
+    }
+
     function test_WhenAProposalExpires() external {
         // it should reject votes on expired proposals
         // it should reject execution of expired proposals
