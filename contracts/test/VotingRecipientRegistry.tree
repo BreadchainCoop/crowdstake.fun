@@ -27,6 +27,10 @@ VotingRecipientRegistryTest
 │   └── it should process leftover voidable-mode entries too
 ├── when the voidable queue order breaks on a second execution
 │   └── it should revert with QueueNotSorted, recoverable after processQueue()
+├── when an atomic proposal outlives a flip to voidable
+│   └── it should execute atomically, using the mode captured at creation
+├── when a voidable proposal outlives a flip to atomic
+│   └── it should stay queued, using the mode captured at creation
 ├── when a proposal expires
 │   ├── it should reject votes on expired proposals
 │   └── it should reject execution of expired proposals
