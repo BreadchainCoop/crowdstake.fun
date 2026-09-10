@@ -35,4 +35,26 @@ abstract contract GovernanceCallRegistryBase {
         /// @notice Whether an address was in the electorate snapshotted at creation
         mapping(address => bool) isEligibleVoter;
     }
+
+    /// @custom:storage-location erc7201:crowdstake.storage.GovernanceCallRegistryBase
+    struct GovernanceCallRegistryBaseStorage {
+        /// @notice Id assigned to the next proposal, monotonic
+        uint256 proposalCount;
+        /// @notice Every governance-call proposal, by id
+        mapping(uint256 => GovernanceCallProposal) proposals;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("crowdstake.storage.GovernanceCallRegistryBase")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant GOVERNANCE_CALL_REGISTRY_BASE_STORAGE =
+        0x2cbccaf3fc8f64d45f9c4470c725695a246b8f36c5b9c55dfd91f0124fead900;
+
+    function _getGovernanceCallRegistryBaseStorage()
+        internal
+        pure
+        returns (GovernanceCallRegistryBaseStorage storage $)
+    {
+        assembly {
+            $.slot := GOVERNANCE_CALL_REGISTRY_BASE_STORAGE
+        }
+    }
 }
