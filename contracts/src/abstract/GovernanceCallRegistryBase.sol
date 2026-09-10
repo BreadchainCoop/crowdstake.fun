@@ -58,6 +58,56 @@ abstract contract GovernanceCallRegistryBase {
         }
     }
 
+    // ============ Public Getters ============
+
+    /// @notice Mapping from proposal id to proposal data
+    /// @dev `hasVoted`/`isEligibleVoter` are mappings and can't be returned from a struct getter —
+    ///      use the dedicated hasVoted()/isEligibleVoter() views below for those.
+    /// @param proposalId The id of the proposal to read
+    function proposals(uint256 proposalId)
+        public
+        view
+        returns (
+            address target,
+            bytes memory callData,
+            uint256 expiresAt,
+            uint256 voteCount,
+            uint256 requiredVotes,
+            bool executed
+        )
+    {
+        GovernanceCallProposal storage proposal = _getGovernanceCallRegistryBaseStorage().proposals[proposalId];
+        return (
+            proposal.target,
+            proposal.callData,
+            proposal.expiresAt,
+            proposal.voteCount,
+            proposal.requiredVotes,
+            proposal.executed
+        );
+    }
+
+    /// @notice Total number of governance-call proposals created (also the next proposal id)
+    function proposalCount() public view returns (uint256) {
+        return _getGovernanceCallRegistryBaseStorage().proposalCount;
+    }
+
+    /// @notice Check if a specific address has voted on a governance-call proposal
+    /// @dev Returns false for non-existent proposals or voters
+    /// @param proposalId The id of the proposal to check
+    /// @param voter The address to check voting status for
+    function hasVoted(uint256 proposalId, address voter) external view returns (bool hasVoted_) {
+        return _getGovernanceCallRegistryBaseStorage().proposals[proposalId].hasVoted[voter];
+    }
+
+    /// @notice Check if an address was eligible to vote on a governance-call proposal
+    /// @dev Eligibility is snapshotted at creation from the electorate the host passed in
+    /// @param proposalId The id of the proposal to check
+    /// @param voter The address to check eligibility for
+    function isEligibleVoter(uint256 proposalId, address voter) external view returns (bool isEligible) {
+        return _getGovernanceCallRegistryBaseStorage().proposals[proposalId].isEligibleVoter[voter];
+    }
+
     // ============ Events ============
 
     /// @notice Emitted when a new governance-call proposal is created
