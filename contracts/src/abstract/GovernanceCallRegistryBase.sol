@@ -216,12 +216,37 @@ abstract contract GovernanceCallRegistryBase {
     // ============ Internal: vote ============
 
     /// @notice Cast a vote on a governance-call proposal
-    /// @dev STUB — empty on purpose so the host wrapper (this step) has something to call and the
-    ///      project keeps compiling. Full body (existence/executed/expired/eligibility/double-vote
-    ///      checks, vote count, auto-execution at threshold) lands in a later step.
     /// @dev Unlike propose, this needs nothing from the host: eligibility was already snapshotted
-    ///      into this proposal's own storage at creation, so the mixin can check it entirely on its
-    ///      own — no gate, no extra parameter to pass in.
+    ///      into this proposal's own storage at creation, so the mixin checks it entirely on its
+    ///      own — no gate, no extra parameter to pass in. Mirrors VotingRecipientRegistry.vote()
+    ///      check for check (existence via the target sentinel, executed, expired, eligibility,
+    ///      double-vote), then auto-executes at threshold exactly like the classic path does.
     /// @param proposalId The id of the proposal to vote on
-    function _voteGovernanceCall(uint256 proposalId) internal {}
+    function _voteGovernanceCall(uint256 proposalId) internal {
+        GovernanceCallRegistryBaseStorage storage $ = _getGovernanceCallRegistryBaseStorage();
+        GovernanceCallProposal storage proposal = $.proposals[proposalId];
+        if (proposal.target == address(0)) revert GovernanceCallNotFound();
+        if (proposal.executed) revert GovernanceCallAlreadyExecuted();
+        if (block.timestamp > proposal.expiresAt) revert GovernanceCallExpired();
+        if (!proposal.isEligibleVoter[msg.sender]) revert GovernanceCallNotEligibleVoter();
+        if (proposal.hasVoted[msg.sender]) revert GovernanceCallAlreadyVoted();
+
+        proposal.hasVoted[msg.sender] = true;
+        proposal.voteCount++;
+
+        emit GovernanceCallVoteCast(proposalId, msg.sender);
+
+        // Auto-execute once the threshold is reached — same as the classic path's vote().
+        if (proposal.voteCount == proposal.requiredVotes) {
+            _executeGovernanceCall(proposalId);
+        }
+    }
+
+    // ============ Internal: execute ============
+
+    /// @notice Perform the target call once a governance-call proposal has enough votes
+    /// @dev STUB — empty on purpose so _voteGovernanceCall's auto-execution path (above) has
+    ///      something to call and the project keeps compiling.
+    /// @param proposalId The id of the proposal to execute
+    function _executeGovernanceCall(uint256 proposalId) internal {}
 }
