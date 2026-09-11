@@ -212,4 +212,16 @@ abstract contract GovernanceCallRegistryBase {
         emit GovernanceCallProposed(proposalId, target, callData);
         emit GovernanceCallVoteCast(proposalId, msg.sender);
     }
+
+    // ============ Internal: vote ============
+
+    /// @notice Cast a vote on a governance-call proposal
+    /// @dev STUB — empty on purpose so the host wrapper (this step) has something to call and the
+    ///      project keeps compiling. Full body (existence/executed/expired/eligibility/double-vote
+    ///      checks, vote count, auto-execution at threshold) lands in a later step.
+    /// @dev Unlike propose, this needs nothing from the host: eligibility was already snapshotted
+    ///      into this proposal's own storage at creation, so the mixin can check it entirely on its
+    ///      own — no gate, no extra parameter to pass in.
+    /// @param proposalId The id of the proposal to vote on
+    function _voteGovernanceCall(uint256 proposalId) internal {}
 }

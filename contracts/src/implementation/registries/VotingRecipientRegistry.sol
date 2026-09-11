@@ -479,6 +479,16 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         return _proposeGovernanceCall(target, callData, base.recipients, block.timestamp + proposalExpiry());
     }
 
+    /// @notice Cast a vote on a governance-call proposal
+    /// @dev onlyClassicRegistry, same scope restriction as proposeGovernanceCall. No NotARecipient
+    ///      gate here — eligibility was already snapshotted at proposal creation into the mixin's
+    ///      own storage, so it's checked entirely inside _voteGovernanceCall, same as the classic
+    ///      vote() below does not re-check base.isRecipientMapping either.
+    /// @param proposalId The id of the proposal to vote on
+    function voteGovernanceCall(uint256 proposalId) external onlyClassicRegistry {
+        _voteGovernanceCall(proposalId);
+    }
+
     // ============ Cross-chain (family) governance ============
 
     /// @notice Create a cross-chain proposal from a chain-agnostic proposer signature
