@@ -20,6 +20,9 @@ contract VotingRecipientRegistryTest is TestWrapper {
     event VoteCast(uint256 indexed proposalId, address indexed voter);
     event ProposalExecuted(uint256 indexed proposalId);
     event ProposalExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
+    event GovernanceCallProposed(uint256 indexed proposalId, address indexed target, bytes callData);
+    event GovernanceCallVoteCast(uint256 indexed proposalId, address indexed voter);
+    event GovernanceCallExecuted(uint256 indexed proposalId);
 
     function setUp() public {
         VotingRecipientRegistry impl = new VotingRecipientRegistry();
@@ -411,5 +414,105 @@ contract VotingRecipientRegistryTest is TestWrapper {
 
         (,,,, bool executed,) = registry.getProposal(proposalId);
         assertTrue(executed);
+    }
+
+    // ============ Governance calls ============
+
+    function test_WhenProposingAGovernanceCall() external {
+        // it should create proposal with auto-vote from proposer
+        // it should snapshot electorate and required votes at creation
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+
+        vm.expectEmit(true, true, false, true);
+        emit GovernanceCallProposed(0, address(registry), callData);
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        (
+            address target,
+            bytes memory storedCallData,
+            uint256 expiresAt,
+            uint256 voteCount,
+            uint256 requiredVotes,
+            bool executed
+        ) = registry.getGovernanceCallProposal(proposalId);
+
+        assertEq(target, address(registry));
+        assertEq(storedCallData, callData);
+        assertEq(expiresAt, block.timestamp + 7 days);
+        assertEq(voteCount, 1); // proposer auto-votes
+        assertEq(requiredVotes, 3); // snapshotted electorate size
+        assertFalse(executed);
+
+        assertTrue(registry.hasVotedGovernanceCall(proposalId, RECIPIENT_1));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_1));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_2));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_3));
+    }
+
+    function test_WhenVotingOnAGovernanceCall() external {
+        // it should increment vote count
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.expectEmit(true, true, false, false);
+        emit GovernanceCallVoteCast(proposalId, RECIPIENT_2);
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        (,,, uint256 voteCount,,) = registry.getGovernanceCallProposal(proposalId);
+        assertEq(voteCount, 2);
+        assertTrue(registry.hasVotedGovernanceCall(proposalId, RECIPIENT_2));
+    }
+
+    function test_WhenAGovernanceCallReachesUnanimousVotes() external {
+        // it should auto-execute the target call
+        vm.prank(ADMIN);
+        registry.transferOwnership(address(registry));
+
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.expectEmit(true, false, false, false);
+        emit GovernanceCallExecuted(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.voteGovernanceCall(proposalId);
+
+        (,,,,, bool executed) = registry.getGovernanceCallProposal(proposalId);
+        assertTrue(executed);
+        assertEq(registry.proposalExpiry(), 14 days);
+    }
+
+    function test_WhenALoneRecipientProposesAGovernanceCall() external {
+        // it should NOT auto-execute even though the threshold is already met
+        // it should perform the target call once manually executed
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory solo = new address[](1);
+        solo[0] = RECIPIENT_1;
+        bytes memory initData =
+            abi.encodeWithSignature("initialize(address,address[],uint256)", ADMIN, solo, uint256(7 days));
+        VotingRecipientRegistry lone = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        vm.prank(ADMIN);
+        lone.transferOwnership(address(lone));
+
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = lone.proposeGovernanceCall(address(lone), callData);
+
+        (,,,, uint256 requiredVotes, bool executedAfterPropose) = lone.getGovernanceCallProposal(proposalId);
+        assertEq(requiredVotes, 1); // threshold already met by the proposer's own auto-vote...
+        assertFalse(executedAfterPropose); // ...but propose() never auto-executes
+
+        lone.executeGovernanceCall(proposalId);
+
+        (,,,,, bool executedAfterManual) = lone.getGovernanceCallProposal(proposalId);
+        assertTrue(executedAfterManual);
+        assertEq(lone.proposalExpiry(), 14 days);
     }
 }
