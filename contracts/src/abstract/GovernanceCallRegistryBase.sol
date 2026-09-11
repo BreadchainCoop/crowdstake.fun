@@ -60,11 +60,18 @@ abstract contract GovernanceCallRegistryBase {
 
     // ============ Public Getters ============
 
-    /// @notice Mapping from proposal id to proposal data
+    /// @dev All four getters below carry a `GovernanceCall` name, not the bare names the classic
+    ///      path already uses (`proposals`, `proposalCount`, `hasVoted`, `isEligibleVoter`) —
+    ///      same collision problem as the errors above, same fix. Mirrors the naming the project
+    ///      already uses to disambiguate the cross-chain getters from the classic ones
+    ///      (hasVotedCrossChain, isEligibleCrossChainVoter, crossChainProposalCount,
+    ///      getCrossChainProposal).
+
+    /// @notice Read a governance-call proposal by id
     /// @dev `hasVoted`/`isEligibleVoter` are mappings and can't be returned from a struct getter —
-    ///      use the dedicated hasVoted()/isEligibleVoter() views below for those.
+    ///      use the dedicated views below for those.
     /// @param proposalId The id of the proposal to read
-    function proposals(uint256 proposalId)
+    function getGovernanceCallProposal(uint256 proposalId)
         public
         view
         returns (
@@ -88,7 +95,7 @@ abstract contract GovernanceCallRegistryBase {
     }
 
     /// @notice Total number of governance-call proposals created (also the next proposal id)
-    function proposalCount() public view returns (uint256) {
+    function governanceCallProposalCount() public view returns (uint256) {
         return _getGovernanceCallRegistryBaseStorage().proposalCount;
     }
 
@@ -96,7 +103,7 @@ abstract contract GovernanceCallRegistryBase {
     /// @dev Returns false for non-existent proposals or voters
     /// @param proposalId The id of the proposal to check
     /// @param voter The address to check voting status for
-    function hasVoted(uint256 proposalId, address voter) external view returns (bool hasVoted_) {
+    function hasVotedGovernanceCall(uint256 proposalId, address voter) external view returns (bool hasVoted_) {
         return _getGovernanceCallRegistryBaseStorage().proposals[proposalId].hasVoted[voter];
     }
 
@@ -104,7 +111,7 @@ abstract contract GovernanceCallRegistryBase {
     /// @dev Eligibility is snapshotted at creation from the electorate the host passed in
     /// @param proposalId The id of the proposal to check
     /// @param voter The address to check eligibility for
-    function isEligibleVoter(uint256 proposalId, address voter) external view returns (bool isEligible) {
+    function isEligibleGovernanceCallVoter(uint256 proposalId, address voter) external view returns (bool isEligible) {
         return _getGovernanceCallRegistryBaseStorage().proposals[proposalId].isEligibleVoter[voter];
     }
 
@@ -149,4 +156,33 @@ abstract contract GovernanceCallRegistryBase {
     /// @dev Also covers `requiredVotes == 0`, defense in depth mirroring the classic path's guard —
     ///      an empty electorate should never be able to "execute" for free.
     error GovernanceCallInsufficientVotes();
+
+    // ============ Internal: propose ============
+
+    /// @notice Create a governance-call proposal, casting the proposer's own vote for it
+    /// @dev STUB — id assignment only, wired up so the host wrapper (step 5) has something to call
+    ///      and the project keeps compiling. Full body (target guard, snapshot, auto-vote, events)
+    ///      lands in step 6.
+    /// @param target The contract the call is aimed at, may be the host itself
+    /// @param callData ABI-encoded call to perform on `target` once the proposal passes
+    /// @dev `calldata`, not `memory`: the only caller (VotingRecipientRegistry.proposeGovernanceCall)
+    ///      already receives it as `calldata` from the external transaction, so passing it straight
+    ///      through avoids an extra copy. Only possible because this internal function currently has
+    ///      a single call site that is itself external — if a second caller needed to hand in an
+    ///      already-in-memory bytes value, this would have to go back to `memory`.
+    /// @param electorate The current recipient set, snapshotted as of this call
+    /// @dev `electorate` stays `memory`, not `calldata` — unlike `callData` it never arrives via the
+    ///      external transaction, the host builds it by copying its own `base.recipients` out of
+    ///      storage, so `calldata` isn't an option here regardless of call-site shape.
+    /// @param expiresAt Absolute Unix timestamp the proposal expires at, already computed by the host
+    /// @return proposalId The id assigned to the new proposal
+    function _proposeGovernanceCall(
+        address target,
+        bytes calldata callData,
+        address[] memory electorate,
+        uint256 expiresAt
+    ) internal returns (uint256 proposalId) {
+        GovernanceCallRegistryBaseStorage storage $ = _getGovernanceCallRegistryBaseStorage();
+        proposalId = $.proposalCount++;
+    }
 }

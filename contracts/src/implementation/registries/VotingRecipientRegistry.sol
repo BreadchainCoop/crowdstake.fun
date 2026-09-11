@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {AbstractRecipientRegistry} from "../../abstract/AbstractRecipientRegistry.sol";
 import {CrossChainRegistryBase} from "../../abstract/CrossChainRegistryBase.sol";
+import {GovernanceCallRegistryBase} from "../../abstract/GovernanceCallRegistryBase.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title VotingRecipientRegistry
@@ -16,7 +17,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///      classic mutation paths are gated onlyClassicRegistry on family instances so a chain-local
 ///      proposal cannot silently break family set-equality.
 /// @author BreadKit Protocol
-contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistryBase {
+contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistryBase, GovernanceCallRegistryBase {
     using ECDSA for bytes32;
 
     /// @notice Structure containing all information about a proposal
@@ -452,6 +453,31 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         }
 
         emit ProposalExecuted(proposalId);
+    }
+
+    // ============ Governance calls (classic only) ============
+
+    /// @notice Propose an arbitrary call to `target`, decided by a unanimous vote of current
+    ///         recipients — the generic mechanism behind e.g. changing cycle length, rotating the
+    ///         yield claimer, or this registry's own setProposalExpiry/setAtomicExecution
+    /// @dev onlyClassicRegistry: family instances don't get this mechanism in this version — see
+    ///      Issue 5 in issue.md, cross-chain governance-calls are explicitly out of scope for now.
+    /// @dev NotARecipient is checked here, not inside the mixin: GovernanceCallRegistryBase has its
+    ///      own EIP-7201 namespace and cannot read base.isRecipientMapping — same reason expiresAt
+    ///      is computed here, from this registry's own live proposalExpiry, and handed in already
+    ///      absolute.
+    /// @param target The contract the call is aimed at, may be this registry itself
+    /// @param callData ABI-encoded call to perform on `target` once the proposal passes
+    /// @return proposalId The id assigned to the new proposal
+    function proposeGovernanceCall(address target, bytes calldata callData)
+        external
+        onlyClassicRegistry
+        returns (uint256 proposalId)
+    {
+        AbstractRecipientRegistryStorage storage base = _getAbstractRecipientRegistryStorage();
+        if (!base.isRecipientMapping[msg.sender]) revert NotARecipient();
+
+        return _proposeGovernanceCall(target, callData, base.recipients, block.timestamp + proposalExpiry());
     }
 
     // ============ Cross-chain (family) governance ============
