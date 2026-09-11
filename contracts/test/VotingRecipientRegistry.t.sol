@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import {TestWrapper} from "./TestWrapper.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {IRecipientRegistry} from "../src/interfaces/IRecipientRegistry.sol";
+import {GovernanceCallRegistryBase} from "../src/abstract/GovernanceCallRegistryBase.sol";
+import {CrossChainRegistryBase} from "../src/abstract/CrossChainRegistryBase.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract VotingRecipientRegistryTest is TestWrapper {
@@ -514,5 +516,129 @@ contract VotingRecipientRegistryTest is TestWrapper {
         (,,,,, bool executedAfterManual) = lone.getGovernanceCallProposal(proposalId);
         assertTrue(executedAfterManual);
         assertEq(lone.proposalExpiry(), 14 days);
+    }
+
+    function test_WhenProposingAGovernanceCallWithTheZeroAddressAsTarget() external {
+        // it should revert with GovernanceCallInvalidTarget
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallInvalidTarget.selector);
+        registry.proposeGovernanceCall(address(0), "");
+    }
+
+    function test_WhenANonRecipientProposesAGovernanceCall() external {
+        // it should revert with NotARecipient
+        vm.prank(NON_RECIPIENT);
+        vm.expectRevert(VotingRecipientRegistry.NotARecipient.selector);
+        registry.proposeGovernanceCall(address(registry), "");
+    }
+
+    function test_WhenAGovernanceCallExpires() external {
+        // it should reject votes on expired proposals
+        // it should reject execution of expired proposals
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        vm.warp(block.timestamp + 8 days);
+
+        vm.prank(RECIPIENT_2);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallExpired.selector);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallExpired.selector);
+        registry.executeGovernanceCall(proposalId);
+    }
+
+    function test_WhenANonEligibleAddressVotesOnAGovernanceCall() external {
+        // it should revert with GovernanceCallNotEligibleVoter
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        vm.prank(NON_RECIPIENT);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallNotEligibleVoter.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenDoubleVotingOnAGovernanceCall() external {
+        // it should revert with GovernanceCallAlreadyVoted
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        // RECIPIENT_1 already auto-voted at proposal creation
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallAlreadyVoted.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenVotingOnAnInvalidGovernanceCall() external {
+        // it should revert with GovernanceCallNotFound
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallNotFound.selector);
+        registry.voteGovernanceCall(999);
+    }
+
+    function test_WhenVotingOnAnExecutedGovernanceCall() external {
+        // it should revert with GovernanceCallAlreadyExecuted
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory solo = new address[](1);
+        solo[0] = RECIPIENT_1;
+        bytes memory initData =
+            abi.encodeWithSignature("initialize(address,address[],uint256)", ADMIN, solo, uint256(7 days));
+        VotingRecipientRegistry lone = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        // A harmless view call as the target — succeeds regardless of ownership, so this test
+        // doesn't need the self-ownership setup other execution tests use.
+        bytes memory harmlessCallData = abi.encodeCall(VotingRecipientRegistry.proposalExpiry, ());
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = lone.proposeGovernanceCall(address(lone), harmlessCallData);
+        lone.executeGovernanceCall(proposalId);
+
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallAlreadyExecuted.selector);
+        lone.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenExecutingAGovernanceCallWithoutEnoughVotes() external {
+        // it should revert with GovernanceCallInsufficientVotes
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        // Only 1 of 3 votes (the proposer's own auto-vote)
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallInsufficientVotes.selector);
+        registry.executeGovernanceCall(proposalId);
+    }
+
+    function test_WhenTheTargetCallItselfReverts() external {
+        // it should bubble up the target's revert reason
+        vm.prank(ADMIN);
+        registry.transferOwnership(address(registry));
+
+        // setProposalExpiry(0) reverts with InvalidProposalExpiry — Address.functionCall must
+        // propagate that exact error, not a generic "call failed".
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (0));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.prank(RECIPIENT_3);
+        vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenAFamilyInstanceProposesAGovernanceCall() external {
+        // it should revert with CrossChainOnly
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory initial = new address[](3);
+        initial[0] = RECIPIENT_1;
+        initial[1] = RECIPIENT_2;
+        initial[2] = RECIPIENT_3;
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address[],uint256,bytes32)", ADMIN, initial, uint256(7 days), bytes32(uint256(1))
+        );
+        VotingRecipientRegistry family = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(CrossChainRegistryBase.CrossChainOnly.selector);
+        family.proposeGovernanceCall(address(family), "");
     }
 }
