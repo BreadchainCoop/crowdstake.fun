@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 /// @title GovernanceCallRegistryBase
 /// @author BreadKit Protocol
 /// @notice Shared plumbing for recipient-governed calls: a registry mixing this in can let its
@@ -11,6 +13,8 @@ pragma solidity ^0.8.20;
 ///      recipient set: the host reads it and passes the electorate in as a parameter, the same way
 ///      the cross-chain path already passes a signed electorate.
 abstract contract GovernanceCallRegistryBase {
+    using Address for address;
+
     /// @notice A proposal to perform `callData` on `target`, decided by the recipients
     /// @dev Electorate and threshold are snapshotted at creation, mirroring the classic recipient
     ///      proposals: later changes to the recipient set must not move the goalposts of a vote
@@ -245,8 +249,32 @@ abstract contract GovernanceCallRegistryBase {
     // ============ Internal: execute ============
 
     /// @notice Perform the target call once a governance-call proposal has enough votes
-    /// @dev STUB — empty on purpose so _voteGovernanceCall's auto-execution path (above) has
-    ///      something to call and the project keeps compiling.
+    /// @dev Self-contained, like _proposeGovernanceCall/_voteGovernanceCall: checks its own
+    ///      preconditions rather than trusting the caller, so it's safe to call both from
+    ///      _voteGovernanceCall's auto-execution above and from the host's manual
+    ///      executeGovernanceCall wrapper. requiredVotes == 0 / insufficient votes only
+    ///      matters on the manual path in practice (the auto-execute path only ever calls this
+    ///      exactly when the threshold was just met) — checking it here anyway is the same
+    ///      defense-in-depth reasoning as the error's own doc comment.
+    /// @dev executed is set to true BEFORE the external call (checks-effects-interactions): target
+    ///      is arbitrary, attacker-influenced code that could re-enter — with the flag already
+    ///      written, a reentrant call finds the proposal already consumed.
     /// @param proposalId The id of the proposal to execute
-    function _executeGovernanceCall(uint256 proposalId) internal {}
+    function _executeGovernanceCall(uint256 proposalId) internal {
+        GovernanceCallRegistryBaseStorage storage $ = _getGovernanceCallRegistryBaseStorage();
+        GovernanceCallProposal storage proposal = $.proposals[proposalId];
+        if (proposal.target == address(0)) revert GovernanceCallNotFound();
+        if (proposal.executed) revert GovernanceCallAlreadyExecuted();
+        if (block.timestamp > proposal.expiresAt) revert GovernanceCallExpired();
+        if (proposal.requiredVotes == 0) revert GovernanceCallInsufficientVotes();
+        if (proposal.voteCount < proposal.requiredVotes) revert GovernanceCallInsufficientVotes();
+
+        proposal.executed = true;
+
+        address target = proposal.target;
+        bytes memory callData = proposal.callData;
+        target.functionCall(callData);
+
+        emit GovernanceCallExecuted(proposalId);
+    }
 }

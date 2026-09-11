@@ -489,6 +489,16 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         _voteGovernanceCall(proposalId);
     }
 
+    /// @notice Manually execute a governance-call proposal that already has enough votes
+    /// @dev onlyClassicRegistry, same scope restriction as the rest of this mechanism. Needed for
+    ///      the one gap propose+vote leave open: propose() never auto-executes even when the
+    ///      proposer's own vote already meets the threshold (e.g. a lone-recipient registry), so
+    ///      without this there would be no way to ever trigger that proposal.
+    /// @param proposalId The id of the proposal to execute
+    function executeGovernanceCall(uint256 proposalId) external onlyClassicRegistry {
+        _executeGovernanceCall(proposalId);
+    }
+
     // ============ Cross-chain (family) governance ============
 
     /// @notice Create a cross-chain proposal from a chain-agnostic proposer signature
