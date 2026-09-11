@@ -460,8 +460,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Propose an arbitrary call to `target`, decided by a unanimous vote of current
     ///         recipients — the generic mechanism behind e.g. changing cycle length, rotating the
     ///         yield claimer, or this registry's own setProposalExpiry/setAtomicExecution
-    /// @dev onlyClassicRegistry: family instances don't get this mechanism in this version — see
-    ///      Issue 5 in issue.md, cross-chain governance-calls are explicitly out of scope for now.
+    /// @dev onlyClassicRegistry: family instances don't get this mechanism in this version
     /// @dev NotARecipient is checked here, not inside the mixin: GovernanceCallRegistryBase has its
     ///      own EIP-7201 namespace and cannot read base.isRecipientMapping — same reason expiresAt
     ///      is computed here, from this registry's own live proposalExpiry, and handed in already

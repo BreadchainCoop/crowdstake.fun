@@ -160,9 +160,16 @@ abstract contract GovernanceCallRegistryBase {
     // ============ Internal: propose ============
 
     /// @notice Create a governance-call proposal, casting the proposer's own vote for it
-    /// @dev STUB — id assignment only, wired up so the host wrapper (step 5) has something to call
-    ///      and the project keeps compiling. Full body (target guard, snapshot, auto-vote, events)
-    ///      lands in step 6.
+    /// @dev Mirrors VotingRecipientRegistry._propose + _createProposal, but this mixin cannot read
+    ///      the host's recipient set (own EIP-7201 namespace) or its `msg.sender`-eligibility gate —
+    ///      both are handled by the caller (VotingRecipientRegistry.proposeGovernanceCall) BEFORE
+    ///      calling this:
+    ///        - the host checks `base.isRecipientMapping[msg.sender]` and reverts its own
+    ///          NotARecipient if the caller isn't a current recipient
+    ///        - the host reads its own `proposalExpiry()` once and passes the already-computed
+    ///          absolute `expiresAt` in
+    ///      `msg.sender` here is still the original external caller — Solidity does not change it
+    ///      across an internal call — so the auto-vote below credits the right address.
     /// @param target The contract the call is aimed at, may be the host itself
     /// @param callData ABI-encoded call to perform on `target` once the proposal passes
     /// @dev `calldata`, not `memory`: the only caller (VotingRecipientRegistry.proposeGovernanceCall)
@@ -182,7 +189,27 @@ abstract contract GovernanceCallRegistryBase {
         address[] memory electorate,
         uint256 expiresAt
     ) internal returns (uint256 proposalId) {
+        if (target == address(0)) revert GovernanceCallInvalidTarget();
+
         GovernanceCallRegistryBaseStorage storage $ = _getGovernanceCallRegistryBaseStorage();
         proposalId = $.proposalCount++;
+        GovernanceCallProposal storage proposal = $.proposals[proposalId];
+        proposal.target = target;
+        proposal.callData = callData;
+        proposal.expiresAt = expiresAt;
+        proposal.requiredVotes = electorate.length;
+
+        // Snapshot eligible voters from the electorate handed in by the host — not re-derived here.
+        for (uint256 i = 0; i < electorate.length; i++) {
+            proposal.isEligibleVoter[electorate[i]] = true;
+        }
+
+        // Proposer automatically votes for their own proposal, same as the classic path.
+        // Note: even if requiredVotes == 1 this does NOT auto-execute
+        proposal.hasVoted[msg.sender] = true;
+        proposal.voteCount = 1;
+
+        emit GovernanceCallProposed(proposalId, target, callData);
+        emit GovernanceCallVoteCast(proposalId, msg.sender);
     }
 }
