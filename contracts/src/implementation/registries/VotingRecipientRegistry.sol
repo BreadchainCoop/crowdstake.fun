@@ -109,6 +109,15 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         }
     }
 
+    /// @notice Upper bound on proposalExpiry
+    /// @dev Without a cap, block.timestamp + proposalExpiry (computed on every classic vote/
+    ///      execute check, and on every governance-call proposal) can overflow uint256 and revert
+    ///      unconditionally — bricking voting entirely, with no way to call setProposalExpiry again
+    ///      if the registry is self-owned (the only path back in is through the very mechanism this
+    ///      overflow blocks). 365 days leaves an enormous safety margin against any real
+    ///      block.timestamp while comfortably covering any legitimate use.
+    uint256 private constant MAX_PROPOSAL_EXPIRY = 365 days;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -225,7 +234,8 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Thrown when attempting to initialize the registry with an empty recipients array
     error NoRecipients();
 
-    /// @notice Thrown when attempting to set an invalid proposal expiry duration
+    /// @notice Thrown when attempting to set an invalid proposal expiry duration (zero or above
+    ///         MAX_PROPOSAL_EXPIRY)
     error InvalidProposalExpiry();
 
     /// @notice Thrown when creating a cross-chain proposal whose key already exists on this chain
@@ -269,7 +279,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         __CrossChainRegistryBase_init(_familyId);
 
         if (initialRecipients.length == 0) revert NoRecipients();
-        if (_proposalExpiry == 0) revert InvalidProposalExpiry();
+        if (_proposalExpiry == 0 || _proposalExpiry > MAX_PROPOSAL_EXPIRY) revert InvalidProposalExpiry();
 
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
         $.proposalExpiry = _proposalExpiry;
@@ -289,10 +299,14 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Update the proposal expiry duration
     /// @dev Only the admin (owner) can call this function
     /// @dev Setting expiry to 0 is not allowed to prevent immediate expiration of all proposals
+    /// @dev Setting expiry above MAX_PROPOSAL_EXPIRY is not allowed to keep
+    ///      block.timestamp + proposalExpiry from overflowing on every subsequent expiry check —
+    ///      an overflow reverts unconditionally, bricking voting with no way back if the registry
+    ///      is self-owned (see MAX_PROPOSAL_EXPIRY's own comment)
     /// @dev This change affects all future proposals, existing proposals use their original expiry
     /// @param newExpiry The new expiry duration in seconds
     function setProposalExpiry(uint256 newExpiry) external onlyOwner {
-        if (newExpiry == 0) revert InvalidProposalExpiry();
+        if (newExpiry == 0 || newExpiry > MAX_PROPOSAL_EXPIRY) revert InvalidProposalExpiry();
 
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
         uint256 oldExpiry = $.proposalExpiry;

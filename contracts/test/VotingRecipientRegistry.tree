@@ -76,5 +76,7 @@ VotingRecipientRegistryTest
 │   └── it should revert with GovernanceCallInsufficientVotes
 ├── when the target call itself reverts
 │   └── it should bubble up the target's revert reason
-└── when a family instance proposes a governance call
-    └── it should revert with CrossChainOnly
+├── when a family instance proposes a governance call
+│   └── it should revert with CrossChainOnly
+└── when governance call required votes are snapshotted
+    └── it should not change after recipient set changes
