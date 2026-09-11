@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import {TestWrapper} from "./TestWrapper.sol";
 import {VotingRecipientRegistry} from "../src/implementation/registries/VotingRecipientRegistry.sol";
 import {IRecipientRegistry} from "../src/interfaces/IRecipientRegistry.sol";
+import {GovernanceCallRegistryBase} from "../src/abstract/GovernanceCallRegistryBase.sol";
+import {CrossChainRegistryBase} from "../src/abstract/CrossChainRegistryBase.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract VotingRecipientRegistryTest is TestWrapper {
@@ -20,6 +22,9 @@ contract VotingRecipientRegistryTest is TestWrapper {
     event VoteCast(uint256 indexed proposalId, address indexed voter);
     event ProposalExecuted(uint256 indexed proposalId);
     event ProposalExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
+    event GovernanceCallProposed(uint256 indexed proposalId, address indexed target, bytes callData);
+    event GovernanceCallVoteCast(uint256 indexed proposalId, address indexed voter);
+    event GovernanceCallExecuted(uint256 indexed proposalId);
 
     function setUp() public {
         VotingRecipientRegistry impl = new VotingRecipientRegistry();
@@ -363,11 +368,34 @@ contract VotingRecipientRegistryTest is TestWrapper {
         new ERC1967Proxy(address(impl), initData);
     }
 
+    function test_RevertWhen_ConfiguringProposalExpiry_TooLargeInInitialize() external {
+        // it should revert on an expiry above MAX_PROPOSAL_EXPIRY in initialize
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory initial = new address[](1);
+        initial[0] = RECIPIENT_1;
+        bytes memory initData =
+            abi.encodeWithSignature("initialize(address,address[],uint256)", ADMIN, initial, uint256(365 days + 1));
+
+        vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
+        new ERC1967Proxy(address(impl), initData);
+    }
+
     function test_RevertWhen_ConfiguringProposalExpiry_ZeroExpiryInUpdate() external {
         // it should revert on zero expiry in update
         vm.prank(ADMIN);
         vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
         registry.setProposalExpiry(0);
+    }
+
+    function test_RevertWhen_ConfiguringProposalExpiry_TooLargeInUpdate() external {
+        // it should revert on an expiry above MAX_PROPOSAL_EXPIRY in update
+        // Regression test for the overflow Copilot flagged: without this bound,
+        // block.timestamp + proposalExpiry (checked on every classic vote/execute and on every
+        // governance-call proposal) could overflow and revert unconditionally, bricking voting
+        // with no way back on a self-owned registry.
+        vm.prank(ADMIN);
+        vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
+        registry.setProposalExpiry(365 days + 1);
     }
 
     function test_RevertWhen_ConfiguringProposalExpiry_NonAdminSetsExpiry() external {
@@ -410,6 +438,271 @@ contract VotingRecipientRegistryTest is TestWrapper {
         registry.vote(proposalId);
 
         (,,,, bool executed,) = registry.getProposal(proposalId);
+        assertTrue(executed);
+    }
+
+    // ============ Governance calls ============
+
+    function test_WhenProposingAGovernanceCall() external {
+        // it should create proposal with auto-vote from proposer
+        // it should snapshot electorate and required votes at creation
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+
+        vm.expectEmit(true, true, false, true);
+        emit GovernanceCallProposed(0, address(registry), callData);
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        (
+            address target,
+            bytes memory storedCallData,
+            uint256 expiresAt,
+            uint256 voteCount,
+            uint256 requiredVotes,
+            bool executed
+        ) = registry.getGovernanceCallProposal(proposalId);
+
+        assertEq(target, address(registry));
+        assertEq(storedCallData, callData);
+        assertEq(expiresAt, block.timestamp + 7 days);
+        assertEq(voteCount, 1); // proposer auto-votes
+        assertEq(requiredVotes, 3); // snapshotted electorate size
+        assertFalse(executed);
+
+        assertTrue(registry.hasVotedGovernanceCall(proposalId, RECIPIENT_1));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_1));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_2));
+        assertTrue(registry.isEligibleGovernanceCallVoter(proposalId, RECIPIENT_3));
+    }
+
+    function test_WhenVotingOnAGovernanceCall() external {
+        // it should increment vote count
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.expectEmit(true, true, false, false);
+        emit GovernanceCallVoteCast(proposalId, RECIPIENT_2);
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        (,,, uint256 voteCount,,) = registry.getGovernanceCallProposal(proposalId);
+        assertEq(voteCount, 2);
+        assertTrue(registry.hasVotedGovernanceCall(proposalId, RECIPIENT_2));
+    }
+
+    function test_WhenAGovernanceCallReachesUnanimousVotes() external {
+        // it should auto-execute the target call
+        vm.prank(ADMIN);
+        registry.transferOwnership(address(registry));
+
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.expectEmit(true, false, false, false);
+        emit GovernanceCallExecuted(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.voteGovernanceCall(proposalId);
+
+        (,,,,, bool executed) = registry.getGovernanceCallProposal(proposalId);
+        assertTrue(executed);
+        assertEq(registry.proposalExpiry(), 14 days);
+    }
+
+    function test_WhenALoneRecipientProposesAGovernanceCall() external {
+        // it should NOT auto-execute even though the threshold is already met
+        // it should perform the target call once manually executed
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory solo = new address[](1);
+        solo[0] = RECIPIENT_1;
+        bytes memory initData =
+            abi.encodeWithSignature("initialize(address,address[],uint256)", ADMIN, solo, uint256(7 days));
+        VotingRecipientRegistry lone = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        vm.prank(ADMIN);
+        lone.transferOwnership(address(lone));
+
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (14 days));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = lone.proposeGovernanceCall(address(lone), callData);
+
+        (,,,, uint256 requiredVotes, bool executedAfterPropose) = lone.getGovernanceCallProposal(proposalId);
+        assertEq(requiredVotes, 1); // threshold already met by the proposer's own auto-vote...
+        assertFalse(executedAfterPropose); // ...but propose() never auto-executes
+
+        lone.executeGovernanceCall(proposalId);
+
+        (,,,,, bool executedAfterManual) = lone.getGovernanceCallProposal(proposalId);
+        assertTrue(executedAfterManual);
+        assertEq(lone.proposalExpiry(), 14 days);
+    }
+
+    function test_WhenProposingAGovernanceCallWithTheZeroAddressAsTarget() external {
+        // it should revert with GovernanceCallInvalidTarget
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallInvalidTarget.selector);
+        registry.proposeGovernanceCall(address(0), "");
+    }
+
+    function test_WhenANonRecipientProposesAGovernanceCall() external {
+        // it should revert with NotARecipient
+        vm.prank(NON_RECIPIENT);
+        vm.expectRevert(VotingRecipientRegistry.NotARecipient.selector);
+        registry.proposeGovernanceCall(address(registry), "");
+    }
+
+    function test_WhenAGovernanceCallExpires() external {
+        // it should reject votes on expired proposals
+        // it should reject execution of expired proposals
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        vm.warp(block.timestamp + 8 days);
+
+        vm.prank(RECIPIENT_2);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallExpired.selector);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallExpired.selector);
+        registry.executeGovernanceCall(proposalId);
+    }
+
+    function test_WhenANonEligibleAddressVotesOnAGovernanceCall() external {
+        // it should revert with GovernanceCallNotEligibleVoter
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        vm.prank(NON_RECIPIENT);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallNotEligibleVoter.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenDoubleVotingOnAGovernanceCall() external {
+        // it should revert with GovernanceCallAlreadyVoted
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        // RECIPIENT_1 already auto-voted at proposal creation
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallAlreadyVoted.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenVotingOnAnInvalidGovernanceCall() external {
+        // it should revert with GovernanceCallNotFound
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallNotFound.selector);
+        registry.voteGovernanceCall(999);
+    }
+
+    function test_WhenVotingOnAnExecutedGovernanceCall() external {
+        // it should revert with GovernanceCallAlreadyExecuted
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory solo = new address[](1);
+        solo[0] = RECIPIENT_1;
+        bytes memory initData =
+            abi.encodeWithSignature("initialize(address,address[],uint256)", ADMIN, solo, uint256(7 days));
+        VotingRecipientRegistry lone = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        // A harmless view call as the target — succeeds regardless of ownership, so this test
+        // doesn't need the self-ownership setup other execution tests use.
+        bytes memory harmlessCallData = abi.encodeCall(VotingRecipientRegistry.proposalExpiry, ());
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = lone.proposeGovernanceCall(address(lone), harmlessCallData);
+        lone.executeGovernanceCall(proposalId);
+
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallAlreadyExecuted.selector);
+        lone.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenExecutingAGovernanceCallWithoutEnoughVotes() external {
+        // it should revert with GovernanceCallInsufficientVotes
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), "");
+
+        // Only 1 of 3 votes (the proposer's own auto-vote)
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallInsufficientVotes.selector);
+        registry.executeGovernanceCall(proposalId);
+    }
+
+    function test_WhenTheTargetCallItselfReverts() external {
+        // it should bubble up the target's revert reason
+        vm.prank(ADMIN);
+        registry.transferOwnership(address(registry));
+
+        // setProposalExpiry(0) reverts with InvalidProposalExpiry — Address.functionCall must
+        // propagate that exact error, not a generic "call failed".
+        bytes memory callData = abi.encodeCall(VotingRecipientRegistry.setProposalExpiry, (0));
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), callData);
+
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+
+        vm.prank(RECIPIENT_3);
+        vm.expectRevert(VotingRecipientRegistry.InvalidProposalExpiry.selector);
+        registry.voteGovernanceCall(proposalId);
+    }
+
+    function test_WhenAFamilyInstanceProposesAGovernanceCall() external {
+        // it should revert with CrossChainOnly
+        VotingRecipientRegistry impl = new VotingRecipientRegistry();
+        address[] memory initial = new address[](3);
+        initial[0] = RECIPIENT_1;
+        initial[1] = RECIPIENT_2;
+        initial[2] = RECIPIENT_3;
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address[],uint256,bytes32)", ADMIN, initial, uint256(7 days), bytes32(uint256(1))
+        );
+        VotingRecipientRegistry family = VotingRecipientRegistry(address(new ERC1967Proxy(address(impl), initData)));
+
+        vm.prank(RECIPIENT_1);
+        vm.expectRevert(CrossChainRegistryBase.CrossChainOnly.selector);
+        family.proposeGovernanceCall(address(family), "");
+    }
+
+    function test_WhenGovernanceCallRequiredVotesAreSnapshotted() external {
+        // it should not change after recipient set changes
+        // Regression test flagged in code review: a governance-call proposal must keep requiring
+        // votes from (and only from) the electorate snapshotted at its own creation, even after
+        // the live recipient set changes via an unrelated classic proposal.
+        bytes memory harmlessCallData = abi.encodeCall(VotingRecipientRegistry.proposalExpiry, ());
+        vm.prank(RECIPIENT_1);
+        uint256 proposalId = registry.proposeGovernanceCall(address(registry), harmlessCallData);
+        (,,,, uint256 requiredVotesAtCreation,) = registry.getGovernanceCallProposal(proposalId);
+        assertEq(requiredVotesAtCreation, 3);
+
+        // Add a 4th recipient via a separate, unrelated classic proposal
+        vm.prank(RECIPIENT_1);
+        uint256 addProposal = registry.proposeAddition(address(0x55));
+        vm.prank(RECIPIENT_2);
+        registry.vote(addProposal);
+        vm.prank(RECIPIENT_3);
+        registry.vote(addProposal);
+        registry.processQueue();
+        assertEq(registry.getRecipientCount(), 4);
+
+        // The governance-call proposal still requires only 3 votes (snapshotted at creation)
+        (,,,, uint256 requiredVotesAfter,) = registry.getGovernanceCallProposal(proposalId);
+        assertEq(requiredVotesAfter, 3);
+
+        // The new recipient is NOT eligible to vote on the pre-existing governance-call proposal
+        assertFalse(registry.isEligibleGovernanceCallVoter(proposalId, address(0x55)));
+        vm.prank(address(0x55));
+        vm.expectRevert(GovernanceCallRegistryBase.GovernanceCallNotEligibleVoter.selector);
+        registry.voteGovernanceCall(proposalId);
+
+        // The original electorate can still vote and reach the original (unchanged) threshold
+        vm.prank(RECIPIENT_2);
+        registry.voteGovernanceCall(proposalId);
+        vm.prank(RECIPIENT_3);
+        registry.voteGovernanceCall(proposalId);
+
+        (,,,,, bool executed) = registry.getGovernanceCallProposal(proposalId);
         assertTrue(executed);
     }
 }

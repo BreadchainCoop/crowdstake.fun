@@ -44,5 +44,39 @@ VotingRecipientRegistryTest
 │   ├── it should revert on zero expiry in initialize
 │   ├── it should revert on zero expiry in update
 │   └── it should only allow admin to set expiry
-└── when required votes are snapshotted
+├── when required votes are snapshotted
+│   └── it should not change after recipient set changes
+├── when proposing a governance call
+│   ├── it should create proposal with auto-vote from proposer
+│   └── it should snapshot electorate and required votes at creation
+├── when proposing a governance call with the zero address as target
+│   └── it should revert with GovernanceCallInvalidTarget
+├── when a non-recipient proposes a governance call
+│   └── it should revert with NotARecipient
+├── when voting on a governance call
+│   └── it should increment vote count
+├── when a governance call reaches unanimous votes
+│   └── it should auto-execute the target call
+├── when manually executing a governance call with enough votes
+│   └── it should perform the target call
+├── when a lone recipient proposes a governance call
+│   └── it should NOT auto-execute even though the threshold is already met
+├── when a governance call expires
+│   ├── it should reject votes on expired proposals
+│   └── it should reject execution of expired proposals
+├── when a non-eligible address votes on a governance call
+│   └── it should revert with GovernanceCallNotEligibleVoter
+├── when double voting on a governance call
+│   └── it should revert with GovernanceCallAlreadyVoted
+├── when voting on an invalid governance call
+│   └── it should revert with GovernanceCallNotFound
+├── when voting on an executed governance call
+│   └── it should revert with GovernanceCallAlreadyExecuted
+├── when executing a governance call without enough votes
+│   └── it should revert with GovernanceCallInsufficientVotes
+├── when the target call itself reverts
+│   └── it should bubble up the target's revert reason
+├── when a family instance proposes a governance call
+│   └── it should revert with CrossChainOnly
+└── when governance call required votes are snapshotted
     └── it should not change after recipient set changes

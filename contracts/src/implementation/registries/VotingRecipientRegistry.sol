@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {AbstractRecipientRegistry} from "../../abstract/AbstractRecipientRegistry.sol";
 import {CrossChainRegistryBase} from "../../abstract/CrossChainRegistryBase.sol";
+import {GovernanceCallRegistryBase} from "../../abstract/GovernanceCallRegistryBase.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title VotingRecipientRegistry
@@ -16,7 +17,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///      classic mutation paths are gated onlyClassicRegistry on family instances so a chain-local
 ///      proposal cannot silently break family set-equality.
 /// @author BreadKit Protocol
-contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistryBase {
+contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistryBase, GovernanceCallRegistryBase {
     using ECDSA for bytes32;
 
     /// @notice Structure containing all information about a proposal
@@ -107,6 +108,15 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
             $.slot := VOTING_RECIPIENT_REGISTRY_STORAGE
         }
     }
+
+    /// @notice Upper bound on proposalExpiry
+    /// @dev Without a cap, block.timestamp + proposalExpiry (computed on every classic vote/
+    ///      execute check, and on every governance-call proposal) can overflow uint256 and revert
+    ///      unconditionally — bricking voting entirely, with no way to call setProposalExpiry again
+    ///      if the registry is self-owned (the only path back in is through the very mechanism this
+    ///      overflow blocks). 365 days leaves an enormous safety margin against any real
+    ///      block.timestamp while comfortably covering any legitimate use.
+    uint256 private constant MAX_PROPOSAL_EXPIRY = 365 days;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -224,7 +234,8 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Thrown when attempting to initialize the registry with an empty recipients array
     error NoRecipients();
 
-    /// @notice Thrown when attempting to set an invalid proposal expiry duration
+    /// @notice Thrown when attempting to set an invalid proposal expiry duration (zero or above
+    ///         MAX_PROPOSAL_EXPIRY)
     error InvalidProposalExpiry();
 
     /// @notice Thrown when creating a cross-chain proposal whose key already exists on this chain
@@ -268,7 +279,7 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         __CrossChainRegistryBase_init(_familyId);
 
         if (initialRecipients.length == 0) revert NoRecipients();
-        if (_proposalExpiry == 0) revert InvalidProposalExpiry();
+        if (_proposalExpiry == 0 || _proposalExpiry > MAX_PROPOSAL_EXPIRY) revert InvalidProposalExpiry();
 
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
         $.proposalExpiry = _proposalExpiry;
@@ -288,10 +299,14 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
     /// @notice Update the proposal expiry duration
     /// @dev Only the admin (owner) can call this function
     /// @dev Setting expiry to 0 is not allowed to prevent immediate expiration of all proposals
+    /// @dev Setting expiry above MAX_PROPOSAL_EXPIRY is not allowed to keep
+    ///      block.timestamp + proposalExpiry from overflowing on every subsequent expiry check —
+    ///      an overflow reverts unconditionally, bricking voting with no way back if the registry
+    ///      is self-owned (see MAX_PROPOSAL_EXPIRY's own comment)
     /// @dev This change affects all future proposals, existing proposals use their original expiry
     /// @param newExpiry The new expiry duration in seconds
     function setProposalExpiry(uint256 newExpiry) external onlyOwner {
-        if (newExpiry == 0) revert InvalidProposalExpiry();
+        if (newExpiry == 0 || newExpiry > MAX_PROPOSAL_EXPIRY) revert InvalidProposalExpiry();
 
         VotingRecipientRegistryStorage storage $ = _getVotingRecipientRegistryStorage();
         uint256 oldExpiry = $.proposalExpiry;
@@ -452,6 +467,50 @@ contract VotingRecipientRegistry is AbstractRecipientRegistry, CrossChainRegistr
         }
 
         emit ProposalExecuted(proposalId);
+    }
+
+    // ============ Governance calls (classic only) ============
+
+    /// @notice Propose an arbitrary call to `target`, decided by a unanimous vote of current
+    ///         recipients — the generic mechanism behind e.g. changing cycle length, rotating the
+    ///         yield claimer, or this registry's own setProposalExpiry/setAtomicExecution
+    /// @dev onlyClassicRegistry: family instances don't get this mechanism in this version
+    /// @dev NotARecipient is checked here, not inside the mixin: GovernanceCallRegistryBase has its
+    ///      own EIP-7201 namespace and cannot read base.isRecipientMapping — same reason expiresAt
+    ///      is computed here, from this registry's own live proposalExpiry, and handed in already
+    ///      absolute.
+    /// @param target The contract the call is aimed at, may be this registry itself
+    /// @param callData ABI-encoded call to perform on `target` once the proposal passes
+    /// @return proposalId The id assigned to the new proposal
+    function proposeGovernanceCall(address target, bytes calldata callData)
+        external
+        onlyClassicRegistry
+        returns (uint256 proposalId)
+    {
+        AbstractRecipientRegistryStorage storage base = _getAbstractRecipientRegistryStorage();
+        if (!base.isRecipientMapping[msg.sender]) revert NotARecipient();
+
+        return _proposeGovernanceCall(target, callData, base.recipients, block.timestamp + proposalExpiry());
+    }
+
+    /// @notice Cast a vote on a governance-call proposal
+    /// @dev onlyClassicRegistry, same scope restriction as proposeGovernanceCall. No NotARecipient
+    ///      gate here — eligibility was already snapshotted at proposal creation into the mixin's
+    ///      own storage, so it's checked entirely inside _voteGovernanceCall, same as the classic
+    ///      vote() below does not re-check base.isRecipientMapping either.
+    /// @param proposalId The id of the proposal to vote on
+    function voteGovernanceCall(uint256 proposalId) external onlyClassicRegistry {
+        _voteGovernanceCall(proposalId);
+    }
+
+    /// @notice Manually execute a governance-call proposal that already has enough votes
+    /// @dev onlyClassicRegistry, same scope restriction as the rest of this mechanism. Needed for
+    ///      the one gap propose+vote leave open: propose() never auto-executes even when the
+    ///      proposer's own vote already meets the threshold (e.g. a lone-recipient registry), so
+    ///      without this there would be no way to ever trigger that proposal.
+    /// @param proposalId The id of the proposal to execute
+    function executeGovernanceCall(uint256 proposalId) external onlyClassicRegistry {
+        _executeGovernanceCall(proposalId);
     }
 
     // ============ Cross-chain (family) governance ============
